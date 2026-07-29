@@ -19,6 +19,12 @@ node_modules/
 *.log
 evolver.pid
 
+# Lock files
+*.lock
+
+# Inbox files (not config)
+INBOX_FILES/
+
 # OS
 .DS_Store
 Thumbs.db
