@@ -22,6 +22,119 @@ evolver.pid
 # Lock files
 *.lock
 
+# Data / user files
+Obsidian Vault/
+OutPut Box/
+WebChat BackUp/
+PikPak/
+pikpak/
+sessions/
+SOUL.md
+infographic/
+infographic_gen.py
+daily_stock_analysis/
+frontend-slides/
+humanize-ppt/
+
+# System / config dirs
+.cache/
+.config/
+.hermes/
+.hermes_history
+.hermes_scripts/
+.learnings/
+.local/
+.npm/
+.siyuan_extracted
+.bailian_key.tmp
+.bailian_key*
+
+# Large binaries
+*.AppImage
+*.tar.gz
+*.so
+*.so.*
+
+# Temp / scripts / generated
+/tmp/
+*.pid
+*.log
+evolver.pid
+cron/
+*.bak*
+auth.json
+*.db
+*.db-shm
+*.db-wal
+kanban.db
+response_store.db*
+state.db*
+projects.db
+verification_evidence.db
+state/
+memories/
+memory/
+plugins/
+gateway/
+gateway_state.json
+weixin/
+apps/
+bin/
+scripts/
+home/
+logs/
+processes.json
+
+# Root-level scripts (untracked loose files)
+/_*.py
+/jav_manager.py
+/jav_agent.py
+/pikpak_*.py
+/check_pikpak_*.py
+/wait_pikpak_dl.py
+/get_*.py
+/redl_*.py
+/multi_dl.py
+/gen_*.py
+/fix_*.py
+/batch_*.py
+/inbox_scan.py
+/refresh_related.py
+/final_batch.py
+/get_and_dl_sone.py
+/note_enhance.py
+/ingest_docs.py
+/siyuan_sync.py
+/rss_monitor.py
+/lint_vault.py
+/todo_import.py
+/gen_report*.py
+/gold_*.py
+/start_xray_test.py
+/add_*.py
+/gold_cron.sh
+/make_cron.sh
+/pikpak.sh
+/download_episodes.sh
+
+# Libraries & tools
+aria2c
+lib*.so*
+lib*.cc
+lsp/
+lazy-packages/
+ppt-master-repo/
+mihomo/
+nohup.out
+proxy-skill/sing-box
+*.json
+
+# Config backups
+config.yaml.bak*
+
+# Lock files
+*.lock
+
 # Inbox files (not config)
 INBOX_FILES/
 
