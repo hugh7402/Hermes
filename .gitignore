@@ -1,0 +1,24 @@
+# Sensitive
+.env
+*.env.*
+credentials*
+secrets*
+
+# Large / cache
+cache/
+__pycache__/
+*.pyc
+.venv/
+node_modules/
+.hermes/state/
+.hermes/sessions/
+
+# Temp
+/tmp/
+*.pid
+*.log
+evolver.pid
+
+# OS
+.DS_Store
+Thumbs.db
