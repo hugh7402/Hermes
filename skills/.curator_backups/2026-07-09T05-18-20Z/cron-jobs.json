@@ -1,0 +1,189 @@
+{
+  "jobs": [
+    {
+      "id": "c3e92b82c93a",
+      "name": "\u6bcf\u65e5\u6587\u6863\u81ea\u52a8\u5165\u5e93",
+      "prompt": "\u8fd0\u884c\u6587\u6863\u81ea\u52a8\u5165\u5e93\u4efb\u52a1\uff1a\n\n1. \u6267\u884c `cd /opt/data && python3 /opt/data/ingest_docs.py` \u626b\u63cf `/opt/data/WebChat BackUp/\u6587\u6863/` \u4e2d\u7684\u65b0\u6587\u6863\n2. \u6bcf\u6279\u6700\u591a\u5904\u7406 7 \u4e2a\u6587\u4ef6\n3. \u5982\u679c OCR \u626b\u63cf\u4ef6\u8d85\u65f6\uff08\u8d85\u8fc7 400 \u79d2\uff09\uff0c\u76f4\u63a5\u8df3\u8fc7\u8be5\u6587\u4ef6\uff0c\u4e0d\u8981\u91cd\u8bd5\uff0c\u4e0d\u8981\u5361\u4f4f\u3002\u7ee7\u7eed\u5904\u7406\u4e0b\u4e00\u4e2a\u6587\u4ef6\u3002\n4. \u7528\u4e2d\u6587\u62a5\u544a\u5904\u7406\u7ed3\u679c\uff1a\u5904\u7406\u4e86\u51e0\u4e2a\u6587\u4ef6\u3001\u6210\u529f\u51e0\u4e2a\u3001\u5931\u8d25\u51e0\u4e2a\uff08\u5206\u522b\u62a5\u6587\u4ef6\u540d\u548c\u539f\u56e0\uff09",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": null,
+      "no_agent": false,
+      "context_from": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "30 8 * * *",
+        "display": "30 8 * * *"
+      },
+      "schedule_display": "30 8 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 30
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-06-16T21:38:59.096552+08:00",
+      "next_run_at": "2026-07-10T08:30:00+08:00",
+      "last_run_at": "2026-07-09T08:33:49.773555+08:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "origin",
+      "origin": {
+        "platform": "weixin",
+        "chat_id": "o9cq807-R1vQ2rE1tVqRjIack5QA@im.wechat",
+        "chat_name": null,
+        "thread_id": null
+      },
+      "enabled_toolsets": [
+        "terminal",
+        "file"
+      ],
+      "workdir": null,
+      "profile": null,
+      "fire_claim": null
+    },
+    {
+      "id": "f1e56e8511d3",
+      "name": "\u77e5\u8bc6\u5e93\u6708\u5ea6\u5065\u5eb7\u5de1\u68c0",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "lint_vault.sh",
+      "no_agent": true,
+      "context_from": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 9 1 * *",
+        "display": "0 9 1 * *"
+      },
+      "schedule_display": "0 9 1 * *",
+      "repeat": {
+        "times": null,
+        "completed": 2
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-06-17T16:01:33.575816+08:00",
+      "next_run_at": "2026-08-01T09:00:00+08:00",
+      "last_run_at": "2026-07-01T09:03:30.412516+08:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": "delivery error: Weixin send failed: iLink sendmessage rate limited: ret=-2 errcode=None errmsg=rate limited",
+      "deliver": "origin",
+      "origin": {
+        "platform": "weixin",
+        "chat_id": "o9cq807-R1vQ2rE1tVqRjIack5QA@im.wechat",
+        "chat_name": null,
+        "thread_id": null
+      },
+      "enabled_toolsets": null,
+      "workdir": null,
+      "profile": null
+    },
+    {
+      "id": "5652f5032fe5",
+      "name": "\u601d\u6e90\u7b14\u8bb0\u540c\u6b65\u5165\u5e93",
+      "prompt": "\u8fd0\u884c\u601d\u6e90\u7b14\u8bb0\u540c\u6b65\u5165\u5e93\u4efb\u52a1\uff1a\n\n1. \u8fd0\u884c `cd /opt/data && python3 siyuan_sync.py` \u811a\u672c\uff0c\u5c06\u601d\u6e90\u7b14\u8bb0\u62bd\u53d6\u5230 Obsidian \u77e5\u8bc6\u5e93\n2. \u6b64\u811a\u672c\u4f1a\u81ea\u52a8\uff1a\n   1) \u5c1d\u8bd5\u901a\u8fc7\u601d\u6e90 API \u62c9\u53d6\u6700\u65b0\u7b14\u8bb0\n   2) \u626b\u63cf 00-INBOX \u76ee\u5f55\u4e2d\u7684 .sy \u6587\u4ef6\n   3) \u63d0\u53d6\u5185\u5bb9\u5e76\u8f6c\u6362\u4e3a\u5c42\u7ea7\u4e2d\u6587\u6587\u4ef6\u540d\uff08\u5982 \u9655\u897f\u667a\u6167\u6c11\u653f\u9879\u76ee-\u9886\u5bfc\u5bf9\u63a5\u4f1a.md\uff09\n   4) \u8c03\u7528 note_enhance.py \u589e\u5f3a frontmatter\n3. \u8bb0\u5f55\u5165\u5e93\u7684\u7b14\u8bb0\u6570\u91cf\n4. **\u65e0\u8bba\u662f\u5426\u6709\u65b0\u7b14\u8bb0\u5165\u5e93**\uff0c\u90fd\u7528\u4e2d\u6587\u8f93\u51fa\u7b80\u77ed\u7684\u6267\u884c\u62a5\u544a\uff08\u5305\u542b\uff1a\u6267\u884c\u65f6\u95f4\u3001\u65b0\u5165\u5e93\u6570\u91cf\u300100-INBOX/ \u603b\u7b14\u8bb0\u6570\u3001\u72b6\u6001\uff09",
+      "skills": [
+        "hermes-agent"
+      ],
+      "skill": "hermes-agent",
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": null,
+      "no_agent": false,
+      "context_from": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "30 19 * * *",
+        "display": "30 19 * * *"
+      },
+      "schedule_display": "30 19 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 22
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-06-18T22:31:48.412387+08:00",
+      "next_run_at": "2026-07-09T19:30:00+08:00",
+      "last_run_at": "2026-07-08T19:33:30.053256+08:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": "delivery error: Weixin send failed: iLink sendmessage rate limited; cooldown active for 30.0s",
+      "deliver": "origin",
+      "origin": {
+        "platform": "weixin",
+        "chat_id": "o9cq807-R1vQ2rE1tVqRjIack5QA@im.wechat",
+        "chat_name": null,
+        "thread_id": null
+      },
+      "enabled_toolsets": [
+        "terminal",
+        "file"
+      ],
+      "workdir": null,
+      "profile": null,
+      "fire_claim": null
+    },
+    {
+      "id": "c4eb1453be0e",
+      "name": "DSOD-008 5.13GB\u91cd\u8bd5",
+      "prompt": "\u91cd\u8bd5\u4e0b\u8f7d DSOD-008 5.13GB \u7248\uff08\u975e\u9ad8\u5cf0\u65f6\u6bb5\uff0c\u4ece PikPak CDN \u62c9\u53d6\uff09\u3002\n\n\u4e4b\u524d\u7684 btih:5604b04d22654d1abe2b65c4849618b26b2e8dc4 \u78c1\u94fe\u5728 PikPak \u4e0a\u5904\u7406\u5931\u8d25\uff08\u4efb\u52a1\u521b\u5efa\u540e\u59cb\u7ec8 phase=waiting\uff09\u3002\u8fd9\u6b21\u6267\u884c\uff1a\n\n1. \u7528 PikPak API \u5c1d\u8bd5\u91cd\u65b0\u6dfb\u52a0\u78c1\u94fe\u5230\u79bb\u7ebf\u4e0b\u8f7d\n   \u78c1\u94fe: magnet:?xt=urn:btih:5604b04d22654d1abe2b65c4849618b26b2e8dc4&dn=[javdb.com]DSOD-008\n2. \u7b49\u5f85\u6700\u591a5\u5206\u949f\uff0c\u6bcf\u969410\u79d2\u68c0\u67e5\u4e00\u6b21\u79bb\u7ebf\u4efb\u52a1\u72b6\u6001\n3. \u5982\u679c PikPak \u5904\u7406\u6210\u529f\uff08\u8fdb\u5165 PHASE_TYPE_COMPLETE\uff09\uff1a\n   - \u68c0\u67e5\u662f\u5426\u662f\u6587\u4ef6\u5939\n   - \u5220\u9664\u5e7f\u544a\u6587\u4ef6\uff08\u4fdd\u7559\u4e3b\u89c6\u9891\uff09\n   - \u79fb\u51fa\u89c6\u9891\u5230\u6839\u76ee\u5f55\n   - \u91cd\u547d\u540d\u4e3a DSOD-008.mp4\n   - \u5220\u9664\u7a7a\u6587\u4ef6\u5939\n   - \u5c06\u6587\u4ef6\u79fb\u5165 Inbox-JAV\n   - \u83b7\u53d6 CDN \u76f4\u94fe\n   - \u7528 aria2 \u4e0b\u8f7d\u5230 /tmp/dl/DSOD-008.mp4\n   - \u5b8c\u6210\u540e ffprobe \u6821\u9a8c\n   - \u642c\u5165 Inbox-JAV\uff0c\u91cd\u547d\u540d\u4e3a\uff1aDSOD-008-\u611b\u82b1\u672a\u6eff-\u591aP\u8f6e\u5978\u4e2d\u51fa \u5728\u745c\u4f3d\u6559\u5e08\u6c34\u676f\u88ab\u4e0b\u5a9a\u836f\u5fcd\u4e0d\u4f4f\u4e0d\u505c\u88ab\u8f6e\u5978\u4e2d\u51fa\u7684\u7f8e\u767d\u6781\u54c1\u5c24\u7269.mp4\n   - \u68c0\u67e5\u4e4b\u524d\u4e0b\u8f7d\u7684 DSOD-008 zh-CN \u5b57\u5e55\u662f\u5426\u53ef\u7528\uff0c\u5982\u679c\u6709\u5c31\u4e00\u8d77\u642c\u5165\n4. \u5982\u679c PikPak 5\u5206\u949f\u4ecd\u7136\u5904\u7406\u5931\u8d25\uff08File or folder is not found\uff09\uff0c\u5982\u5b9e\u6c47\u62a5\u5931\u8d25\u3002\u4e0d\u8981\u81ea\u4f5c\u4e3b\u5f20\u6362\u522b\u7684\u7248\u672c",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": null,
+      "no_agent": false,
+      "context_from": null,
+      "schedule": {
+        "kind": "once",
+        "run_at": "2026-07-09T19:00:00+08:00",
+        "display": "once at 2026-07-09 19:00"
+      },
+      "schedule_display": "once at 2026-07-09 19:00",
+      "repeat": {
+        "times": 1,
+        "completed": 0
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-07-08T18:02:48.088382+08:00",
+      "next_run_at": "2026-07-09T19:00:00+08:00",
+      "last_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "origin",
+      "origin": {
+        "platform": "weixin",
+        "chat_id": "o9cq807-R1vQ2rE1tVqRjIack5QA@im.wechat",
+        "chat_name": null,
+        "thread_id": null
+      },
+      "enabled_toolsets": [
+        "terminal",
+        "file"
+      ],
+      "workdir": null
+    }
+  ],
+  "updated_at": "2026-07-09T08:33:49.775545+08:00"
+}
