@@ -36,9 +36,15 @@ git remote add origin https://github.com/<user>/<repo>.git
 
 ### 2. .gitignore
 
-```
+```gitignore
+# Sensitive
 .env
 *.env.*
+credentials*
+secrets*
+.bailian_key*
+
+# Large / cache
 cache/
 __pycache__/
 *.pyc
@@ -46,9 +52,54 @@ __pycache__/
 node_modules/
 .hermes/state/
 .hermes/sessions/
+
+# System / config dirs (push declined if committed)
+.cache/
+.config/
+.hermes/
+.hermes_history
+.hermes_scripts/
+.learnings/
+.local/
+.npm/
+.siyuan_extracted
+
+# Data / user files
+Obsidian Vault/
+OutPut Box/
+WebChat BackUp/
+PikPak/
+sessions/
+
+# Large binaries
+*.AppImage
+*.tar.gz
+*.so
+*.so.*
+
+# Temp / scripts / generated
 /tmp/
 *.pid
 *.log
+*.bak*
+*.db
+*.db-shm
+*.db-wal
+state/
+memories/
+memory/
+plugins/
+gateway/
+weixin/
+apps/
+logs/
+
+# Embedded git repos (must exclude or push fails)
+daily_stock_analysis/
+frontend-slides/
+humanize-ppt/
+
+# Lock files
 *.lock
 INBOX_FILES/
 .DS_Store
@@ -98,21 +149,35 @@ mkdir -p /opt/data/scripts
 
 ```bash
 #!/bin/bash
+# 确保代理运行（中国网络环境）
+bash /opt/data/proxy-skill/proxy.sh start 2>/dev/null
+sleep 2
+
 cd /opt/data
+if [ -z "$(git status --porcelain)" ]; then
+  exit 0  # 无变更，直接退出
+fi
+
 git add -A
-git diff --cached --quiet || git commit -m "Auto backup $(date '+%Y-%m-%d %H:%M')"
-git push origin main
+git commit -m "auto backup $(date +%Y-%m-%d)"
+git push 2>&1
 ```
+
+> **注意**：如果推送被 GitHub 规则拒绝（`push declined due to repository rule violations`），说明 `git add -A` 带入了敏感文件。检查 `.gitignore` 是否遗漏了 `.bailian_key*`、`.config/`、`.cache/` 等目录。
+> 
+> 当前实际使用的 cron 是 `auto-git-backup`（18:05 每天），no_agent 模式直接跑脚本。
 
 加执行权限并测试：`chmod +x /opt/data/scripts/git-backup.sh && /opt/data/scripts/git-backup.sh`
 
 ## 坑点
 
 - **空仓库首次推送**：`git push -u origin main` 需要先设 upstream
-- **https 无交互认证**：容器环境可能弹不出用户名输入，必须用 token 或 SSH
+- **https 无交互认证**：容器环境可能弹不出用户名输入，必须用 token + credential store 或 SSH
 - **.gitignore 漏了 .lock 文件**：`INBOX_FILES/workspace/.lock` 这类锁文件会导致 `git add -A` 失败
 - **不要备份整个 /opt/data**：session 数据库可能很大（GB 级），只加需要的目录
 - **cron 脚本路径用绝对路径**：cron 环境变量少，`git` 命令前可能需加 PATH
+- **⚠️ `git add -A` 会带上敏感文件和嵌入式 git 仓库**：`.bailian_key*`、`.config/rclone/rclone.conf` 等 token/key 文件会被 GitHub 规则拦截（push declined due to repository rule violations）。.gitignore 中必须显式排除 `.cache/`、`.config/`、`.hermes/`、`.local/`、`.npm/` 等 dot 目录，以及嵌入式 git 子仓库（否则推送失败）
+- **⚠️ GitHub 推送需要代理**（中国网络环境）：cron 脚本中需先 `bash /opt/data/proxy-skill/proxy.sh start` 再 `git push`
 - **hermes-agent-self-evolution 等实验工具装前先 push 一次**：确保有可回退点
 
 ## 恢复
