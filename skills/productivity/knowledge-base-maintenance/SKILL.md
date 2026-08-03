@@ -209,6 +209,8 @@ for f in unprocessed[:MAX_PER_RUN]:
 3. 扫描件分批处理（每批 3~5 个，较长超时）
 4. 超大扫描件自动跳过（hash 写入 `.ingested`）
 
+**OCR 引擎选型（2026-08-01 用户拍板）**：优先**本地 RapidOCR**（`/opt/data/ocr_venv`，`rapidocr_onnxruntime`，CPU 5-50s/页，质量高），批量修复用 `re_ocr_shells.py --workers 4`；云端 PaddleOCR-VL-1.5（SiliconFlow）只作备用（实测会连续 read timeout）。空壳判定用**相对阈值**（md <3000B 或 每页<150B），不要用绝对阈值漏判大文档。详见 `references/rapidocr-local-batch.md`。
+
 详见 `references/ocr-heavy-batch-ingest.md`、`references/large-batch-ingest-pattern.md`。
 
 ## 常见陷阱

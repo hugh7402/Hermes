@@ -266,7 +266,10 @@ asyncio.run(get_urls())
 - 分片不能太小（8MB 以上），否则 TCP 慢启动无法充分利用带宽。
 - CDN URL 有效期约 24 小时，但可能在几分钟内被 CDN 节点拒绝（403 error，随机旋转节点）。**必须在启动 aria2 前立即获取 URL**，不要缓存后等几分钟再用。失效时重新 `get_download_url()` 会分配不同 CDN 节点。
 - **🎯 CDN 节点速度不均**：PikPak 的不同 CDN 节点（dl-a10b-* vs dl-z01a-*）速度差异很大，有的 0.7~1 MiB/s，有的 8~12 MiB/s。发现单个文件速度 <2 MiB/s 时，**不必等待**，直接 kill 当前 aria2 进程，将多个文件合并到同一个 aria2 并行会话（`-j N`）下载。多文件并行时，慢的 CDN 节点带宽自然被挤占，快的节点先下完释放资源给其他文件。**总吞吐量远大于单文件低俗等待。**
-- **🚨 CDN URL 403 限流（2026-07-30 新增）**：PikPak CDN 会随机返回 `status=403`，伴随 `X-Xos-Err-Desc: 1` 头部，表示当前 CDN 节点拒绝服务。即使 URL 中的 `expire` 参数未到，节点也可能限流。修复：重调 `client.get_download_url(file_id)` 获取新 URL（通常分配到不同节点），`rm -f` 旧文件后从零重下。**不要**用 `--continue=true` 续传 403 后的文件——数据已损坏。
+- **🚨 文件级持续限速（2026-07-31）**：个别文件（如 NMSL-011 7.07GB）在**连续 4 个不同 CDN 节点**上都只有 20~120 KB/s（换 URL 3 次、每次分配到新节点 dl-a10b-1543/1555/1196 都限速）。**这不是节点问题，是该文件在 PikPak CDN 上的分发有问题**——继续换 URL 无用。处理：kill 进程 → 删除 PikPak 中的该文件 → 回 javdb 换**不同 btih 的磁链**重新离线（同番号通常有多个 btih）。判定标准：换 2 个节点仍 <500KB/s 且 ETA 以"小时"计 → 停止换 URL，直接换磁链。
+- **⚠️ 换不同大小版本必须删旧残留（2026-07-31）**：同一番号先下了小版本（如 1.8GB）被取消/中断，再下大版本（5.2GB）时，若 `/tmp/dl/番号.mp4` 残留旧文件，aria2 报 `total length mismatch. expected: 5577148855, actual: 1916883978`（expected 是新 URL 的目标大小，actual 是残留旧文件大小）。**每个 aria2 启动前必须 `rm -f /tmp/dl/番号.mp4 /tmp/dl/番号.mp4.aria2`**，特别是同一番号换过不同大小版本时。
+- **CDN URL 403 限流（2026-07-30 新增）**：PikPak CDN 会随机返回 `status=403`，伴随 `X-Xos-Err-Desc: 1` 头部，表示当前 CDN 节点拒绝服务。即使 URL 中的 `expire` 参数未到，节点也可能限流。修复：重调 `client.get_download_url(file_id)` 获取新 URL（通常分配到不同节点），`rm -f` 旧文件后从零重下。**不要**用 `--continue=true` 续传 403 后的文件——数据已损坏。
+- **死种/异常磁链重试策略**：参见 `references/dead-magnet-retry-strategy.md`。PikPak 死种（offline 任务消失）或 size=0 卡住时，等 30 分钟后重新搜索 javdb，最多 3 次。
 - **📊 状态报告含下载速度**：向用户汇报下载进度时，始终包含速度和 ETA（如 `ATID-537 | 573MiB/5.0GiB (11%) CN:8 DL:11MB/s ETA:7min`）。来自用户明确的偏好：`"以后再报状态时候可以加一个下载速度"`。
 - **⚠️ `batch_download_url` 不支持文件夹内文件**：`POST /files/{id}:batch_download_url` 用于获取文件直链，但如果文件在离线任务创建的文件夹内（见前文磁链坑），此 API 返回 "unimplemented"。正确方式是用 `GET /drive/v1/files/{id}?_magic=1`，URL 在 `web_content_link` 字段。
 
