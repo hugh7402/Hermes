@@ -114,7 +114,7 @@ ls -d /opt/data/Obsidian* 2>/dev/null
 
 1. 判断文档类型（腾讯文档/docs.qq.com 最常用）
 2. 用 `curl` 导出 API 下载 PDF：`https://docs.qq.com/doc/{DOC_ID}?download=1&format=pdf`
-3. 检查 PDF 文字量：pymupdf 提取 < 50 字 → 走 OCR
+3. 检查 PDF 是否扫描件 — **不能只看文字量**，用 PDF 结构探测（见下方"扫描件判定"陷阱）
 4. OCR 提取 → 写入 concepts/
 
 **版本对比**：如果先导出了 OCR PDF 版入库（后几页可能大面积乱码），当用户后续通过微信发送了同一份文档的原生 docx 版：\n1. 提取两种版本全部文字，对比有效字符数\n2. 确定**哪个来源**：docx 是微信发来的 → 写入 **`01-WeiXin/`**（而不是 concepts/ 原地覆盖）\n3. 从 concepts/ **删除**旧 OCR 版（避免重复），更新 `.ingested` hash 记录（旧 PDF hash → 新 docx hash）\n4. 重新运行 `note_enhance.py` 刷新 frontmatter，更新 index.md 中的目录计数\n5. 用户明确指定以哪个版本为准时，遵从其指示
@@ -125,7 +125,73 @@ ls -d /opt/data/Obsidian* 2>/dev/null
 write_file path="/opt/data/Obsidian Vault/Obsidian Vault/concepts/<笔记名>.md"
 ```
 
-## 用户工作规范（必遵守）
+## ⚠️ 扫描件判定陷阱（2026-08-01 重大事故）
+
+**症状**：某 PDF 提取出 567 字（封面通知文字），旧逻辑 `len(text) < 50` 判为"文字版"跳过 OCR → **27 页正文（扫描图片）一个字都没入库**，笔记只有标题+摘要，正文全丢。
+
+**全库排查结果**：472 个 PDF 中 364 个是扫描件（无文字层/图文混合），**252 个已入库笔记是空壳**（对应 md <3KB，只有 frontmatter 标题，正文丢失）。数据资产/可信数据空间/数字政府白皮书等重量级文档全部中招。
+
+**根因**：`ingest_docs.py` 旧版用 `if not text or len(text) < 50: OCR` 判断。很多扫描 PDF 有少量文字层（封面、通知、结尾），提取出几百字就绕过了 OCR 分支。
+
+**修复**：`ingest_docs.py` 新增 `_pdf_probe()`（PyMuPDF 探测 pages/text_chars/img_pages/text_pages）+ `_needs_ocr()` 结构判定，触发 OCR 的条件（任一）：
+- 文字量 < 50
+- 页数 >= 3 且总文字 < 800（即使提取出几百字，正文大概率是图）
+- 有图片页且 文字页占比 < 50%
+- 文件 >= 32MB 且文字 < 2000（大扫描报告全文）
+
+**批量体检脚本**：`/opt/data/scan_pdfs.py` — 全库扫描 PDF，输出 CSV 报告并标注 SUSPECT/EMPTY。复检命令：`cd /opt/data && uv run --with pymupdf python3 scan_pdfs.py`。判定标准：`pages>=3 and (text<800 or img_pages>0 and text_pages/pages<0.5)`。
+
+**回填空壳**：252 个空壳 md 需逐个重新 OCR，覆盖写回。用 `/tmp/pdf_scan_report.csv` 的 SUSPECT 列表驱动批量重跑。
+
+**⚠️ 空壳判定阈值（2026-08-01 修正）**：不能只用绝对大小 `md > 3KB` 判"已完整"——62 页扫描件只提取出 3.8KB 文字层照样是空壳（封面+通知文字）。正确判定：`md >= 3000B 且 md >= pages * 150`（每页不足 150B 即为空壳）。实测按此修正后空壳数从 252 升到 264。
+
+**批量回填脚本 v2（本地 RapidOCR 版）**：`/opt/data/re_ocr_shells.py` — 读 `/tmp/pdf_scan_report.csv` → 对 SUSPECT 且判定为空壳的逐个 OCR 并覆盖写回。**必须用 ocr_venv 的 python 运行**（RapidOCR + pymupdf 都装在那里，不能用 `uv run --with pymupdf`），支持多进程并行、断点续跑：
+```bash
+cd /opt/data && /opt/data/ocr_venv/bin/python3 re_ocr_shells.py --only "20260731_上海市数据局"   # 单文档重跑
+cd /opt/data && /opt/data/ocr_venv/bin/python3 re_ocr_shells.py --workers 4                      # 全量 4 进程并行
+cd /opt/data && /opt/data/ocr_venv/bin/python3 re_ocr_shells.py --workers 4 --limit 50           # 先跑 50 个
+```
+- `--workers N`：并行 worker 数（i3-N305 8 核实测 4 个最优，每个 ~50% CPU）
+- 断点续跑：已完成文件记录在 `/tmp/re_ocr_done.json`，中断后重跑自动跳过；脚本内还会按相对阈值 SKIP 已完整的
+- 单页 43-67s（dpi=150）；dpi 降到 100 提速不明显（瓶颈在模型推理不在图片大小）
+- ⚠️ 旧版 `re_ocr_shells.py` 的 `ocr_pdf()` 是 SiliconFlow API 版（实测 2026-08-01 约 60% 请求 read timeout，27 页跑 18 分钟，251 个文档要 30-40 小时）——v2 已改本地 RapidOCR，全量回填预计 5-8 小时。
+
+### 🚨 OOM 事故与混合架构（2026-08-02 重大教训）
+
+**事故**：`re_ocr_shells.py --workers 4` 跑全量 364 个 SUSPECT 时，在 15GB 内存机器上处理 1000+ 页大文件（《2024数据政策宝典》1019页、《数据资产政策法规汇编》780页等），**4 worker 同时渲染大 PDF 撑爆内存**，进程池子进程被系统 OOM kill，279 个文件全部报 `A process in the process pool was terminated abruptly`（只成功 17 个）。断点只记 OK，所以失败的全都会重跑。
+
+**修复 = 本地/云端混合分工**（两个脚本同时跑，互不重复）：
+
+| 引擎 | 负责文件 | 脚本 | 速度 |
+|:---:|:---|:---|:---|
+| 本地 RapidOCR | **<50 页**小文件 | `re_ocr_shells.py --workers 2` | ~50s/页 |
+| 云端 PaddleOCR-VL-1.5 | **≥50 页**大文件 | `re_ocr_cloud.py --workers 2` | **~10s/页（快5倍）** |
+
+- `re_ocr_shells.py` 已加过滤 `int(r[1]) < 50`（只跑小文件）；`re_ocr_cloud.py` 是新建的云端版，加过滤 `int(r[1]) >= 50`（只跑大文件）。两脚本独立断点（`/tmp/re_ocr_done.json` + `/tmp/re_ocr_cloud_done.json`），互不覆盖。
+- **关键：两个脚本不能同时跑同一批文件**——都从同一 CSV 读 SUSPECT 列表，不加页数分工过滤会重复处理并互相覆盖 md。
+
+**云端 PaddleOCR-VL-1.5 实测（2026-08-02，推翻旧的"read timeout 60%"结论）**：
+- 单页 ~10s（含 100dpi 渲染 + base64 传输 + API 推理），比本地快 5 倍
+- 走代理 `http://127.0.0.1:10808` + 每请求重试 3 次（间隔 5s）后稳定可用，不再 60% timeout
+- **base64 传图必须用 Python urllib 读文件**，不能 curl 命令行内嵌 base64（`Argument list too long`）
+- 调用：POST `https://api.siliconflow.cn/v1/chat/completions`，model=`PaddlePaddle/PaddleOCR-VL-1.5`，image_url 用 `data:image/png;base64,...`，max_tokens=2000
+
+**DPI 实测（2026-08-02，修正"dpi 降到 100 提速不明显"）**：云端模型 100/120/150dpi 识别字数相当（3775/3604/3682），**100dpi 最快且图片体积减半**（传输更快）。两个脚本的 `get_pixmap(dpi=150)` 均已改 `dpi=100`——对正文识别无影响，大文件还省内存（降低 OOM 风险）。
+
+**SUSPECT 数量 251 vs 364 的解释**：364 是 `scan_pdfs.py` 全量重扫的 SUSPECT 数（判定标准宽：文字页占比 <50% 就算）。251 是之前手动统计的空壳数。**逻辑正确**：SUSPECT ≠ 全部重跑，`process_one` 里 md 已完整（`>=3000B 且 >= pages*150`）的会 SKIP，只有真空壳才 OCR。
+
+### 🔄 OCR 引擎选型（2026-08-02 更新，混合并行）
+
+| 优先级 | 引擎 | 说明 |
+|:---:|:---|:---|
+| 1️⃣ | **本地 RapidOCR** | `/opt/data/ocr_venv`（rapidocr_onnxruntime）。CPU 单页 5-50s，完全离线/免费/无超时。**负责 <50 页小文件**。安装：`uv pip install --python /opt/data/ocr_venv/bin/python3 rapidocr_onnxruntime pymupdf`。用法：页 `get_pixmap(dpi=100)` 存 png → `RapidOCR()(png)` → 按行拼 text |
+| 2️⃣ | 云端 PaddleOCR-VL-1.5（SiliconFlow） | **负责 ≥50 页大文件**（与本地并行，见上方混合架构）。实测 ~10s/页（100dpi + base64 + 代理 127.0.0.1:10808 + 重试3次），比本地快 5 倍。2026-08-01 的"60% read timeout"结论已过时——走代理+重试后稳定。脚本 `re_ocr_cloud.py` |
+
+**规则：批量 OCR 默认本地+云端混合并行（小文件本地、大文件云端），避免 4 workers 全本地 OOM，也不要只开 API 单跑（无代理+重试会 timeout）。**
+
+**验证**：入库后抽查 md 大小——扫描件对应的 md 通常应 >3KB；<1.5KB 的基本是空壳。可用 `stat -c %s` 批量检查。
+
+
 
 1. **出错立即汇报**：遇到错误（超时、路径问题、API 失败等），立即向用户报告错误详情和原因，等待用户指示是否调整方案。不默默跳过、不自行替换方案。
 2. **任务结束出总结报告**：所有自动化任务执行完毕后出具完整总结报告，包含：成功/失败数量、耗时、配置变更、剩余待办事项。报告需自包含，让用户一眼看清结果。
@@ -139,3 +205,4 @@ write_file path="/opt/data/Obsidian Vault/Obsidian Vault/concepts/<笔记名>.md
 - **WeChat 实时管道缓存保留**：处理完后不清除缓存文件
 - **PaddleOCR 对培训照片可能输出乱码**，需人工检查 OCR 质量
 - **在线文档导出 PDF 需要走 OCR，且质量不可靠**：优先向用户索要原生 docx 版本
+- **扫描件判定与空壳回填**：详见 `references/scanned-pdf-detection-and-backfill.md`（含 `_needs_ocr` 逻辑、`scan_pdfs.py` 体检脚本、264 空壳回填流程）。回填脚本已升级为本地 RapidOCR 版（ocr_venv 运行、多进程、相对阈值判定），见上方"批量回填脚本 v2"
