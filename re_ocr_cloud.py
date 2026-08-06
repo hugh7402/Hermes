@@ -11,7 +11,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 BACKUP_DIR = "/opt/data/WebChat BackUp/文档"
 CONCEPTS = "/opt/data/Obsidian Vault/Obsidian Vault/concepts"
 DONE_MARKER = "/tmp/re_ocr_cloud_done.json"
-MIN_PAGES = 50  # 只处理大文件，小文件给本地脚本
+MIN_PAGES = 50  # 云端处理 50+ 页文件（2026-08-04 用户要求分流：本地RapidOCR忙不过来，50页以上给云端PaddleOCR-VL加速）
 
 def get_key():
     fd = os.open('/opt/data/.env', os.O_RDONLY)

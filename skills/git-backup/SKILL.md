@@ -133,11 +133,13 @@ git remote set-url origin git@github.com:<user>/<repo>.git
 
 ```bash
 cronjob action=create \
-  schedule="0 2 * * *" \
-  name="git-backup" \
-  script="/opt/data/scripts/git-backup.sh" \
+  schedule="5 18 * * 1,4" \
+  name="auto-git-backup" \
+  script="git_backup.sh" \
   no_agent=true
 ```
+
+> **⚠️ script 字段只传文件名，不要传绝对路径，更不要传内联脚本内容**。cronjob 工具校验要求相对路径；调度器把文件名解析到 `/opt/data/scripts/` 目录下找文件。传绝对路径会被工具拒绝（"Script path must be relative"），传内联 `#!/bin/bash...` 内容会被当路径拼接成 `/opt/data/scripts/#!/bin/bash...` → `Script not found` 报错（2026-08-03 auto-git-backup 事故根因）。
 
 或手动用终端写脚本：
 
@@ -165,7 +167,7 @@ git push 2>&1
 
 > **注意**：如果推送被 GitHub 规则拒绝（`push declined due to repository rule violations`），说明 `git add -A` 带入了敏感文件。检查 `.gitignore` 是否遗漏了 `.bailian_key*`、`.config/`、`.cache/` 等目录。
 > 
-> 当前实际使用的 cron 是 `auto-git-backup`（18:05 每天），no_agent 模式直接跑脚本。
+> 当前实际使用的 cron 是 `auto-git-backup`（周一/周四 18:05，用户 2026-07-29 改的），no_agent 模式直接跑脚本。实际脚本 `/opt/data/scripts/git_backup.sh` 逻辑：`proxy.sh start` → `git status --porcelain` 为空则静默退出（stdout 空 → cron 不投递）→ 有变更才 add/commit/push。**排查 cron 报错先看 `last_error` 字段**（`cronjob list` 或 `/opt/data/cron/jobs.json`），它直接给出失败原因（如 `Script not found: /opt/data/scripts/#!/bin/bash...` = script 字段被存成了内联内容而非文件名）。
 
 加执行权限并测试：`chmod +x /opt/data/scripts/git-backup.sh && /opt/data/scripts/git-backup.sh`
 
@@ -175,7 +177,7 @@ git push 2>&1
 - **https 无交互认证**：容器环境可能弹不出用户名输入，必须用 token + credential store 或 SSH
 - **.gitignore 漏了 .lock 文件**：`INBOX_FILES/workspace/.lock` 这类锁文件会导致 `git add -A` 失败
 - **不要备份整个 /opt/data**：session 数据库可能很大（GB 级），只加需要的目录
-- **cron 脚本路径用绝对路径**：cron 环境变量少，`git` 命令前可能需加 PATH
+- **cron script 字段只填文件名**：cronjob 工具把 `script` 解析到 `/opt/data/scripts/`（不是 `~/.hermes/scripts/`！），传绝对路径会被拒、传内联内容会报 `Script not found: /opt/data/scripts/#!/bin/bash...`。脚本本体放 `/opt/data/scripts/git_backup.sh` 并 `chmod +x`
 - **⚠️ `git add -A` 会带上敏感文件和嵌入式 git 仓库**：`.bailian_key*`、`.config/rclone/rclone.conf` 等 token/key 文件会被 GitHub 规则拦截（push declined due to repository rule violations）。.gitignore 中必须显式排除 `.cache/`、`.config/`、`.hermes/`、`.local/`、`.npm/` 等 dot 目录，以及嵌入式 git 子仓库（否则推送失败）
 - **⚠️ GitHub 推送需要代理**（中国网络环境）：cron 脚本中需先 `bash /opt/data/proxy-skill/proxy.sh start` 再 `git push`
 - **hermes-agent-self-evolution 等实验工具装前先 push 一次**：确保有可回退点

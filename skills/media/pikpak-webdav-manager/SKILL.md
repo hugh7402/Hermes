@@ -340,10 +340,11 @@ rm -f /opt/data/PikPak/.watch_active /opt/data/PikPak/.watch_idle_since
 
 ## PikPak 磁链离线注意事项
 
+> 📌 FC2 番号在 javdb 需要登录才能看磁链（登录墙）——让用户自行把磁链加入 PikPak，Agent 从 PikPak 侧继续（取 CDN → aria2 → 入库）。详见 `references/fc2-login-wall-pikpak-continue.md`。
+
 ### ⚠️ 磁链可能创建文件夹而非文件
 
 PikPak 离线下载磁链后，不一定会直接生成 `.mp4` 文件在目标文件夹中。某些磁链（尤其是从 javdb 获取的 `[来源]番号-C` 格式）会**创建一个以磁链标题命名的文件夹**，视频文件在文件夹内部：
-
 ```
 Inbox-JAV/
   [22sht.me]rbd-664-C/          ← 磁链创建的文件夹

@@ -36,3 +36,20 @@ sed -i 's/MAX_PER_RUN = 5/MAX_PER_RUN = 20/' /opt/data/ingest_docs.py
 ```
 
 恢复后再次运行确认 `📭 无新文档`。
+
+## 单个文档强制重入库（跳过 MD5 去重）
+
+用户要求"重新处理某文档入库"时（如《陕西智慧民政一体化平台月度报告2026年7月》），直接跑 `ingest_docs.py` 无效——MD5 去重会跳过已处理文件。**手动单文档入库流程**：
+
+1. 先确认源 PDF 是否文字层完整（决定走不走 OCR）：
+   ```python
+   # pymupdf 探测：pages/text_chars/img_pages/text_pages
+   # 文字页占比高、图片页极少 → MarkItDown 结果直接可用，无需 OCR
+   ```
+   （《陕西智慧民政月度报告》：27页、13668字、27/27文字页、仅1图片页 → 不需要 OCR）
+2. MarkItDown 转换 → 提取标题 → 写 `concepts/<名>.md`（含原始文件 + 转换时间 frontmatter）
+3. `hashlib.md5(源文件.read_bytes()).hexdigest()` 追加到 `.ingested` 标记已处理
+4. 标题提取注意：表格开头（`| （2026 年 7 月）|`）会被误当标题——正文行优先，或 `len>60` 时用人工标题
+
+⚠️ 不要在一个 `timeout` 终端命令里串 MarkItDown+写文件——转换本身可能就吃掉超时。拆成独立脚本文件（写 `/opt/data/` 下）再执行。
+

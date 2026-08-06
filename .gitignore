@@ -141,3 +141,6 @@ INBOX_FILES/
 # OS
 .DS_Store
 Thumbs.db
+
+# Media downloads (huge binaries, never push)
+Movie/

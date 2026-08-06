@@ -8,6 +8,8 @@ description: 给定番号 → 搜javdb获取磁链 → 按规则选择（字幕�
 
 一本搞定：搜索磁链 → PikPak 下载 + 清理广告 → **自动 rclone 到本地**。看门狗也集成在内。
 
+> ⚠️ **入库目标目录（2026-08-04 用户纠正）**：番号视频（jav-auto-download）下载完成后**必须存到 `/opt/data/PikPak/Inbox-JAV/`**，不是 `/opt/data/Movie/`！Movie 目录只给**电影下载 skill**（普通电影/剧集）用。两个规则不要混用。
+
 ## 用法
 
 ```bash
@@ -450,7 +452,7 @@ sleep 1
 - 主脚本：`/opt/data/jav_manager.py`（420行，统一入口）
 - PikPak Token：`/opt/data/.pikpak_token.json`
 - javdb Cookie：`/tmp/jdb_cookies.txt`
-- 下载目录：`/opt/data/PikPak/Inbox-JAV/`
+- **下载目录：`/opt/data/PikPak/Inbox-JAV/`**（⚠️ 番号视频入库唯一目标，不是 Movie/）
 - 下载记录：`/opt/data/PikPak/.inbox_record.json`
 - 看门狗标志：`/opt/data/PikPak/.watch_active`
 - 看门狗 cron：`4e83fab5185d`（每10分钟 `--watch` 模式）

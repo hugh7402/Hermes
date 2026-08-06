@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # sing-box 代理服务管理脚本
-# 配置: /opt/data/proxy-skill/reality_us01.json (REALITY 美国圣何塞01)
+# 配置: /opt/data/proxy-skill/reality_us05.json (REALITY 美国圣何塞01)
 # 端口: 10808 (SOCKS5/HTTP mixed)
 set -e
 
 SB=/opt/data/proxy-skill/sing-box
-CONFIG=/opt/data/proxy-skill/reality_us01.json
+CONFIG=/opt/data/proxy-skill/reality_active.json
 PIDFILE=/opt/data/proxy-skill/sing-box.pid
 LOGFILE=/opt/data/proxy-skill/sing-box.log
 
