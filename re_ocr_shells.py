@@ -117,8 +117,8 @@ def main():
 
     rows = list(csv.reader(open('/tmp/pdf_scan_report.csv')))
     suspects = [r for r in rows[1:] if r[5] == 'SUSPECT' and r[2] != '-1']
-    # 本地只处理小文件（<50页），大文件交给云端 re_ocr_cloud.py
-    suspects = [r for r in suspects if int(r[1]) < 50]
+    # 本地处理小文件（<50页）+ 分担云端的中等文件（50-150页）
+    suspects = [r for r in suspects if int(r[1]) < 150]
     if only:
         suspects = [r for r in suspects if only in r[0]]
     if limit:
