@@ -69,13 +69,18 @@ Obsidian Vault/
 OutPut Box/
 WebChat BackUp/
 PikPak/
+Movie/
 sessions/
 
-# Large binaries
+# Large binaries / media (GitHub rejects >100MB files — must exclude or push fails)
 *.AppImage
 *.tar.gz
 *.so
 *.so.*
+*.mkv
+*.mp4
+*.avi
+*.iso
 
 # Temp / scripts / generated
 /tmp/
@@ -180,6 +185,13 @@ git push 2>&1
 - **cron script 字段只填文件名**：cronjob 工具把 `script` 解析到 `/opt/data/scripts/`（不是 `~/.hermes/scripts/`！），传绝对路径会被拒、传内联内容会报 `Script not found: /opt/data/scripts/#!/bin/bash...`。脚本本体放 `/opt/data/scripts/git_backup.sh` 并 `chmod +x`
 - **⚠️ `git add -A` 会带上敏感文件和嵌入式 git 仓库**：`.bailian_key*`、`.config/rclone/rclone.conf` 等 token/key 文件会被 GitHub 规则拦截（push declined due to repository rule violations）。.gitignore 中必须显式排除 `.cache/`、`.config/`、`.hermes/`、`.local/`、`.npm/` 等 dot 目录，以及嵌入式 git 子仓库（否则推送失败）
 - **⚠️ GitHub 推送需要代理**（中国网络环境）：cron 脚本中需先 `bash /opt/data/proxy-skill/proxy.sh start` 再 `git push`
+- **⚠️ 媒体目录漏配 .gitignore 是 push 失败头号根因**（2026-08-07 事故）：`Movie/` 漏配导致 `git add -A` 把 55GB 影视文件提交进历史 commit，GitHub 单文件 >100MB 直接拒收（`send-pack: unexpected disconnect while reading sideband packet`），cron 每次报错。诊断三步：①`du -sh .git` 异常膨胀（60G）②`git ls-tree -rl HEAD -- <dir>` 看 blob 大小 ③`git ls-files | grep -ci movie` 确认 index 里有没有媒体文件
+- **已误提交大文件的修复流程**（保留磁盘文件、清出历史）：
+  1. `git reset --soft <上一好commit>`（撤销坏 commit，保留 index/工作区）
+  2. `git rm -r --cached Movie/`（从 index 移除，磁盘文件不动）
+  3. `.gitignore` 补 `Movie/` 及 `*.mkv *.mp4`
+  4. `git add -A && git diff --cached --name-only | grep -cE '\.(mkv|mp4)$'`（必须=0）→ commit → push
+  5. `git reflog expire --expire=now --all && git gc --prune=now`（清除历史里 55GB 孤儿 blob，.git 从 60G 回到 11M）
 - **hermes-agent-self-evolution 等实验工具装前先 push 一次**：确保有可回退点
 
 ## 恢复
