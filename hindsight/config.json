@@ -8,7 +8,8 @@
   "recall_prefetch_method": "recall",
   "memory_mode": "hybrid",
   "auto_retain": true,
-  "retain_async": true,
+  "retain_async": false,
   "retain_every_n_turns": 1,
-  "auto_recall": true
+  "auto_recall": true,
+  "api_url": "http://127.0.0.1:9177"
 }
