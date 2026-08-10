@@ -214,6 +214,17 @@ The patch tool blocks security-sensitive files. Edit via terminal Python instead
 
 Check logs: `~/.hermes/logs/hindsight-embed.log` and `~/.hindsight/profiles/<profile>.log`. Common causes: missing LLM API key, incompatible CPU (older NumPy), or port conflict on 8888.
 
+**配置齐全但 daemon 从不启动 / is_available() False / retain 报 `cannot import name 'HindsightEmbedded'`**：先读 `references/local-embedded-activation.md`（2026-08-09 实测全通链路）。关键点：只读 venv 下依赖必须预装进 `HERMES_LAZY_INSTALL_TARGET`（如 `/opt/data/lazy-packages`）；PyPI 的 `hindsight` 是无关老包，真正要装 `hindsight-embed`；HF 嵌入模型被墙用 hf-mirror 预下载；插件旧 API 需 shim 导出 `HindsightEmbedded`；config.json 必须加 `api_url` 指到 DaemonEmbedManager 实际端口。
+
+**daemon 重启后卡死（进程在但端口不监听、日志反复 HF timed out → `Application startup failed. Exiting.`）**：是 `HF_HUB_OFFLINE` 没传给 daemon——`DaemonEmbedManager` 用 `os.environ.copy()` 且只传播 `HINDSIGHT_*` 前缀 key，而 `.env` 不会进 gateway 进程环境（Hermes 按需读 .env，`/proc/<pid>/environ` 里看不到）。修复：在 shim 的 `HindsightEmbedded.__init__` 里、`ensure_running()` 前 `os.environ.setdefault("HF_HUB_OFFLINE","1")` + `HF_HOME`，然后重启 gateway。详见 reference「重启后 daemon 卡死的根因」。
+
+**两套 `.pg0`/`.hindsight` 数据目录（⚡本机踩过最重的一个坑，必须杜绝）**：HOME 变化导致数据分裂（gateway 用 `/opt/data`，任何手动/旧进程用 `/opt/data/home` 就会再造一套）。**铁律：本机 Hindsight 数据只允许存在于 `/opt/data/.hindsight` + `/opt/data/.pg0` + `/opt/data/.cache/huggingface` 三处，出现任何 `/opt/data/home/.hindsight` 或 `/opt/data/home/.pg0` 就是分裂事故，立刻清理。** 任何手动启动 daemon / 写验证脚本，必须显式 `os.environ['HOME'] = '/opt/data'`（不得依赖继承，当前 shell 的 HOME 常是 /opt/data/home）。判定权威：`cat /proc/<gateway_pid>/environ | tr '\0' '\n' | grep HOME`。清理顺序：先 `pkill -9 -f postgres` 杀孤儿 → 删非权威那套 → 模型缓存先 copytree 迁到标准 HF_HOME → 更新 .env 的 HF_HOME。日常自查：`ls -d /opt/data/home/.pg0 /opt/data/home/.hindsight 2>/dev/null` 应无输出。详见 reference「pg0 / .hindsight 数据目录分裂」。
+
+**daemon 报 `Failed to start embedded PostgreSQL` / PG 起不来**：标准库实例目录损坏（缺 `pg_notify` 等 PG 必需目录），通常是**孤儿 postgres 进程**（测试脚本带错 HOME 拉起、杀 daemon 不杀 postgres）在删目录时留下的不完整数据。修复：`pkill -9 -f postgres` + 删损坏实例目录 + 删 profile lock，daemon 下次启动全新 initdb（≈73s）。详见 reference「标准库损坏 / PG 起不来」。
+
+**`hermes plugins enable` 一次只能启一个**：`hermes plugins enable disk-cleanup security-guidance` 会报 `unrecognized arguments`，必须逐个 `enable`。插件验证以实际行为为准（write_file 触发 security 警告 / tracked.json 有记录），`hermes plugins list` 显示 enabled 只是配置生效。
+
 ## Reference Files
 
 - `references/bailian-setup.md` — 百炼 (Bailian) API specific setup: endpoints, model pricing, verification commands
+- `references/local-embedded-activation.md` — **local_embedded 从零到 retain/recall 全通实录（2026-08-09 验证）**：只读 venv + lazy-packages 安装、hindsight-embed 替代错误的老 hindsight 包、HF 模型经 hf-mirror 预下载、HindsightEmbedded shim、api_url 端口匹配。配置好但 is_available() False / daemon 不启动时先读这个。

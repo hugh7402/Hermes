@@ -138,7 +138,89 @@ chmod +x /tmp/download_all.sh && /tmp/download_all.sh
 /opt/data/pikpak_dl_aria2.sh MIDA-646.mp4
 ```
 
-**并行下载说明（默认行为）**：aria2 可同时下载最多 N 个文件（默认 5，上限 5），超出排队等候。每个文件使用 8 连接分片，速度互不影响。适合批量下载多个番号。  \n注意：并行下载时总带宽会被均分，单个文件速度降低但整体吞吐量更高。  \n**⚠️ 用户偏好：凡是多文件下载，默认启用 `-j N` 并行下载。不要串行逐个下载！** 即使单文件 CDN 速度慢（<2 MiB/s），将多个文件一起并行下载，快的文件先完成释放带宽，整体效率远高于串行等待。
+**并行下载说明（默认行为）**：aria2 可同时下载最多 N 个文件（默认 5，上限 5），超出排队等候。每个文件使用 8 连接分片，速度互不影响。适合批量下载多个番号。  \\n注意：并行下载时总带宽会被均分，单个文件速度降低但整体吞吐量更高。  \\n**⚠️ 用户偏好：凡是多文件下载，默认启用 `-j N` 并行下载。不要串行逐个下载！** 即使单文件 CDN 速度慢（<2 MiB/s），将多个文件一起并行下载，快的文件先完成释放带宽，整体效率远高于串行等待。
+
+### 🚨 大规模批量下载（100+ 文件 / 200GB+）— asyncio 并发架构（2026-08-09 AI短剧实战）
+
+写 Python 批量下载器（asyncio worker 池 + Queue）时，三个必踩的坑：
+
+**坑1：aria2/ffprobe 是阻塞 subprocess，直接 `await` 会冻结整个事件循环 → 4 个 worker 只有 1 个在干活**
+症状：日志打了 4 条 `⬇️` 但只有 1 个 aria2 进程，其余 worker 永远不推进。
+根因：`process_one` 里 `subprocess.run(aria2)` 阻塞调用占住事件循环，其他协程无法调度（asyncio 单线程）。
+修复：**所有阻塞调用必须 `await loop.run_in_executor(None, fn, ...)` 或 `asyncio.to_thread()`** 包装，包括 aria2 和 ffprobe。
+
+```python
+async def aria2_download_async(url, dest_file):
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, aria2_download, url, dest_file)  # aria2_download 是同步函数
+```
+
+**坑2：subprocess 里调用 `/opt/data/aria2c` 必须传 `env={'LD_LIBRARY_PATH': '/opt/data'}`**
+shell 里 `export LD_LIBRARY_PATH` 不会传给 Python subprocess 子进程，直接 Popen 会报 `error while loading shared libraries: libaria2.so.0`。
+
+**坑3：慢 CDN 节点（dl-a10b 段）会拖死整个队列 → 必须内置慢速检测 + 换节点**
+用户明确要求：**速度 < 0.5MB/s 立即换节点，不要等**。机制：
+1. aria2 用 `Popen`（非 run），后台线程每 15s 检查目标文件大小增量
+2. 连续 2 次（30s）增量 < `0.5MB/s × 15s` → `proc.kill()` + 删半成品（`.mp4` + `.aria2`）→ 返回 SLOW
+3. SLOW 后立即 `get_download_url()` 重新获取 URL（会分配到不同节点，dl-z01a 段通常快）
+4. 换 3 次仍 SLOW → **放回队列尾部稍后重试（不要标记失败放弃）**——CDN 限流常是暂时的，重新排队可能分到快节点
+
+```python
+# 慢速检测核心（aria2 Popen 后循环）
+while proc.poll() is None:
+    time.sleep(3)
+    if time.time() - last_check >= 15:
+        cur = os.path.getsize(dest_file) if os.path.exists(dest_file) else 0
+        if prev_size >= 0 and (cur - prev_size) < SLOW_THRESHOLD * 15:
+            slow_count += 1
+        else:
+            slow_count = 0
+        prev_size = cur
+        if slow_count >= SLOW_CHECKS:  # 连续2次(30s)低于阈值
+            proc.kill(); proc.wait()
+            for p in [dest_file, dest_file + '.aria2']:
+                if os.path.exists(p): os.remove(p)
+            return False, elapsed, 'SLOW'
+```
+
+**坑4：暂停后恢复必须显式"跳过已存在文件"，不能只靠 `--continue=true`**
+aria2 `--continue=true` 只续传半成品，已完整下载的文件会重新下。批量脚本 `process_one` 开头必须检查：
+```python
+if os.path.exists(dest_file):
+    if os.path.getsize(dest_file) >= task['size'] * 0.99:  # 大小匹配(容差1%)
+        results.append({'task': task, 'status': 'SKIP'})
+        print(f"⏭️ 已存在跳过: {fname}")
+        return
+```
+暂停/恢复工作流（2026-08-09/10 实战）：CDN 时段性限流（0 MB/s）时**暂停等恢复比空转强**——SLOW 换节点机制在整体限流下只是空转烧时间。流程：
+1. `pkill -f ai_drama_dl.py` + `pkill -f aria2c.*<目标>` 停干净，删 `*.aria2` 半成品（保留完整文件）
+2. **同时暂停监控 cron**（否则每 10 分钟误报"进程已退出"）
+3. 挂测速 cron：no_agent 每 30 分钟跑 `curl -r 0-20M` 测 CDN，**速度 >1MB/s 才 print 提醒，低速完全静默**（no_agent cron 空输出=不打扰，非空 stdout 原样推送）
+4. 用户说继续 → 重启脚本（自动 SKIP 已完成）+ resume 监控 cron
+测速脚本：`/opt/data/scripts/ai_cdn_speed_test.sh` + `.py`（用 .venv python 包装，pikpakapi 不在系统 python）。
+
+**用户下载策略偏好（2026-08-09 明确，批量下载必须遵守）**：
+- **速度优先，省钱**：PikPak CDN 先直连（不走代理，代理按流量收费且更慢）。**判定标准（2026-08-10 实战）**：直连全节点 <0.1MB/s 持续 10+ 分钟 = IP 级限流 → 切代理（`--all-proxy=http://127.0.0.1:10808`）换出口 IP，实测提速 ~80 倍。
+- **慢节点立即换**：< 0.5MB/s 马上 kill + 换 URL，不等不重试。
+- **并发数用户每次现场指定**（4 → 3 → 2 均出现过，2 最稳），脚本用 `CONCURRENCY` 常量随时可调，不要写死。
+- 换 3 次仍慢 → 文件放回队列尾部（REQUEUE），不放弃。
+
+**批量下载完整脚本模式**（AI短剧 1248 文件/242GB 实战验证）：
+- 架构：`asyncio.Queue` + N 个 worker + `Semaphore(CONCURRENCY)`，每个 worker `queue.get()` → `process_one()` → `queue.task_done()`，用 `None` 哨兵终止
+- 进度统计：`stats = {'total', 'done', 'bytes_ok', 't0'}`，ETA = 剩余字节 / (累计字节/总耗时)，每次完成 print 累计均速 + 剩余 GB + ETA
+- 结果落盘：每个文件 append 到 results 列表（OK/DL_FAIL/URL_FAIL/REQUEUE），结束 dump JSON
+- 完整脚本：`/opt/data/ai_drama_dl.py`（2026-08-09 实战，可参考）
+- 完整实录（manifest 结构/运行方式/监控/复用步骤）：`references/batch-folder-download-20260809.md`
+
+### 批量文件 → 剧集文件夹归属（文件名《标题》识别）
+
+PikPak 文件夹常混入其他剧集（尤其"合集"文件夹，文件名才暴露真实归属）。规则（2026-08-09 用户确认）：
+1. **文件名含 `《标题》` → 用标题作为该文件的剧集归属**（不管它在哪个文件夹）——混入的剧集自动摘出单独建文件夹
+2. 无书名号 → 按所在文件夹归属
+3. 剧集合并（古寺艳鬼录 / G-古寺艳鬼录 / 古寺艳鬼录 1-10 → 同一剧集）：规范化核心名（去 `G-`/`D-`/`【I_No.N】` 编号前缀、去尾部集数、去符号）后，**相同 OR 互相包含（短名/长名 ≥ 60%）OR 编辑距离 1** 视为同一剧集，并查集合并
+4. ⚠️ 合集长名陷阱：`《爱琳-...长生录...征服郭伯母...》` 这类合集名会"包含"多个无关剧集名 → **包含匹配必须限制短名占长名 ≥ 60%**，否则误合并
+5. 去重：同剧集内规范化文件名相同 → 只留最大。**用户偏好：无法确认是否重复的视频不去重，都塞进文件夹**（宁可多下不可漏）
+
 
 ### Python 分片下载（备用）
 
@@ -213,7 +295,8 @@ asyncio.run(get_urls())
 
 ### 坑 — 务必逐条阅读
 
-- **不要走代理下载**（代理按流量收费，且更慢）。CDN 直链和 WebDAV 都是直连 HTTP，不需要代理。
+- **🚨 IP 级限流（2026-08-10 重大发现）**：当**所有** CDN 节点直连都 <0.1MB/s（换 URL 无效、多节点/多文件全慢），是 **PikPak 对服务器出口 IP 限流**，不是节点问题也不是全局限流！解法：**aria2 加 `--all-proxy=http://127.0.0.1:10808` 走代理换出口 IP**。实测：直连 0.08 MB/s → 代理出口（103.62.49.138）0.95 MB/s（单连接 curl），aria2 8连接实际 **6~8 MB/s**，提速 ~80 倍。判定流程：curl 直连测速 <0.1MB/s → `curl -x http://127.0.0.1:10808` 测同一 URL，代理明显更快 → 确认 IP 限流 → 下载脚本加 `--all-proxy`。注意走代理后 SLOW 阈值要降（代理吞吐上限低，0.5MB/s 阈值会误杀，**用户拍板用 0.2MB/s**）。完整实录见 `references/pikpak-ip-throttling-20260810.md`。
+- **不要走代理下载（默认）**：代理按流量收费，且通常更慢。CDN 直链和 WebDAV 都是直连 HTTP，不需要代理。**例外：IP 级限流时（见上条）走代理是唯一解法。**
 - **Python 下载器缺陷**：`pikpak_cdn_dl.py` 进程经常被 SIGTERM（exit code 143）杀死，导致频繁重下。此时切 aria2 可解。
 - **🚨 幽灵 inode 陷阱（2026-06-27 新增）**：下载过程中 **绝对不要** `rm -f` 正在被 aria2 写入的文件！即使文件被删除（unlink），aria2 仍通过文件描述符继续写入孤儿 inode，数据写入磁盘但在目录中不可见。重新创建同名文件使用的是新 inode，旧数据无法恢复。等于白下。删除操作分成两步：
   1. 先 `kill <aria2_pid>` 或 `pkill -f "aria2c.*特定文件名"` (不要无差别杀)
@@ -527,7 +610,7 @@ Token 文件结构：`/opt/data/.pikpak_token.json`
 
 | 方法 | 用途 |
 |:----|:-----|
-| `file_list(parent_id)` | 文件列表，返回 `{files: [...]}` |
+| `file_list(size=100, parent_id=None, next_page_token=None, additional_filters=None)` | 文件列表，返回 `{files: [...]}`。⚠️ 参数名是 **`size`**（每页条数），不是 `page_size`——传 `page_size=` 会 `TypeError: got an unexpected keyword argument`（2026-08-10 踩过） |
 | `offline_download(magnet, parent_id)` | 添加磁链下载到指定文件夹 |
 | `offline_list()` | 查看所有离线下载任务及进度 |
 | `get_download_url(file_id)` | 获取 CDN 直链（含 24h 有效期）→ **URL 在 `web_content_link` 字段**，`url` 字段可能为空 |
