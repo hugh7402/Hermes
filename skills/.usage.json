@@ -316,12 +316,12 @@
     "created_at": "2026-06-16T06:49:28.130707+00:00",
     "created_by": null,
     "last_patched_at": "2026-06-21T02:14:53.949050+00:00",
-    "last_used_at": "2026-08-10T04:05:06.742727+00:00",
+    "last_used_at": "2026-08-13T04:05:48.465946+00:00",
     "last_viewed_at": "2026-07-22T02:41:55.354876+00:00",
     "patch_count": 3,
     "pinned": false,
     "state": "active",
-    "use_count": 80,
+    "use_count": 83,
     "view_count": 22
   },
   "hermes-agent-skill-authoring": {
@@ -446,13 +446,13 @@
     "created_at": "2026-06-27T01:56:48.997420+00:00",
     "created_by": null,
     "last_patched_at": "2026-08-04T05:21:14.670482+00:00",
-    "last_used_at": "2026-08-09T09:55:34.070352+00:00",
-    "last_viewed_at": "2026-08-09T09:55:34.066120+00:00",
+    "last_used_at": "2026-08-13T01:16:40.506472+00:00",
+    "last_viewed_at": "2026-08-13T01:16:40.496718+00:00",
     "patch_count": 107,
     "pinned": false,
     "state": "active",
-    "use_count": 121,
-    "view_count": 121
+    "use_count": 124,
+    "view_count": 124
   },
   "kanban-orchestrator": {
     "archived_at": null,
@@ -705,27 +705,27 @@
     "archived_at": null,
     "created_at": "2026-08-10T08:48:01.925840+00:00",
     "created_by": "agent",
-    "last_patched_at": "2026-08-10T08:48:11.019024+00:00",
-    "last_used_at": null,
-    "last_viewed_at": null,
-    "patch_count": 1,
+    "last_patched_at": "2026-08-13T01:23:19.188141+00:00",
+    "last_used_at": "2026-08-13T01:22:56.866367+00:00",
+    "last_viewed_at": "2026-08-13T01:22:56.860541+00:00",
+    "patch_count": 17,
     "pinned": false,
     "state": "active",
-    "use_count": 0,
-    "view_count": 0
+    "use_count": 11,
+    "view_count": 11
   },
   "pikpak-webdav-manager": {
     "archived_at": null,
     "created_at": "2026-06-26T22:00:55.073183+00:00",
     "created_by": "agent",
-    "last_patched_at": "2026-08-10T07:18:44.229940+00:00",
-    "last_used_at": "2026-08-10T07:18:14.393640+00:00",
-    "last_viewed_at": "2026-08-10T07:18:14.386224+00:00",
-    "patch_count": 99,
+    "last_patched_at": "2026-08-10T10:32:01.106749+00:00",
+    "last_used_at": "2026-08-10T10:31:24.097450+00:00",
+    "last_viewed_at": "2026-08-10T10:31:24.092049+00:00",
+    "patch_count": 103,
     "pinned": false,
     "state": "active",
-    "use_count": 83,
-    "view_count": 83
+    "use_count": 85,
+    "view_count": 85
   },
   "plan": {
     "archived_at": null,

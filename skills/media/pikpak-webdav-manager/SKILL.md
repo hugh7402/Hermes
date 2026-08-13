@@ -165,6 +165,26 @@ shell 里 `export LD_LIBRARY_PATH` 不会传给 Python subprocess 子进程，�
 3. SLOW 后立即 `get_download_url()` 重新获取 URL（会分配到不同节点，dl-z01a 段通常快）
 4. 换 3 次仍 SLOW → **放回队列尾部稍后重试（不要标记失败放弃）**——CDN 限流常是暂时的，重新排队可能分到快节点
 
+**坑3a（🚨 2026-08-10 后半程关键修复）：大文件（>500MB）必须完全取消 SLOW 检测**
+症状：补下大文件（1.4~4.3GB）时全部 `❌ 失败 (SLOW)`，只有小文件能成功——大文件下载中网络抖动 30s 就被 SLOW 检测 kill 从头再来，永远下不完。
+根因：SLOW 检测对"短时降速"一视同仁，大文件中途抖一下（aria2 在重连/重试）就被误杀，删半成品重来 → 无限循环。
+修复：`aria2_download` 加 `total_size` 参数，**`total_size > 500MB` 时直接 `proc.wait()` 跳过 SLOW 检测循环**（aria2 自带 `--max-tries/--timeout` 处理断连，让它一口气下完）。实测修复后 1~4GB 大文件全部 27~31MB/s 一次下完，0 失败。
+```python
+def aria2_download(url, dest_file, total_size=0):
+    ...
+    proc = subprocess.Popen(...)
+    # 大文件完全取消 SLOW 检测
+    if total_size > 500 * 1024 * 1024:
+        proc.wait()
+        return proc.returncode == 0, time.time()-t0, 'OK' if proc.returncode == 0 else 'FAIL'
+    # 小文件才走 SLOW 检测循环
+    while proc.poll() is None: ...
+```
+调用点传 `task['size']`，`aria2_download_async` 同步加参数。**用户拍板：大文件取消 SLOW 检测 + 并发按现场指定（本次 4）。**
+
+**坑3b：FAIL（非 SLOW 错误）也要自动重排队**
+aria2 返回非 SLOW 错误（超时/断连等，`reason == 'FAIL'`）时同样放回队列尾部重试，**用 `task['attempts']` 计数防无限循环（最多 3 次，SLOW 和 FAIL 共享计数）**。用户要求：失败不丢文件，重排队后再试。
+
 ```python
 # 慢速检测核心（aria2 Popen 后循环）
 while proc.poll() is None:
@@ -296,6 +316,7 @@ asyncio.run(get_urls())
 ### 坑 — 务必逐条阅读
 
 - **🚨 IP 级限流（2026-08-10 重大发现）**：当**所有** CDN 节点直连都 <0.1MB/s（换 URL 无效、多节点/多文件全慢），是 **PikPak 对服务器出口 IP 限流**，不是节点问题也不是全局限流！解法：**aria2 加 `--all-proxy=http://127.0.0.1:10808` 走代理换出口 IP**。实测：直连 0.08 MB/s → 代理出口（103.62.49.138）0.95 MB/s（单连接 curl），aria2 8连接实际 **6~8 MB/s**，提速 ~80 倍。判定流程：curl 直连测速 <0.1MB/s → `curl -x http://127.0.0.1:10808` 测同一 URL，代理明显更快 → 确认 IP 限流 → 下载脚本加 `--all-proxy`。注意走代理后 SLOW 阈值要降（代理吞吐上限低，0.5MB/s 阈值会误杀，**用户拍板用 0.2MB/s**）。完整实录见 `references/pikpak-ip-throttling-20260810.md`。
+- **🚨 代理出口 IP 也会被限流（2026-08-10 后半程）**：103.62.49.138 用了约 1 小时后从 0.95MB/s 掉回 ~0，且该 IP 段的 AWS日本节点（103.62.49.138/.178）全都只有 ~0.95MB/s。**换节点是常态操作不是一次性**：`bash /opt/data/proxy-skill/proxy_auto_switch.sh --node '🇸🇬AWS新加坡02'` 切到 **67.159.48.147 后实测 25~30MB/s（aria2 8连接）**，242GB 在 ~1 小时内下了 170GB。经验：**逐节点测速（`curl -x 10808 -r 0-20M`）找出口 IP 段差异大的节点，快节点直接让整个下载提速一个数量级**。测速/切换脚本见 `references/pikpak-ip-throttling-20260810.md`。
 - **不要走代理下载（默认）**：代理按流量收费，且通常更慢。CDN 直链和 WebDAV 都是直连 HTTP，不需要代理。**例外：IP 级限流时（见上条）走代理是唯一解法。**
 - **Python 下载器缺陷**：`pikpak_cdn_dl.py` 进程经常被 SIGTERM（exit code 143）杀死，导致频繁重下。此时切 aria2 可解。
 - **🚨 幽灵 inode 陷阱（2026-06-27 新增）**：下载过程中 **绝对不要** `rm -f` 正在被 aria2 写入的文件！即使文件被删除（unlink），aria2 仍通过文件描述符继续写入孤儿 inode，数据写入磁盘但在目录中不可见。重新创建同名文件使用的是新 inode，旧数据无法恢复。等于白下。删除操作分成两步：
@@ -590,6 +611,16 @@ curl -s --proxy http://127.0.0.1:10808 \
 ```
 
 **注意**：登录（signin）可能触发 captcha（`"captcha_required"`, error_code 4001），此时只能通过 refresh_token 刷新而不能重新登录。只要 refresh_token 未过期，刷新请求不会触发 captcha。
+
+**🚨 refresh token 一次性 + 并发刷新冲突（2026-08-10 踩到）**：PikPak refresh_token **每次使用即失效**（一次性）。当下载脚本和测速/查清单脚本**同时**调 `refresh_access_token()`（如 token 刚过期后两边并发触发），后刷新的一方会报 `PikpakException: refresh token os.XXX has been refresh at <时间>`，且该 token 作废。
+- **修复**：token 文件（`.pikpak_token.json`）里存了 username/password，用 `api.login()` 重新登录拿全新 token 并保存：
+```python
+state = json.load(open('/opt/data/.pikpak_token.json'))
+api = PikPakApi.from_dict(state)
+await api.login()   # 用文件里的 username/password 重新登录
+json.dump(api.to_dict(), open('/opt/data/.pikpak_token.json','w'), ensure_ascii=False, indent=2)
+```
+- **预防**：不要让多个进程同时操作 token——测速/探测脚本和下载主脚本避免同时冷启动触发刷新；或刷新后立即落盘再继续。
 
 详见 `references/pikpakapi-timeout-workaround.md`。
 

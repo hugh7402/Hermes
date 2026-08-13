@@ -175,6 +175,8 @@ def build_plan():
     return tasks
 
 # ============ 下载执行 ============
+_refresh_lock = asyncio.Lock()
+
 async def get_url(api, fid, retries=3):
     for i in range(retries):
         try:
@@ -183,11 +185,34 @@ async def get_url(api, fid, retries=3):
             if url:
                 return url
         except Exception as e:
+            msg = str(e)
+            if 'refresh token' in msg or 'has been refresh' in msg:
+                # token 并发刷新冲突: 加锁重新登录一次, 然后重试
+                async with _refresh_lock:
+                    print(f"  🔑 token 冲突, 重新登录...", flush=True)
+                    try:
+                        await api.login()
+                        # 持久化新 token (保留 password/device_id 等字段)
+                        new_state = api.get_user_info()
+                        if new_state:
+                            old_state = {}
+                            try:
+                                old_state = json.load(open('/opt/data/.pikpak_token.json'))
+                            except Exception:
+                                pass
+                            for k in ('password', 'device_id'):
+                                if k in old_state and k not in new_state:
+                                    new_state[k] = old_state[k]
+                            with open('/opt/data/.pikpak_token.json', 'w') as f:
+                                json.dump(new_state, f, ensure_ascii=False, indent=2)
+                    except Exception as e2:
+                        print(f"  ❌ 重新登录失败: {e2}")
+                continue
             print(f"  ⚠️ get_url 失败 {i+1}/{retries}: {e}")
             await asyncio.sleep(2)
     return None
 
-def aria2_download(url, dest_file):
+def aria2_download(url, dest_file, total_size=0):
     os.makedirs(os.path.dirname(dest_file), exist_ok=True)
     env = dict(os.environ)
     env['LD_LIBRARY_PATH'] = '/opt/data' + (':' + env['LD_LIBRARY_PATH'] if env.get('LD_LIBRARY_PATH') else '')
@@ -206,30 +231,8 @@ def aria2_download(url, dest_file):
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                             text=True, env=env)
 
-    # 慢速监测: 每 15s 检查文件大小增长, 连续 SLOW_CHECKS 次(30s) < SLOW_THRESHOLD → kill 返回 SLOW
-    slow_count = 0
-    prev_size = -1
-    last_size_check = 0
-    while proc.poll() is None:
-        time.sleep(3)
-        if time.time() - last_size_check >= 15:
-            last_size_check = time.time()
-            cur = os.path.getsize(dest_file) if os.path.exists(dest_file) else 0
-            if prev_size >= 0:
-                delta = cur - prev_size
-                if delta < SLOW_THRESHOLD * 15:
-                    slow_count += 1
-                else:
-                    slow_count = 0
-            prev_size = cur
-            if slow_count >= SLOW_CHECKS:
-                proc.kill()
-                proc.wait()
-                for p in [dest_file, dest_file + '.aria2']:
-                    if os.path.exists(p):
-                        os.remove(p)
-                return False, time.time() - t0, 'SLOW'
-
+    # SLOW 检测已完全取消: aria2 自带断连重试(--max-tries/--retry-wait/--timeout), 让它自己跑完
+    proc.wait()
     dt = time.time() - t0
     rc = proc.returncode
     return rc == 0, dt, 'OK' if rc == 0 else 'FAIL'
@@ -259,10 +262,10 @@ async def worker(api, queue, results, sem, stats):
                 results.append({'task': task, 'status': 'ERROR', 'msg': str(e)})
                 print(f"  ❌ {task['name']}: {e}")
         queue.task_done()
-async def aria2_download_async(url, dest_file):
+async def aria2_download_async(url, dest_file, total_size=0):
     """async 包装: aria2 是阻塞 subprocess, 用 to_thread 避免阻塞事件循环"""
     loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(None, aria2_download, url, dest_file)
+    return await loop.run_in_executor(None, aria2_download, url, dest_file, total_size)
 
 async def process_one(api, task, results, stats):
     fname = task['name']
@@ -285,15 +288,16 @@ async def process_one(api, task, results, stats):
         print(f"  ❌ 获取直链失败: {fname}")
         return
 
-    # 下载, SLOW 时立即换 URL 重试(最多3次)
-    ok, elapsed, reason = await aria2_download_async(url, dest_file)
+    # 下载, SLOW 时立即换 URL 重试(最多3次); 大文件(>500MB)跳过 SLOW 直接一次下完
+    total_size = task['size']
+    ok, elapsed, reason = await aria2_download_async(url, dest_file, total_size)
     attempt = 1
-    while not ok and reason == 'SLOW' and attempt < 3:
+    while not ok and reason == 'SLOW' and attempt < 3 and total_size <= 500 * 1024 * 1024:
         print(f"  ⚠️ 慢节点({attempt}/3), 立即换 URL: {fname[:40]}", flush=True)
         url = await get_url(api, task['id'])
         if not url:
             break
-        ok, elapsed, reason = await aria2_download_async(url, dest_file)
+        ok, elapsed, reason = await aria2_download_async(url, dest_file, total_size)
         attempt += 1
 
     if not ok:
