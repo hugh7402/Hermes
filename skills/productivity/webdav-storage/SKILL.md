@@ -140,14 +140,14 @@ c.upload('/local/path/file.txt', '/remote/path/file.txt')
 ### 方案 C：rclone sync 定期同步
 
 ```bash
-# 单向同步（云端 → 本地）
-/tmp/rclone sync remote:/ /opt/data/storage -P
+# 单向同步（云端 → 本地）——🚨 必须加超时保护：--timeout 60s --contimeout 30s 防网络卡死无限等待
+timeout 3600 /tmp/rclone sync remote:/ /opt/data/storage -P --timeout 60s --contimeout 30s
 
 # 只同步小文件（< 50MB）
-/tmp/rclone sync remote:/ /opt/data/storage --max-size 50M -P
+timeout 3600 /tmp/rclone sync remote:/ /opt/data/storage --max-size 50M -P --timeout 60s --contimeout 30s
 
 # 仅同步目录结构（空目录）
-/tmp/rclone sync remote:/ /opt/data/storage --create-empty-src-dirs
+timeout 300 /tmp/rclone sync remote:/ /opt/data/storage --create-empty-src-dirs --timeout 60s --contimeout 30s
 ```
 
 ## 工具脚本模板

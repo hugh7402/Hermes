@@ -16,7 +16,7 @@
 ```bash
 source /opt/data/home/.bashrc
 
-curl -s --proxy http://127.0.0.1:10808 \
+curl -s --max-time 60 --proxy http://127.0.0.1:10808 \
   -H "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" \
   -H "Accept-Language: zh-CN,zh;q=0.9" \
   "https://javdb.com/search?q=SNOS-324&f=preview" \
@@ -29,7 +29,7 @@ grep -oP '/v/[a-zA-Z0-9]+' /tmp/javdb_search.html | head -3
 ### 2. 获取视频详情页磁链
 
 ```bash
-curl -s --proxy http://127.0.0.1:10808 \
+curl -s --max-time 60 --proxy http://127.0.0.1:10808 \
   -H "User-Agent: Mozilla/5.0" \
   "https://javdb.com/v/yxzBgr" \
   | grep -oP 'magnet:\?xt=urn:btih:[a-zA-Z0-9]+[^"]*' | sort -u
