@@ -15,12 +15,12 @@
 
 ### 🥈 rclone copy (单线程)
 - **速度**：0.3~1.5 MB/s，**持续降速**（1h 后可能掉到 50 KB/s）
-- **命令**：`rclone copy pikpak:/Inbox-JAV/FILE.mp4 /local/ --buffer-size=128M --multi-thread-streams=0 --progress`
+- **命令**：`timeout 3600 rclone copy pikpak:/Inbox-JAV/FILE.mp4 /local/ --buffer-size=128M --multi-thread-streams=0 --progress --timeout 60s --contimeout 30s`
 - **适用**：纯 WebDAV 通道，无依赖
 
 ### 🥉 rclone copyurl + CDN 直链
 - **速度**：0.2 MB/s 稳定
-- **命令**：`rclone copyurl "$CDN_URL" /local/FILE.mp4 --progress`
+- **命令**：`timeout 3600 rclone copyurl "$CDN_URL" /local/FILE.mp4 --progress --timeout 60s --contimeout 30s`
 - **优点**：绕过 WebDAV 限流，不需要 pikpakapi 留在脚本中
 
 ### ❌ 其他方案

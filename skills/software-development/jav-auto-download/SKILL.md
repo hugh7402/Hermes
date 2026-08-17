@@ -10,6 +10,21 @@ description: 给定番号 → 搜javdb获取磁链 → 按规则选择（字幕�
 
 > ⚠️ **入库目标目录（2026-08-04 用户纠正）**：番号视频（jav-auto-download）下载完成后**必须存到 `/opt/data/PikPak/Inbox-JAV/`**，不是 `/opt/data/Movie/`！Movie 目录只给**电影下载 skill**（普通电影/剧集）用。两个规则不要混用。
 
+## 交互协议（2026-08-14 用户定义）——启动时必须先列模板
+
+用户说 **"启动番号下载"** 或 **"启动jav auto download"** → 必须先给出模板，等用户按格式发番号：
+
+```
+下载{番号}，文件按照规则增加后缀：-{女优名}-{标签} {描述}
+```
+
+示例（用户原话格式）：
+```
+下载DASS-977，文件按照规则增加后缀：-彩月七緒-多P轮奸中出 在学校被自己学生轮奸中出的美白黑丝极品尤物女教师
+```
+
+> 收到后：jav_manager.py --no-sync {番号} → 离线 PikPak → 清理广告 → 按用户给的完整后缀改文件名（不保留 -C 标记，用户后缀优先）。
+
 ## 用法
 
 ```bash
@@ -420,9 +435,9 @@ sleep 1
 更多 aria2 细节参看 `pikpak-webdav-manager` 技能。
 
 **rclone 备选方案（旧方式，不推荐）：**
-1. 查询 `pikpak:/Inbox-JAV` 的文件列表（`rclone lsjson`）
+1. 查询 `pikpak:/Inbox-JAV` 的文件列表（`timeout 60 rclone lsjson`）
 2. 比对 `.inbox_record.json` 排除已下载
-3. `rclone copy` 到本地
+3. `timeout 3600 rclone copy` 到本地（加 `--timeout 60s --contimeout 30s`，防网络卡死无限等待）
 4. 如果 PikPak 还没下载完，最长等 30 秒轮询
 - 注意：rclone WebDAV 对本服务器 IP 限流严重（1.4MB/s → 50KB/s 持续降速 → 503）
 

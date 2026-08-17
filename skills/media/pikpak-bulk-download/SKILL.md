@@ -39,9 +39,39 @@ build_plan(): manifest JSON → 过滤(仅视频ext) → 去重(同内容取最�
 - **根治方向（免费优先，2026-08-12）**：限流对象是**出口 IP**（实测 111.193.27.155 联通家宽 PPPoE）。①**重启光猫/路由器重拨换 IP** → 新 IP 干净、限流立即解除（唯一免费根治方案，PPPoE 重拨必换 IP）；②等临时 IP 处罚自动解除（几小时~几天）；③小文件/不着急的走 WebDAV 0.3MB/s 挂着免费下，大文件/批量才上代理 SG-AWS02。代理按流量收费是硬约束，用户明确不愿长期依赖。
 - **免费 CDN 中转已排除（2026-08-12 实测，勿再试）**：CF Workers 默认域名 `*.workers.dev` 国内被墙（直连 HTTP 000 超时，cloudflare.com 边缘却通）→ 需自定义域名才能用，用户没有；公共免费 HTTP 代理（阿里云/微软云新加坡香港）测 PikPak 直链全 0.00MB/s。结论：**无免费换 IP 捷径**，别在 CF Worker/免费代理上再花时间。
 - **测速 cron 定时**：每天 2 次（00:30/06:30，DeepSeek 夜间优惠窗口 00:30-08:30 内，避开 08:00 文档入库/12:05 思源/18:05 git 备份），no_agent 静默，>1MB/s 才输出提醒。
-- **rclone 二进制丢失修复**：/tmp 被清后 `/tmp/rclone` 消失（WebDAV 拷贝、pikpak_watch.py 都依赖它）。重下配方：`curl -sL -x http://127.0.0.1:10808 -o /tmp/rclone.zip https://github.com/rclone/rclone/releases/download/v1.67.0/rclone-v1.67.0-linux-amd64.zip`，用 python `zipfile` 解压到 /tmp/rclone（系统无 unzip）。配置在 `/opt/data/.config/rclone/rclone.conf`（type=webdav, url=http://dav.mypikpak.com:80）。
+- **rclone 二进制丢失修复**：/tmp 被清后 `/tmp/rclone` 消失（WebDAV 拷贝、pikpak_watch.py 都依赖它）。重下配方：`curl -sL --max-time 120 -x http://127.0.0.1:10808 -o /tmp/rclone.zip https://github.com/rclone/rclone/releases/download/v1.67.0/rclone-v1.67.0-linux-amd64.zip`，用 python `zipfile` 解压到 /tmp/rclone（系统无 unzip）。配置在 `/opt/data/.config/rclone/rclone.conf`（type=webdav, url=http://dav.mypikpak.com:80）。
 - 测速脚本：`/opt/data/scripts/ai_cdn_speed_test.py` + `.sh`（>1MB/s 才输出，配合 no_agent cron 空输出=静默）。
 - 出口被限就换节点：`bash /opt/data/proxy-skill/proxy_auto_switch.sh --node usXX`；**auto_switch 无参数全遍历会卡死节点**（新加坡01 挂起 300s+），用 --node 指定 + 外层超时。
+
+## ⚠️ CDN 限速是"按连接"而非"按 IP 总量"时——aria2 多连接可绕过（2026-08-15 实测）
+
+**换 IP 后（123.123.74.83）出现新规律**：单连接 curl 测速 0.16-0.32MB/s（看似全限），但 **aria2 8 连接并发实际 8.9MB/s**——单连接被掐，多连接不受影响！**别被 curl 单连接测速吓到**，直接上 aria2 实测：
+
+- curl 单连接 0.2MB/s vs aria2 --split=8 8.9MB/s（44x），总速度随并发文件数叠加（3 并发 ~27MB/s）
+- **节点分组差异**：换 IP 后部分节点组（dl-a10b-1551/1552/1543/1194）解封至 1.9-2.2MB/s，另一组（dl-z01a-*）仍单连接 0.2MB/s——但 aria2 多连接下 z01a 也能 8.9MB/s
+- **判断方法**：不能只看 curl 单连接测速，`--split=8` 的 aria2 才是真实速度；限速"按连接"时多连接直接绕过
+- **无代理下载模板**：`/opt/data/network_video_dl.py`（复用 ai_drama_dl 核心，但 aria2 命令**去掉 `--all-proxy`**、并发 3、递归扫描文件夹）。ai_drama_dl.aria2_download 硬编码了代理参数，直连必须复制函数改掉
+- **进度检查防 pre-alloc 假象**：aria2 文件 `st_size` 可能显示=目标大小但实际没下完（预分配）。真实进度看 `st_blocks*512`（实际占用）或 `.aria2` 控制文件是否残留。判完成：`os.path.exists(dest) and not os.path.exists(dest + '.aria2')`
+
+### ⚠️ 直连"间歇性解封"会在运行中突然全挂（2026-08-15 实测）
+
+换 IP 后部分节点（dl-a10b-155x）解封 1.9-2.2MB/s，但**不是稳定状态**：下载运行中会突然全部 403/超时（`ss -tn` 显示 0 ESTAB、aria2 空挂、速度 0），且 `curl -r 0-10MB` 单测也恢复 0.2MB/s。规律：
+- **解封窗口不保证持续**，可能几分钟后全节点回到限流；高速（40MB/s+）和全挂（0MB/s）交替出现
+- aria2 `--timeout=60 --max-tries=3` 会空等超时链，看起来"没动静"——`ps` 有进程但 `ss` 无 ESTAB 连接 = 在等超时
+- 判断卡死：`ss -tn | grep -c ESTAB` 为 0 + 速度 0 + 日志无新完成 = 挂了，别干等
+
+**稳妥兜底（实测有效）**：aria2 函数加 `use_proxy` 参数（默认无代理），直连失败 2 次后**自动切代理**下载同一文件（复用 `--all-proxy` 参数），代理也失败再重试 1 次。用户策略仍是"先直连省钱"，但**卡死自动切代理**而不是无限重试。用户 2026-08-15 明确同意此模式（"重连一下，重新下载试试" → 直连不稳定时接受切代理）。
+
+### aria2 偶发卡死：数据满但 .aria2 不释放
+
+下载完成后个别 aria2 进程可能卡在收尾（文件 st_blocks 已达目标，但 .aria2 控制文件不删、进程不退）。处理：
+1. 等 60-90s 看是否自然收尾；仍卡 → `pkill -9 -f aria2c`
+2. 删残留 `.aria2`（数据已满则安全）
+3. 完整性核对：`os.path.getsize(dest)` vs manifest size（±1%）+ ffprobe 抽验时长
+
+### ✅ 用户规则：下载到本地后删除 PikPak 源文件（2026-08-15 明确）
+
+用户原话："以后记得，下载到本地后将pikpak中的文件删除掉"——**每个文件下载到本地验证完整后，删除网盘里的对应文件**（释放网盘空间，用户下完会删）。实现：worker 里 verify OK 后调 `api.delete_to_trash([file_id])`，或全部完成后批量删 manifest 中已完整下载的。注意与"重复下载/增量下载"部分的联动：网盘文件删了之后，旧 manifest 的 file id 会过期（`File or folder is not found`），重扫拿新 ID 是预期行为。
 
 ## Token 刷新冲突
 
@@ -90,6 +120,16 @@ jav_manager.py 的"选择高清磁链"逻辑**不会正确过滤 -U**——EBWH-
 - 含 `-U`（非 -UC）或 `无码破解` → 删掉 PikPak 里误加的文件（`delete_to_trash`），手动从 javdb 页面挑正常版磁链（`grep -oP 'magnet:[^"<]+'`，`dn=` 不带 -U 的），`offline_download` 重加，再手动清广告+移出+重命名+删空文件夹。
 - 检查方法：`grep "选中" /tmp/jav_*.log`。
 
+### ⚠️ jav_manager.py 对 4K/mkv 大文件不自动移出（2026-08-12 实测）
+
+DLDSS-348（[4K] 11.79GB .mkv）、JUR-341（[4K] 26.69GB .mkv）两例：脚本日志只有"广告已清除 → 已添加到 Inbox-JAV"，**没有"移出视频到根目录/重命名/删空文件夹"**——视频留在种子文件夹里（`{广告站}@{番号}_[4K].mkv`）。**每次跑完必须检查 PikPak 上文件是文件夹还是直接文件**：
+- `kind=drive#folder` → 手动处理：file_list 列出子文件 → 删广告（非视频）→ batchMove 视频到 Inbox-JAV 根 → PATCH 重命名 → delete_to_trash 空文件夹（顺序不可反）。配方同 `references/pikpak-rename-on-cloud-20260812.md`。
+- 检查方法：`api.file_list(parent_id=inbox_id)` 看 `kind` 字段；文件夹显示 size=0MB 是正常的（子文件才是真实大小）。
+
+### ⚠️ 跑 jav_manager.py 前必须确认代理在运行（2026-08-12 实测）
+
+代理进程可能被系统清理（`proxy.sh status` 返回"未运行"），jav_manager Phase 1 会静默失败（"未找到番号"）。**先 `bash /opt/data/proxy-skill/proxy.sh status` 确认运行中 + 出口 us03，再启动 jav_manager**。若未运行：`proxy.sh start` 后用 `curl --max-time 10 https://api.ip.sb/ip` 验证出口 IP，再跑。
+
 ### 外挂字幕手动补下（subtitlecat 搜索页无下载链接时）
 
 subtitlecat 搜索结果页只有字幕条目链接，**下载链接在详情页里**。流程：搜索页 `https://www.subtitlecat.com/index.php?search={code}` → 点开含 zh-TW 的条目页 → 页面里 `grep -oP 'href="[^"]*zh-CN[^"]*\.srt"'`（zh-TW 条目页里通常有 `-zh-CN.srt` 简体版，比 zh-TW 更优先）→ curl 直下到本地 Inbox-JAV 改名 `{code}.srt`。实例 NSFS-497：脚本 Phase 2.5 失败但手动从此法成功拿到 48KB zh-CN 字幕。注意 srt 是 UTF-8，`head` 直接看会报 UnicodeDecodeError（latin-1 解码看内容即可，文件本身正常）。
@@ -133,6 +173,8 @@ disk = find 目标目录 -type f（含所有视频 ext，排除 .aria2）
 ## 参考
 
 - `references/pikpak-rate-limit-bypass.md` — 限速排查过程 + 出口 IP 速度矩阵
+- `references/pikpak-rename-on-cloud-20260812.md` — PikPak 上批量重命名番号（CDN 限流期工作流）
+- `references/u9a9-web-scraping-20260812.md` — 网页视频采集调研（u9a9.com 静态 HTML 解析，无需 crawl4ai；给网址→时间/大小过滤→离线 PikPak 的完整配方）
 - 复用模板：`/opt/data/twitter_dl.py`（完整可复制示例：import 核心 + 自写 build_plan/process_one）
 - `proxy` skill：代理/换节点管理（requires-skills 自动加载）
 - `pikpak-webdav-manager`：rclone WebDAV 操作、看门狗同步（相邻领域，勿混）

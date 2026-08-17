@@ -8,14 +8,30 @@ description: PikPak 网盘文件管理 — rclone WebDAV 操作、CDN 多线程�
 
 通过 rclone 静态二进制（`/tmp/rclone`）和 Python 多线程分片下载，管理 PikPak 云盘文件。
 
-**四个接入方式对比：**
+**四个接入方式对比（2026-08-15 更新）：**
 
 | 方式 | 速度（本服务器） | 稳定性 | 适用场景 |
 |:----|:---:|:-----|:--------|
-| 🥇 **aria2 CDN + 8连接分片** | **~5.6 MB/s** | ✅ 稳定，内置重试 | **大文件首选** |
-| 🥈 Python CDN + 多线程 Range | ~1.5MB/s（实测有时仅0.3） | ⚠️ 进程易被SIGTERM | aria2不可用时回退 |
-| 🥉 rclone WebDAV (dav.mypikpak.com:80) | 1.4MB/s → 50KB/s 持续降速 | ❌ 易触发 503 限流 | 小文件、紧急下载 |
+| 🥇 **WebDAV 多文件并发 (rclone, dav.mypikpak.com:80)** | **单文件5-8MB/s，3并发=24MB/s 线性叠加** | ✅ 直连不走代理，0 流量费 | **🚨 用户硬规则：默认方案，一律用这个** |
+| 🥈 **aria2 CDN + 8连接分片** | 快时 8-167MB/s，限流时 0.2MB/s | ⚠️ 节点间歇性 | CDN 解封时用 |
+| 🥉 Python CDN + 多线程 Range | ~1.5MB/s（实测有时仅0.3） | ⚠️ 进程易被SIGTERM | aria2不可用时回退 |
 | PikPak API CDN 直链 (rclone copyurl) | 200-250KB/s | ✅ 稳定但慢 | WebDAV 限流时备用 |
+
+**🚨 2026-08-15 用户硬规则：从 PikPak 下载一律用 WebDAV 多文件并发！**
+- **并发基准测试（2026-08-15 实测，见 `references/webdav-concurrency-benchmark-20260815.md`）**：单文件 5-8MB/s；并发线性叠加——3并发≈20MB/s、6并发≈34MB/s、9并发≈77MB/s、**15并发=111MB/s（峰值）**、20并发=82MB/s（饱和下降）。**最优并发=15**（稳定 79-112MB/s，平均 95.6）
+- **0 流量费**（直连 dav.mypikpak.com，不走代理；代理按流量收费贵）
+- WebDAV 凭据：url=`http://dav.mypikpak.com:80`，user=`xqji`，pass=`rtabnsvs`（rclone.conf 在 `/opt/data/.config/rclone/rclone.conf`）
+- **⚠️ WebDAV 不支持 Range 分片请求**：curl 带 `Range: bytes=0-20M` 返回 HTTP 200 但 size=0（假死），必须**全量流式**下载（rclone copy 默认流式 OK）
+- **🚨 判断 rclone 是否在下载：看 `.partial` 文件！** rclone 下载中先写 `<文件名>.<8位随机>.partial` 临时文件，完成后自动改名。**出现 .partial 且大小增长 = 正在下载**。不要用 ps/ss 连接数判断——大文件 WebDAV 握手慢，早期 40s+ 无连接无输出是正常的，误判"卡死"会杀掉正常下载（2026-08-15 踩坑：8 个 rclone 进程跑了 28GB 被误判卡死）
+- 多文件并发：rclone 单进程 `--files-from 列表 --transfers 15`（每个文件独立连接，15 并发最优）
+
+**🚨 下载完成流程（用户 2026-08-15 纠正，每次下载后必须执行）**：
+1. ffprobe 全量验证（大小匹配 + 无 moov 错误 + 时长正常）
+2. **删 PikPak 源文件**（本地完整才删：本地存在且大小≥99% 的文件对应删除；保留未下载的/文件夹）
+3. **字幕改名为与视频文件名一致**（按番号匹配：正则 `[A-Za-z]{2,6}-?\d+` 提取番号，大写去连字符后配对，如 `DLDSS-348.[4K]@R.srt` → `DLDSS-348-入田真綾-...幼儿教师.srt`；无匹配视频的字幕保留不删）
+4. 汇报时说明删了几个源 + 改了几个字幕
+
+**🚨 moov atom not found 判定（2026-08-15 实测）**：ffprobe 报 moov atom not found = **PikPak 源文件本身损坏**，不是下载问题。判定流程：删本地重下（WebDAV）→ 仍损坏 → 换 CDN 直链 aria2 再下 → 仍损坏 → **实锤源文件损坏**。处理：删本地坏文件 + 删 PikPak 源（避免未来误下载），无法修复除非换磁链重新离线。
 
 ## 核心工具脚本
 
@@ -219,8 +235,9 @@ if os.path.exists(dest_file):
 4. 用户说继续 → 重启脚本（自动 SKIP 已完成）+ resume 监控 cron
 测速脚本：`/opt/data/scripts/ai_cdn_speed_test.sh` + `.py`（用 .venv python 包装，pikpakapi 不在系统 python）。
 
-**用户下载策略偏好（2026-08-09 明确，批量下载必须遵守）**：
-- **速度优先，省钱**：PikPak CDN 先直连（不走代理，代理按流量收费且更慢）。**判定标准（2026-08-10 实战）**：直连全节点 <0.1MB/s 持续 10+ 分钟 = IP 级限流 → 切代理（`--all-proxy=http://127.0.0.1:10808`）换出口 IP，实测提速 ~80 倍。
+**用户下载策略偏好（2026-08-09 明确 + 2026-08-15 更新，批量下载必须遵守）**：
+- **省钱第一**：**默认走 WebDAV 直连（5-7MB/s，0 流量费）**。代理按流量收费太贵，用户 2026-08-15 明确："怎么能不用代理下载？用代理下载按照流量收费，太贵了"。CDN 直连虽然免费但节点限流不稳定（间歇 0.2MB/s）。
+- **判定顺序**：① WebDAV 直连（省钱首选）→ ② aria2 CDN 直连（节点解封时快）→ ③ 代理 SG-AWS02（仅当 WebDAV/CDN 都不可用或急需高速时）。**判定标准（2026-08-10 实战）**：直连全节点 <0.1MB/s 持续 10+ 分钟 = IP 级限流 → 切代理（`--all-proxy=http://127.0.0.1:10808`）换出口 IP，实测提速 ~80 倍。
 - **慢节点立即换**：< 0.5MB/s 马上 kill + 换 URL，不等不重试。
 - **并发数用户每次现场指定**（4 → 3 → 2 均出现过，2 最稳），脚本用 `CONCURRENCY` 常量随时可调，不要写死。
 - 换 3 次仍慢 → 文件放回队列尾部（REQUEUE），不放弃。
@@ -303,21 +320,23 @@ asyncio.run(get_urls())
 
 **`get_download_url()` 返回的 URL 在 `web_content_link` 字段（2026-07-22 确认：`url` 字段永远为空，`links` 和 `medias` 字段也不包含有效下载 URL。只用 `web_content_link`。）**
 
-### 速度实测数据
+### 速度实测数据（2026-08-15 更新 — WebDAV 已逆袭）
 
 | 方案 | 并发数 | 合计速度 | ETA(5GB) | 稳定性 |
 |:----|:-----:|:-------:|:--------:|:------|
-| 🥇 **aria2 8连接分片** | **8** | **2.8~6.5 MB/s** | **~15min** | ✅ 稳 |  
-| 🥈 Python 8线程 Range | 8 | ~0.3~1.5 MB/s | ~1h | ⚠️ 进程易被SIGTERM |
-| 🥉 rclone copy WebDAV | 1 | 1.4MB→50KB/s | ~28h | ❌ 降速+503 |
+| 🥇 **WebDAV 直连 (rclone copy)** | 1 | **5-7 MB/s（持续不降速）** | **~15min** | ✅ 稳，0 流量费 |
+| 🥈 aria2 8连接分片 CDN | 8 | 快时 8-167 / 限流 0.2 | 不定 | ⚠️ 节点间歇 |
+| 🥉 Python 8线程 Range | 8 | ~0.3~1.5 MB/s | ~1h | ⚠️ 进程易被SIGTERM |
 | rclone copyurl CDN | 1 | 200-250KB/s | ~6h | ✅ 慢但稳 |
 | PC Neat Download | N/A | 5MB/s | ~17min | N/A |
+
+> ⚠️ 旧数据（2026-06）记录 WebDAV 只有 1.4MB/s→50KB/s 降速+503，**已过时**——换出口 IP / PikPak 政策变化后 WebDAV 直连稳定 5-7MB/s，是本服务器当前**最省钱**的下载通道。
 
 ### 坑 — 务必逐条阅读
 
 - **🚨 IP 级限流（2026-08-10 重大发现）**：当**所有** CDN 节点直连都 <0.1MB/s（换 URL 无效、多节点/多文件全慢），是 **PikPak 对服务器出口 IP 限流**，不是节点问题也不是全局限流！解法：**aria2 加 `--all-proxy=http://127.0.0.1:10808` 走代理换出口 IP**。实测：直连 0.08 MB/s → 代理出口（103.62.49.138）0.95 MB/s（单连接 curl），aria2 8连接实际 **6~8 MB/s**，提速 ~80 倍。判定流程：curl 直连测速 <0.1MB/s → `curl -x http://127.0.0.1:10808` 测同一 URL，代理明显更快 → 确认 IP 限流 → 下载脚本加 `--all-proxy`。注意走代理后 SLOW 阈值要降（代理吞吐上限低，0.5MB/s 阈值会误杀，**用户拍板用 0.2MB/s**）。完整实录见 `references/pikpak-ip-throttling-20260810.md`。
 - **🚨 代理出口 IP 也会被限流（2026-08-10 后半程）**：103.62.49.138 用了约 1 小时后从 0.95MB/s 掉回 ~0，且该 IP 段的 AWS日本节点（103.62.49.138/.178）全都只有 ~0.95MB/s。**换节点是常态操作不是一次性**：`bash /opt/data/proxy-skill/proxy_auto_switch.sh --node '🇸🇬AWS新加坡02'` 切到 **67.159.48.147 后实测 25~30MB/s（aria2 8连接）**，242GB 在 ~1 小时内下了 170GB。经验：**逐节点测速（`curl -x 10808 -r 0-20M`）找出口 IP 段差异大的节点，快节点直接让整个下载提速一个数量级**。测速/切换脚本见 `references/pikpak-ip-throttling-20260810.md`。
-- **不要走代理下载（默认）**：代理按流量收费，且通常更慢。CDN 直链和 WebDAV 都是直连 HTTP，不需要代理。**例外：IP 级限流时（见上条）走代理是唯一解法。**
+- **不要走代理下载（默认）**：代理按流量收费，且通常更慢。CDN 直链和 WebDAV 都是直连 HTTP，不需要代理。**例外：IP 级限流时（见上条）走代理是唯一解法。** 完整 WebDAV 实测 + Range 坑 + 下载脚本模式见 `references/webdav-direct-download-20260815.md`。
 - **Python 下载器缺陷**：`pikpak_cdn_dl.py` 进程经常被 SIGTERM（exit code 143）杀死，导致频繁重下。此时切 aria2 可解。
 - **🚨 幽灵 inode 陷阱（2026-06-27 新增）**：下载过程中 **绝对不要** `rm -f` 正在被 aria2 写入的文件！即使文件被删除（unlink），aria2 仍通过文件描述符继续写入孤儿 inode，数据写入磁盘但在目录中不可见。重新创建同名文件使用的是新 inode，旧数据无法恢复。等于白下。删除操作分成两步：
   1. 先 `kill <aria2_pid>` 或 `pkill -f "aria2c.*特定文件名"` (不要无差别杀)
@@ -379,14 +398,16 @@ asyncio.run(get_urls())
 
 ## rclone WebDAV 操作
 
-### 基础命令
+### 基础命令（🚨 所有 rclone/curl 命令必须加超时保护，禁止裸跑！）
+
+**为什么**：2026-08-16/17 两次微信死掉都是 rclone/curl 网络命令遇 PikPak 瞬时故障无限等待 → agent 卡死 → gateway 忙转。**查询类命令用 shell `timeout` 前缀；下载类命令用 rclone 自带 `--timeout`（空闲超时，下载中有数据流动不误杀，卡死自动断）。**
 
 ```bash
-/tmp/rclone ls pikpak:/目录          # 列出
-/tmp/rclone lsjson pikpak:/目录      # JSON 格式
-/tmp/rclone copy pikpak:/远程 /本地  # 下载
-/tmp/rclone copy /本地 pikpak:/远程  # 上传
-/tmp/rclone delete pikpak:/文件      # 删除
+timeout 60 /tmp/rclone ls pikpak:/目录          # 列出（查询类：必须 timeout 前缀）
+timeout 60 /tmp/rclone lsjson pikpak:/目录      # JSON 格式
+timeout 60 /tmp/rclone lsf pikpak:/目录         # 只列名（最常用，确认实际路径）
+timeout 120 /tmp/rclone delete pikpak:/文件     # 删除
+# 下载/上传：shell timeout 会误杀大文件，改用 rclone 自带 --timeout 60s --contimeout 30s
 ```
 
 ### 配置信息
@@ -401,24 +422,70 @@ pass: <加密>
 
 **获取 WebDAV 密码：** `/tmp/rclone reveal "<encrypted_pass>"`
 
-### rclone copy 下载（单线程，备选）
+### rclone copy 下载（🥇 首选 — 2026-08-15 验证 5-7MB/s）
 
-当 CDN 方案不可用时：
+**省钱关键：WebDAV 走 dav.mypikpak.com 直连，不经过代理 → 0 流量费。** 用户明确要求避免代理下载（按流量收费太贵）。批量下载默认用 WebDAV。
 
 ```bash
-/tmp/rclone copy pikpak:/文件 /本地 --buffer-size=128M --multi-thread-streams=0 --progress --verbose
+mkdir -p /tmp/dl   # ⚠️ 目标本地目录必须先存在，否则报 "directory not found"
+timeout 3600 /tmp/rclone copy "pikpak:/远程/文件.mp4" /tmp/dl \
+  --buffer-size=128M --multi-thread-streams=0 --progress --timeout 60s --contimeout 30s
+# shell timeout 3600 兜底（防 rclone 本身异常挂死）；--timeout 60s = 60s 无数据流动即断
 ```
 
-注意：WebDAV 长期传输可能触发 503 限流。速度从 1.4MB/s 逐渐降至 50KB/s 时建议暂停 10 分钟再恢复。
+**⚠️ 坑A：WebDAV 不支持 HTTP Range 请求！**
+用 `curl -H "Range: bytes=0-..."` 测 WebDAV 会返回 **HTTP 200 但 size=0**（服务器忽略 Range 头返回空响应），误以为"连不上/0 速度"。**必须用 rclone copy 全量流式下载**。测速也别用 curl Range，用 rclone copy 跑 15-30s 后看落盘字节数。
+
+**⚠️ 坑B：rclone copy 报 "directory not found" 时先检查远程路径**
+`rclone copy pikpak:目录/文件.mp4` 把远程路径当目录解析。先 `rclone lsf pikpak:根目录/` 确认文件实际路径（文件可能在子文件夹内，如 `My Pack/DSOD-008/xxx.mp4`），且本地目标目录要 `mkdir -p`。
+
+**⚠️ 坑C：多线程参数**
+`--multi-thread-streams=0` 关闭多线程（WebDAV 单线程更稳）。要并行多文件时用 `--transfers N`（见下）。
+
+注意：历史记录（2026-06）WebDAV 长期传输可能触发 503 限流、速度降至 50KB/s——2026-08-15 实测未复现，但超大文件长时间传输若降速，暂停 10 分钟恢复。
 
 ## 批量并行下载
 
 ```bash
-# 指定文件列表
+# 指定文件列表（files-from 里写相对路径文件名，rclone 相对于 copy 的远程源根解析）
+# ⚠️ 远程根=整个 PikPak 根，不是 Inbox-JAV！文件在 Inbox-JAV 下时：
+#   远程路径必须写 pikpak:Inbox-JAV（files-from 里仍是纯文件名）
+#   ❌ 错误: rclone copy pikpak:Inbox-JAV/DASS-xxx.mp4 本地（把路径当目录，报 directory not found）
+#   ✅ 正确: rclone copy pikpak:Inbox-JAV 本地 --files-from /tmp/list.txt
 echo "file1.mp4" > /tmp/list.txt
-/tmp/rclone copy --files-from /tmp/list.txt pikpak:/Inbox-JAV /本地 \
-  --transfers 3 --progress
+timeout 7200 /tmp/rclone copy --files-from /tmp/list.txt pikpak:/Inbox-JAV /本地 \
+  --transfers 15 --buffer-size=128M --multi-thread-streams=0 --progress --timeout 60s --contimeout 30s
 ```
+
+**🚨 坑D：子文件夹内的文件，files-from 必须写完整相对路径（2026-08-15 AI短剧 实战）**
+当远程源文件夹含多层子文件夹（如 AI短剧 48 个子文件夹）时，`--files-from` 只写纯文件名 → rclone 报 **"There was nothing to transfer"**（它在源根找不到这些文件）。必须先用 pikpakapi 递归遍历拿到每个缺失文件的完整相对路径，files-from 里写 `子文件夹/子子文件夹/文件名`：
+```python
+# 1. pikpakapi 递归收集缺失文件的完整相对路径
+path_map = {}  # name -> '子文件夹/文件名'
+async def walk(pid, relpath):
+    r = await api.file_list(parent_id=pid, size=100)
+    for f in r.get('files', []):
+        if f.get('kind') == 'drive#folder':
+            await walk(f['id'], relpath + '/' + f['name'] if relpath else f['name'])
+        elif f['name'] in missing_names:
+            path_map[f['name']] = (relpath + '/' + f['name']) if relpath else f['name']
+# 2. files-from 写 path_map.values()，rclone copy pikpak:AI短剧 本地 --files-from ...
+```
+判定信号：rclone 秒退（0.5s）且日志 "There was nothing to transfer" = files-from 路径没对上源根。
+
+**批量补下工作流（云端 vs 本地对比）**：
+1. pikpakapi 扫描云端全部文件（含子文件夹递归）→ manifest
+2. 对比本地：文件名直接匹配 OR 去 `2048.hk@` 前缀匹配（云端常带网站前缀，本地可能已去前缀）→ 得出缺失清单
+3. 对缺失清单递归拿完整相对路径 → files-from
+4. `--transfers 15` 下载，本地已存在且大小≥99% 的剔除（断点续传）
+5. 进度监控：看 `.partial` 文件增长（不是 ps/ss），单进程 rclone 日志可能长时间无输出
+
+**批量下载实战（2026-08-15 Inbox-JAV 6 文件/66GB）**：
+1. 用 pikpakapi `file_list` 扫描目录，筛 >100MB 视频（排除字幕文件夹/小文件）
+2. 生成 files-from 列表（纯文件名，文件在源根时）
+3. `rclone copy pikpak:Inbox-JAV <本地> --files-from 列表 --transfers 15`（15 并发最优）
+4. 本地已存在且大小 ≥99% 的文件从列表剔除（断点续传）
+5. 进度监控：看 `.partial` 文件增长（不是 ps/ss），单进程 rclone 日志可能长时间无输出
 
 ## 看门狗自动下载（智能休眠版）
 

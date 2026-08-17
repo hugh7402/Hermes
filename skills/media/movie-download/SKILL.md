@@ -85,6 +85,7 @@ curl -sL --proxy http://127.0.0.1:10808 -A "Mozilla/5.0" \
 
 ## 踩坑记录
 
+- **🚨 网络命令必须带 timeout（2026-08-16 驭风男孩 gateway 卡死事故）**：`rclone lsf pikpak:Movie/` 在 PikPak 瞬时连接故障时会**无限挂起** → agent 的 terminal 调用不返回 → gateway 线程死循环烧 CPU（实测单线程 97%）→ 整个微信网关无响应（用户感知"死机"，且恰好发生在启动 skill 之后，容易误判成 skill 问题——**skill 本身是好的，是网络调用挂起拖死了 agent**）。预防：**所有 rclone/PikPak/curl 网络命令一律加 `timeout <秒>` 前缀**（如 `timeout 60 /tmp/rclone lsf "pikpak:Movie/"`），长下载用 background=true + notify_on_complete，不要前台长阻塞。gateway 卡死诊断与恢复见 `weixin-gateway-troubleshooting` skill。
 - **🚨 时长校验禁用 bc 命令（2026-08-04 三剧连环误删事故）**：批量脚本写 `echo "$dur > 100" | bc` 判断时长，但**服务器没装 bc** → 判断恒为空 → **已下载成功的完整文件全部当失败删除**（护宝寻踪 8 集 45 分钟正常时长全被 rm）。症状隐蔽：日志显示 `校验失败 (dur=2734)`，时长明明是正常的。**必须用 python 判断**：`[ "$(python3 -c "print('1' if float('$dur') > 100 else '0')" 2>/dev/null)" = "1" ]`。所有批量校验脚本统一走 python，不要假设系统装了 bc。附带影响：**改完校验逻辑后，旧进程仍在跑旧逻辑**——重启脚本才生效，已启动的后台任务要 kill 掉用修好的版本重跑（配合 `--continue=true` 断点续传不浪费已下载部分）。
 - **Cloudflare 站不要死磕**：yts/1337x/bt4g 全部 CF 拦截，直接换 Discuz 论坛或 web_search 挖 hash
 - **电视剧批量下载（多集，2026-08-04 护宝寻踪实战）**：电影天堂（dytt8899.com）剧集页**每集一个独立磁链**（`dn=剧名XX.mp4`），页面 **GBK 编码**。流程：① curl 抓页 → python `raw.decode('gbk')`（UTF-8 解码会失败/乱码）② 按 `<tr>` 行解析 `re.findall(r'<tr[^>]*>(.*?)</tr>', html, re.S)`，行内含 `magnet:?xt=urn:btih:<hash>&dn=剧名XX.mp4`（36 集 = 36 个唯一磁链，页面每个磁链出现两次需去重；第一行 `<tr>` 是剧集简介不含磁链，注意跳过）③ 批量 `offline_download(url, parent_id=inbox_id)` 加 PikPak（每集间隔 ~1.5s 避免限频，36 个全成功）④ 等 ~60s 后批量 `get_download_url` 取 CDN 直链存 JSON ⑤ aria2 批量下载：**并发槽位控制 `pgrep -fc aria2c` 计数 ≤3**，下载到 /tmp → ffprobe 时长校验（>100s 才算完整，防假种子）→ cp 到 Movie/ → rm /tmp ⑥ 每集独立校验+入库，**已完成文件跳过**（幂等，重启安全）。**电视剧入库目标 = Movie/**（与番号分开，用户 2026-08-04 确认）。
@@ -95,6 +96,7 @@ curl -sL --proxy http://127.0.0.1:10808 -A "Mozilla/5.0" \
 - **种子文件夹常混入广告文件**（BBQDDQ.com 压制组种子尤甚：`.png`/`.doc`/`.pdf`/`.mkv` 名义的 0 字节广告）：离线结果是文件夹时 `file_list` 列内部文件，**只挑 size > 100MB 的真视频取 URL**，广告文件跳过
 - **PikPak 离线结果可能是文件夹**（kind=drive#folder，size=0）：电影种子常把视频包在子目录里。取 URL 前必须 `file_list(parent_id=<folder_id>)` 找到内部视频文件，再用其 id 调 `get_download_url`。参考 jav-auto-download 同款坑。
 - **PikPak API 删除方法**：没有 `offline_delete`，删离线任务用 `delete_tasks([task_id])`；删网盘文件用 `delete([file_id])`。可用 `dir(client)` 先确认方法名再调用。
+- **rclone 删云端源必须 delete + rmdir 两步（2026-08-16 驭风男孩）**：`timeout 120 rclone delete "pikpak:Movie/<目录>/"` 只删文件，**空目录壳仍留在 `lsf` 列表**；补 `timeout 120 rclone rmdir "pikpak:Movie/<目录>/"` 才彻底移除。验证：删除后 `timeout 60 rclone lsf` 目录名应从列表消失。下载到本地验证完整后必须删 PikPak 源（用户规则）。
 - **aria2 显示 0KB/s 但文件已是满大小 ≠ 卡死**：aria2 预分配文件，`stat` 看到完整大小但速度 0 可能是下载已完成、只是 `.aria2` 控制文件残留（进程被杀/异常退出时常见）。**验证法**：杀进程 → `rm .aria2` → 用 `--continue=true` 重启同一 URL，若立即报 `Download has already completed` 说明文件其实完整，直接 ffprobe 校验后入库（2026-08-01 池畔谋杀案案例）。
 - **并发上限 3**：用户明确要求最多同时下 3 个文件（2026-08-02）。批量下载用并发计数循环（`pgrep -fc aria2c` 计数 + 等待槽位）或 `xargs -P3`，不要一次全开。NMSL-011 等大文件挂后台慢慢爬即可。
 - **"中文字幕"磁链标注不可靠**：NMSL-011 磁链名标"中文字幕"但 ffprobe 无字幕流、抽帧也无硬字幕（只有水印）。电影下载后同样要验证内嵌字幕：`ffprobe -select_streams s` 查字幕流；无流时**抽帧 + OCR 查硬字幕**（`ffmpeg -ss <秒> -i file -frames:v 1 -vf scale=480:-1 /tmp/f.jpg` + 本地 RapidOCR `/opt/data/ocr_venv`），多抽几帧（对白多的位置如 600/2400/4200s）。确认无字幕要如实告知用户，别当有中字版入库。

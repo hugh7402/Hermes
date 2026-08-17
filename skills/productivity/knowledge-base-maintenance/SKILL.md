@@ -125,7 +125,7 @@ uv run --with feedparser --with requests python3 /opt/data/rss_monitor.py
 
 ```bash
 # 下载文件到本地
-/tmp/rclone copy "pikpak:/项目资料/方案.docx" /opt/data/cache/documents/ -P
+/tmp/rclone copy "pikpak:/项目资料/方案.docx" /opt/data/cache/documents/ -P --timeout 60s --contimeout 30s
 
 # 然后走标准入库流程
 cd /opt/data && python3 ingest_docs.py

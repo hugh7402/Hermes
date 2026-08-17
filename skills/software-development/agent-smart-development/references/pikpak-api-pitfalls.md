@@ -107,7 +107,7 @@ vendor = other
 
 **推荐下载策略**：一次只传一个文件，避免并发触发 503。rclone 命令：
 ```bash
-/tmp/rclone copy pikpak:/Inbox-JAV/番号.mp4 /opt/data/PikPak/Inbox-JAV/ --progress --verbose
+/tmp/rclone copy pikpak:/Inbox-JAV/番号.mp4 /opt/data/PikPak/Inbox-JAV/ --progress --verbose --timeout 60s --contimeout 30s
 ```
 
 ## 开发流程复盘（对照方法论）
