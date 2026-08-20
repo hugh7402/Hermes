@@ -3,16 +3,16 @@ model:
   provider: deepseek
   base_url: ''
 fallback_providers:
-  - provider: siliconflow
-    model: deepseek-ai/DeepSeek-V4-Flash
-    base_url: https://api.siliconflow.cn/v1
-    api_key: ${SILICONFLOW_API_KEY}
-  - provider: siliconflow
-    model: deepseek-ai/DeepSeek-V4-Pro
-    base_url: https://api.siliconflow.cn/v1
-    api_key: ${SILICONFLOW_API_KEY}
+- provider: siliconflow
+  model: deepseek-ai/DeepSeek-V4-Flash
+  base_url: https://api.siliconflow.cn/v1
+  api_key: ${SILICONFLOW_API_KEY}
+- provider: siliconflow
+  model: deepseek-ai/DeepSeek-V4-Pro
+  base_url: https://api.siliconflow.cn/v1
+  api_key: ${SILICONFLOW_API_KEY}
 toolsets:
-  - hermes-cli
+- hermes-cli
 agent:
   max_turns: 150
   gateway_timeout: 600
@@ -97,7 +97,7 @@ terminal:
   lifetime_seconds: 300
 web:
   backend: ''
-  search_backend: ''
+  search_backend: doubao
   extract_backend: ''
 browser:
   inactivity_timeout: 120
@@ -295,9 +295,9 @@ display:
   runtime_footer:
     enabled: false
     fields:
-      - model
-      - context_pct
-      - cwd
+    - model
+    - context_pct
+    - cwd
   copy_shortcut: auto
   tool_progress: all
   cleanup_progress: false
@@ -450,11 +450,11 @@ discord:
     speech_gain: 1.0
     ack_enabled: true
     ack_phrases:
-      - Let me look into that.
-      - One moment.
-      - Checking on that now.
-      - Give me a sec.
-      - On it.
+    - Let me look into that.
+    - One moment.
+    - Checking on that now.
+    - Give me a sec.
+    - On it.
 telegram:
   reactions: false
   allowed_chats: ''
@@ -475,11 +475,11 @@ approvals:
   mcp_reload_confirm: true
   destructive_slash_confirm: false
 command_allowlist:
-  - execute_code
-  - script execution via -e/-c flag
-  - script execution via heredoc
-  - overwrite project env/config via redirection
-  - shell command via -c/-lc flag
+- execute_code
+- script execution via -e/-c flag
+- script execution via heredoc
+- overwrite project env/config via redirection
+- shell command via -c/-lc flag
 hooks_auto_accept: false
 security:
   allow_private_urls: false
@@ -598,51 +598,52 @@ session_reset:
 group_sessions_per_user: true
 platform_toolsets:
   cli:
-    - browser
-    - clarify
-    - code_execution
-    - computer_use
-    - cronjob
-    - delegation
-    - file
-    - image_gen
-    - memory
-    - messaging
-    - session_search
-    - skills
-    - terminal
-    - todo
-    - tts
-    - vision
-    - web
+  - browser
+  - clarify
+  - code_execution
+  - computer_use
+  - cronjob
+  - delegation
+  - file
+  - image_gen
+  - memory
+  - messaging
+  - session_search
+  - skills
+  - terminal
+  - todo
+  - tts
+  - vision
+  - web
   telegram:
-    - hermes-telegram
+  - hermes-telegram
   discord:
-    - hermes-discord
+  - hermes-discord
   whatsapp:
-    - hermes-whatsapp
+  - hermes-whatsapp
   slack:
-    - hermes-slack
+  - hermes-slack
   signal:
-    - hermes-signal
+  - hermes-signal
   homeassistant:
-    - hermes-homeassistant
+  - hermes-homeassistant
   qqbot:
-    - hermes-qqbot
+  - hermes-qqbot
   yuanbao:
-    - hermes-yuanbao
+  - hermes-yuanbao
   teams:
-    - hermes-teams
+  - hermes-teams
   google_chat:
-    - hermes-google_chat
+  - hermes-google_chat
 plugins:
   enabled:
-    - disk-cleanup
-    - security-guidance
+  - disk-cleanup
+  - security-guidance
+  - web/doubao
   disabled: []
 known_plugin_toolsets:
   cli:
-    - spotify
+  - spotify
 platforms:
   telegram:
     enabled: false
