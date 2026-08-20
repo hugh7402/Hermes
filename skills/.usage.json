@@ -77,6 +77,19 @@
     "use_count": 0,
     "view_count": 0
   },
+  "cn-hotel-booking-links": {
+    "archived_at": null,
+    "created_at": "2026-08-18T01:38:43.954666+00:00",
+    "created_by": "agent",
+    "last_patched_at": null,
+    "last_used_at": null,
+    "last_viewed_at": null,
+    "patch_count": 0,
+    "pinned": false,
+    "state": "active",
+    "use_count": 0,
+    "view_count": 0
+  },
   "codebase-inspection": {
     "archived_at": null,
     "created_at": "2026-06-18T03:03:16.482522+00:00",
@@ -316,13 +329,13 @@
     "created_at": "2026-06-16T06:49:28.130707+00:00",
     "created_by": null,
     "last_patched_at": "2026-06-21T02:14:53.949050+00:00",
-    "last_used_at": "2026-08-17T04:05:42.440150+00:00",
-    "last_viewed_at": "2026-08-16T14:32:19.339231+00:00",
+    "last_used_at": "2026-08-20T04:05:58.582653+00:00",
+    "last_viewed_at": "2026-08-18T01:15:11.140148+00:00",
     "patch_count": 3,
     "pinned": false,
     "state": "active",
-    "use_count": 88,
-    "view_count": 23
+    "use_count": 92,
+    "view_count": 24
   },
   "hermes-agent-skill-authoring": {
     "archived_at": null,
@@ -355,26 +368,39 @@
     "created_at": "2026-08-09T06:02:07.984860+00:00",
     "created_by": "agent",
     "last_patched_at": null,
-    "last_used_at": null,
-    "last_viewed_at": null,
+    "last_used_at": "2026-08-18T01:19:41.904851+00:00",
+    "last_viewed_at": "2026-08-18T01:19:41.893008+00:00",
     "patch_count": 0,
     "pinned": false,
     "state": "active",
-    "use_count": 0,
-    "view_count": 0
+    "use_count": 1,
+    "view_count": 1
   },
   "hermes-provider-management": {
     "archived_at": null,
     "created_at": "2026-06-19T03:07:22.243619+00:00",
     "created_by": "agent",
     "last_patched_at": "2026-07-09T07:19:03.535046+00:00",
-    "last_used_at": "2026-07-18T08:53:12.612978+00:00",
-    "last_viewed_at": "2026-07-18T08:53:12.607938+00:00",
+    "last_used_at": "2026-08-18T01:19:42.366460+00:00",
+    "last_viewed_at": "2026-08-18T01:19:41.899018+00:00",
     "patch_count": 10,
     "pinned": false,
     "state": "active",
-    "use_count": 19,
-    "view_count": 19
+    "use_count": 20,
+    "view_count": 20
+  },
+  "hermes-web-providers": {
+    "archived_at": null,
+    "created_at": "2026-08-18T01:20:27.616393+00:00",
+    "created_by": "agent",
+    "last_patched_at": "2026-08-18T01:20:39.546070+00:00",
+    "last_used_at": "2026-08-18T01:38:09.087104+00:00",
+    "last_viewed_at": "2026-08-18T01:38:09.081747+00:00",
+    "patch_count": 2,
+    "pinned": false,
+    "state": "active",
+    "use_count": 1,
+    "view_count": 1
   },
   "humanize-ppt": {
     "archived_at": null,
@@ -484,14 +510,14 @@
     "archived_at": null,
     "created_at": "2026-06-17T08:28:39.791762+00:00",
     "created_by": "agent",
-    "last_patched_at": "2026-08-09T06:01:10.237511+00:00",
-    "last_used_at": "2026-08-17T00:22:33.743568+00:00",
-    "last_viewed_at": "2026-08-17T00:22:33.738808+00:00",
-    "patch_count": 70,
+    "last_patched_at": "2026-08-18T07:59:05.925392+00:00",
+    "last_used_at": "2026-08-18T07:58:59.798015+00:00",
+    "last_viewed_at": "2026-08-18T07:58:59.793749+00:00",
+    "patch_count": 72,
     "pinned": false,
     "state": "active",
-    "use_count": 45,
-    "view_count": 45
+    "use_count": 47,
+    "view_count": 47
   },
   "llm-model-selection": {
     "archived_at": null,
@@ -570,6 +596,19 @@
     "state": "active",
     "use_count": 22,
     "view_count": 22
+  },
+  "multi-search-engine": {
+    "archived_at": null,
+    "created_at": "2026-08-18T01:15:16.760013+00:00",
+    "created_by": null,
+    "last_patched_at": null,
+    "last_used_at": "2026-08-18T01:15:16.764089+00:00",
+    "last_viewed_at": "2026-08-18T01:15:16.760039+00:00",
+    "patch_count": 0,
+    "pinned": false,
+    "state": "active",
+    "use_count": 1,
+    "view_count": 1
   },
   "nano-pdf": {
     "archived_at": null,
@@ -1057,13 +1096,13 @@
     "created_at": "2026-07-22T02:42:22.308404+00:00",
     "created_by": "agent",
     "last_patched_at": "2026-08-17T02:48:51.891425+00:00",
-    "last_used_at": "2026-08-17T02:48:40.433289+00:00",
-    "last_viewed_at": "2026-08-17T02:48:40.429089+00:00",
+    "last_used_at": "2026-08-18T01:33:51.808813+00:00",
+    "last_viewed_at": "2026-08-18T01:33:51.805146+00:00",
     "patch_count": 5,
     "pinned": false,
     "state": "active",
-    "use_count": 7,
-    "view_count": 7
+    "use_count": 8,
+    "view_count": 8
   },
   "xlsx": {
     "archived_at": null,
