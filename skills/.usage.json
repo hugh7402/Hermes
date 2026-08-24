@@ -77,6 +77,19 @@
     "use_count": 0,
     "view_count": 0
   },
+  "chinese-novel-txt-download": {
+    "archived_at": null,
+    "created_at": "2026-08-24T07:33:59.996720+00:00",
+    "created_by": "agent",
+    "last_patched_at": "2026-08-24T07:34:08.441285+00:00",
+    "last_used_at": null,
+    "last_viewed_at": null,
+    "patch_count": 1,
+    "pinned": false,
+    "state": "active",
+    "use_count": 0,
+    "view_count": 0
+  },
   "cn-hotel-booking-links": {
     "archived_at": null,
     "created_at": "2026-08-18T01:38:43.954666+00:00",
@@ -160,13 +173,26 @@
     "created_at": "2026-08-06T02:20:30.851507+00:00",
     "created_by": null,
     "last_patched_at": null,
-    "last_used_at": "2026-08-06T02:20:30.855116+00:00",
-    "last_viewed_at": "2026-08-06T02:20:30.851523+00:00",
+    "last_used_at": "2026-08-22T03:27:31.997635+00:00",
+    "last_viewed_at": "2026-08-22T03:27:31.969253+00:00",
     "patch_count": 0,
     "pinned": false,
     "state": "active",
-    "use_count": 1,
-    "view_count": 1
+    "use_count": 2,
+    "view_count": 2
+  },
+  "docx-report-delivery": {
+    "archived_at": null,
+    "created_at": "2026-08-22T03:34:18.131965+00:00",
+    "created_by": "agent",
+    "last_patched_at": null,
+    "last_used_at": null,
+    "last_viewed_at": null,
+    "patch_count": 0,
+    "pinned": false,
+    "state": "active",
+    "use_count": 0,
+    "view_count": 0
   },
   "evaluating-llms-harness": {
     "archived_at": null,
@@ -329,12 +355,12 @@
     "created_at": "2026-06-16T06:49:28.130707+00:00",
     "created_by": null,
     "last_patched_at": "2026-06-21T02:14:53.949050+00:00",
-    "last_used_at": "2026-08-20T04:05:58.582653+00:00",
+    "last_used_at": "2026-08-24T04:05:57.016688+00:00",
     "last_viewed_at": "2026-08-18T01:15:11.140148+00:00",
     "patch_count": 3,
     "pinned": false,
     "state": "active",
-    "use_count": 92,
+    "use_count": 96,
     "view_count": 24
   },
   "hermes-agent-skill-authoring": {
@@ -432,14 +458,14 @@
     "archived_at": null,
     "created_at": "2026-07-28T03:16:40.741118+00:00",
     "created_by": "agent",
-    "last_patched_at": "2026-07-29T01:21:20.805286+00:00",
-    "last_used_at": "2026-07-29T01:17:01.685040+00:00",
-    "last_viewed_at": "2026-07-29T01:17:01.667096+00:00",
-    "patch_count": 6,
+    "last_patched_at": "2026-08-24T07:34:20.638142+00:00",
+    "last_used_at": "2026-08-24T07:34:17.300622+00:00",
+    "last_viewed_at": "2026-08-24T07:34:17.291727+00:00",
+    "patch_count": 7,
     "pinned": false,
     "state": "active",
-    "use_count": 5,
-    "view_count": 5
+    "use_count": 7,
+    "view_count": 7
   },
   "imessage": {
     "archived_at": null,
@@ -693,26 +719,26 @@
     "created_at": "2026-06-16T06:51:38.039114+00:00",
     "created_by": null,
     "last_patched_at": "2026-06-21T06:35:14.295339+00:00",
-    "last_used_at": "2026-08-07T01:22:40.039410+00:00",
-    "last_viewed_at": "2026-08-07T01:22:39.937987+00:00",
+    "last_used_at": "2026-08-23T00:47:52.532942+00:00",
+    "last_viewed_at": "2026-08-23T00:47:52.517868+00:00",
     "patch_count": 31,
     "pinned": false,
     "state": "active",
-    "use_count": 42,
-    "view_count": 42
+    "use_count": 43,
+    "view_count": 43
   },
   "ocr-pipeline-ops": {
     "archived_at": null,
     "created_at": "2026-08-07T01:24:32.331092+00:00",
     "created_by": "agent",
-    "last_patched_at": "2026-08-09T02:36:43.388414+00:00",
-    "last_used_at": "2026-08-09T02:36:30.527667+00:00",
-    "last_viewed_at": "2026-08-09T02:36:30.518757+00:00",
-    "patch_count": 6,
+    "last_patched_at": "2026-08-23T00:48:48.456810+00:00",
+    "last_used_at": "2026-08-23T00:49:27.163976+00:00",
+    "last_viewed_at": "2026-08-23T00:49:27.160391+00:00",
+    "patch_count": 7,
     "pinned": false,
     "state": "active",
-    "use_count": 5,
-    "view_count": 5
+    "use_count": 7,
+    "view_count": 7
   },
   "office-docs-headless": {
     "archived_at": null,
@@ -784,13 +810,13 @@
     "created_at": "2026-06-19T00:50:03.489645+00:00",
     "created_by": null,
     "last_patched_at": "2026-07-09T09:01:23.155828+00:00",
-    "last_used_at": "2026-08-07T02:45:20.847683+00:00",
-    "last_viewed_at": "2026-08-07T02:45:20.844080+00:00",
+    "last_used_at": "2026-08-22T03:22:21.020654+00:00",
+    "last_viewed_at": "2026-08-22T03:22:21.015862+00:00",
     "patch_count": 35,
     "pinned": false,
     "state": "active",
-    "use_count": 31,
-    "view_count": 31
+    "use_count": 32,
+    "view_count": 32
   },
   "polymarket": {
     "archived_at": null,
@@ -1096,13 +1122,13 @@
     "created_at": "2026-07-22T02:42:22.308404+00:00",
     "created_by": "agent",
     "last_patched_at": "2026-08-17T02:48:51.891425+00:00",
-    "last_used_at": "2026-08-18T01:33:51.808813+00:00",
-    "last_viewed_at": "2026-08-18T01:33:51.805146+00:00",
+    "last_used_at": "2026-08-22T03:27:31.984294+00:00",
+    "last_viewed_at": "2026-08-22T03:27:31.955843+00:00",
     "patch_count": 5,
     "pinned": false,
     "state": "active",
-    "use_count": 8,
-    "view_count": 8
+    "use_count": 9,
+    "view_count": 9
   },
   "xlsx": {
     "archived_at": null,
