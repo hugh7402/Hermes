@@ -115,6 +115,20 @@ with open('image.jpg', 'rb') as f:
 
 **Limitation**: ddddocr is designed for short text/captchas. Not suitable for full-page document OCR.
 
+### Captcha Gotchas (session-bound captchas)
+
+When OCR'ing a captcha shown in a browser page:
+- **Session binding**: captcha endpoints like `/captcha/{id}?{ts}` regenerate on every request. Downloading the image via curl (separate session) gives a DIFFERENT captcha than the one displayed — recognition result will never validate. Must extract from the browser's current page.
+- **CSP workaround**: page-level `fetch()` and dynamic `new Image()` are often blocked (CSP). But an **already-loaded `<img>` can be drawn to canvas**:
+  ```js
+  const img = document.querySelector('img[src*="captcha"]');
+  const cv = document.createElement('canvas');
+  cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+  cv.getContext('2d').drawImage(img, 0, 0);
+  const b64 = cv.toDataURL('image/png').split(',')[1];
+  ```
+  Return in ~600-char chunks to avoid truncation, then reassemble in a Python script file (write_file, not inline paste — long base64 strings lose chars when hand-copied, producing truncated-image errors).
+
 ## Which to Choose
 
 | Situation | Recommended |
