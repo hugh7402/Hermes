@@ -87,7 +87,7 @@ json.dump(cfg, open('/tmp/probe_$port.json','w'))
 # 3. 主流程
 # 3a. 先试 --node 指定的节点
 REQUESTED_NODE=""
-if [ "$1" = "--node" ] && [ -n "${2:-}" ]; then
+if [ "${1:-}" = "--node" ] && [ -n "${2:-}" ]; then
     REQUESTED_NODE="$2"
 fi
 

@@ -355,12 +355,12 @@
     "created_at": "2026-06-16T06:49:28.130707+00:00",
     "created_by": null,
     "last_patched_at": "2026-06-21T02:14:53.949050+00:00",
-    "last_used_at": "2026-08-24T04:05:57.016688+00:00",
+    "last_used_at": "2026-08-27T04:05:35.277897+00:00",
     "last_viewed_at": "2026-08-18T01:15:11.140148+00:00",
     "patch_count": 3,
     "pinned": false,
     "state": "active",
-    "use_count": 96,
+    "use_count": 99,
     "view_count": 24
   },
   "hermes-agent-skill-authoring": {
@@ -498,13 +498,13 @@
     "created_at": "2026-06-27T01:56:48.997420+00:00",
     "created_by": null,
     "last_patched_at": "2026-08-14T01:50:14.351057+00:00",
-    "last_used_at": "2026-08-17T02:52:01.050199+00:00",
-    "last_viewed_at": "2026-08-17T02:52:01.045855+00:00",
+    "last_used_at": "2026-08-27T08:55:16.398897+00:00",
+    "last_viewed_at": "2026-08-27T08:55:15.818706+00:00",
     "patch_count": 108,
     "pinned": false,
     "state": "active",
-    "use_count": 126,
-    "view_count": 126
+    "use_count": 129,
+    "view_count": 129
   },
   "kanban-orchestrator": {
     "archived_at": null,
@@ -731,14 +731,14 @@
     "archived_at": null,
     "created_at": "2026-08-07T01:24:32.331092+00:00",
     "created_by": "agent",
-    "last_patched_at": "2026-08-23T00:48:48.456810+00:00",
-    "last_used_at": "2026-08-23T00:49:27.163976+00:00",
-    "last_viewed_at": "2026-08-23T00:49:27.160391+00:00",
-    "patch_count": 7,
+    "last_patched_at": "2026-08-26T01:30:39.385057+00:00",
+    "last_used_at": "2026-08-27T07:24:31.032590+00:00",
+    "last_viewed_at": "2026-08-27T07:24:31.023518+00:00",
+    "patch_count": 8,
     "pinned": false,
     "state": "active",
-    "use_count": 7,
-    "view_count": 7
+    "use_count": 11,
+    "view_count": 11
   },
   "office-docs-headless": {
     "archived_at": null,
@@ -766,31 +766,18 @@
     "use_count": 0,
     "view_count": 0
   },
-  "pikpak-bulk-download": {
-    "archived_at": null,
-    "created_at": "2026-08-10T08:48:01.925840+00:00",
-    "created_by": "agent",
-    "last_patched_at": "2026-08-15T02:03:54.150225+00:00",
-    "last_used_at": "2026-08-15T02:03:33.453092+00:00",
-    "last_viewed_at": "2026-08-15T02:03:33.449215+00:00",
-    "patch_count": 22,
-    "pinned": false,
-    "state": "active",
-    "use_count": 15,
-    "view_count": 15
-  },
   "pikpak-webdav-manager": {
     "archived_at": null,
     "created_at": "2026-06-26T22:00:55.073183+00:00",
     "created_by": "agent",
-    "last_patched_at": "2026-08-15T05:05:15.280917+00:00",
-    "last_used_at": "2026-08-15T05:05:02.053021+00:00",
-    "last_viewed_at": "2026-08-15T05:05:02.048474+00:00",
-    "patch_count": 117,
+    "last_patched_at": "2026-08-27T09:42:43.506369+00:00",
+    "last_used_at": "2026-08-27T09:16:16.682659+00:00",
+    "last_viewed_at": "2026-08-27T09:16:16.419896+00:00",
+    "patch_count": 125,
     "pinned": false,
     "state": "active",
-    "use_count": 93,
-    "view_count": 93
+    "use_count": 96,
+    "view_count": 96
   },
   "plan": {
     "archived_at": null,
@@ -862,13 +849,13 @@
     "created_at": "2026-07-29T05:02:47.042306+00:00",
     "created_by": null,
     "last_patched_at": "2026-08-04T04:21:55.856954+00:00",
-    "last_used_at": "2026-08-14T11:49:43.975635+00:00",
-    "last_viewed_at": "2026-08-14T11:49:43.964938+00:00",
+    "last_used_at": "2026-08-27T07:24:31.027908+00:00",
+    "last_viewed_at": "2026-08-27T07:24:31.018644+00:00",
     "patch_count": 2,
     "pinned": false,
     "state": "active",
-    "use_count": 5,
-    "view_count": 5
+    "use_count": 8,
+    "view_count": 8
   },
   "proxy-from-subscription": {
     "archived_at": "2026-07-15T06:56:40.899264+00:00",
@@ -882,6 +869,32 @@
     "state": "archived",
     "use_count": 15,
     "view_count": 15
+  },
+  "proxy-node-batch-test": {
+    "archived_at": null,
+    "created_at": "2026-08-26T02:03:22.726367+00:00",
+    "created_by": "agent",
+    "last_patched_at": "2026-08-26T02:03:35.944484+00:00",
+    "last_used_at": "2026-08-26T03:03:37.245749+00:00",
+    "last_viewed_at": "2026-08-26T03:03:37.233398+00:00",
+    "patch_count": 1,
+    "pinned": false,
+    "state": "active",
+    "use_count": 1,
+    "view_count": 1
+  },
+  "proxy-node-testing": {
+    "archived_at": null,
+    "created_at": "2026-08-27T07:25:16.652944+00:00",
+    "created_by": "agent",
+    "last_patched_at": "2026-08-27T07:25:26.447168+00:00",
+    "last_used_at": null,
+    "last_viewed_at": null,
+    "patch_count": 1,
+    "pinned": false,
+    "state": "active",
+    "use_count": 0,
+    "view_count": 0
   },
   "python-debugpy": {
     "archived_at": null,
