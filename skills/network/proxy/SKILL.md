@@ -73,17 +73,34 @@ JAVDB_TEST_URL="https://javdb.com/over18?respond=1"            # 连通性测试
 5. 可用 → 复制到 `reality_active.json` → 更新 proxy.sh CONFIG → 重启 → 更新 LAST_GOOD_NODE
 6. 无 `--node` 参数：按优先级遍历全部节点（圣何塞直连IP > 美国 > 其他）
 
-## 当前活动节点（2026-08-04 更新）
+## 当前活动节点（2026-08-26 更新）
 
 | 参数 | 值 |
 |------|-----|
-| 节点 | us05（美国圣何塞05，三网推荐） |
+| 节点 | AWS新加坡02（SG-AWS02，三网推荐） |
 | 协议 | VLESS + REALITY + xtls-rprx-vision |
-| IP | 134.195.101.122:443 |
-| 出口 | 134.195.101.120 |
-| SNI | www.mi.com |
+| 域名 | pq.aws64.yydjc.top:443 |
+| 出口 | 67.159.48.147（新加坡） |
+| SNI | iosapps.itunes.apple.com |
+| 实测速度 | ~7.7MB/s |
 | 配置 | `/opt/data/proxy-skill/reality_active.json` |
 | 启动命令 | `bash /opt/data/proxy-skill/proxy.sh start` |
+
+**订阅地址 2026-08-26 更新**：`https://dasho.pqjc.site/api/v1/pq/53eca709b4fb562544949681e80cae21`（用户提供最新收费订阅，流量 1.33TB）
+
+**⚠️ javdb 封锁现状（2026-08-26 全量测试 69 节点，两轮）**：
+- ❌ 美国圣何塞 134.195.101.x 整段（us01-us07）403 被封
+- ❌ 美国洛杉矶 203.10.96.138 403 被封
+- ❌ AWS 日本 ×10 全部 403
+- ❌ AWS 新加坡 01/03/04/05 403
+- ✅ **AWS新加坡02（SG-AWS02）解封可用**，7.7MB/s，当前活动节点
+- ✅ 台湾3（TW3）曾可用（223KB/s）作备用，08-26 晚抖动 000
+- ❌ 0.1倍/域名版节点全部连不上（000）
+
+**免费备用源（zhuhaiuk/free-nodes，用户已入 Clash Verge）**：
+- Clash: `https://raw.githubusercontent.com/zhuhaiuk/free-nodes/main/clash_config.yaml`
+- Base64: `https://raw.githubusercontent.com/zhuhaiuk/free-nodes/main/nodes.txt`
+- 测过 22 节点仅 US 03（ss）能通 javdb 但测速≈0，仅应急
 
 **节点命名规则**：订阅里有两组"圣何塞"节点，**必须选 "三网推荐" 组（IP 直连 134.195.101.x, REALITY 协议）**，不要选 "0.1倍" 组（域名 unamecf2, TLS 协议，通常不可用）。
 
