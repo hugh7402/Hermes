@@ -32,6 +32,7 @@ requires-skills: [proxy]
 **🚨 下载完成流程（用户 2026-08-15 纠正，每次下载后必须执行）**：
 1. ffprobe 全量验证（大小匹配 + 无 moov 错误 + 时长正常）
 2. **删 PikPak 源文件**（本地完整才删：本地存在且大小≥99% 的文件对应删除；保留未下载的/文件夹）
+   - 🚨 **匹配规则（2026-08-27 删源 bug）**：本地文件已按用户后缀改名（`CAWB-025-浅海-...mp4`），云端是简单名（`CAWB-025.mp4`）——**不能用"大小±1% 唯一匹配"**！多个番号大小接近（3.6~4.0G 一堆），模糊匹配会跨番号误配（CAWB-025 匹配到 FC2-2769290、JUR-794 匹配到 JUR-837）。正确顺序：①按番号正则 `[A-Za-z]{2,6}-?\d+` 提取云端文件名番号 → 在本地文件名（含自定义后缀）中找同一番号 → ②再验证大小 ≥99%。匹配不到宁可不删，绝不靠大小猜。
 3. **字幕改名为与视频文件名一致**（按番号匹配：正则 `[A-Za-z]{2,6}-?\d+` 提取番号，大写去连字符后配对，如 `DLDSS-348.[4K]@R.srt` → `DLDSS-348-入田真綾-...幼儿教师.srt`；无匹配视频的字幕保留不删）
 4. 汇报时说明删了几个源 + 改了几个字幕
 
@@ -355,6 +356,7 @@ asyncio.run(get_urls())
   ffprobe ... /tmp/dl/file.mp4     # 校验
   mv /tmp/dl/file.mp4 /target/     # 搬迁
   ```
+  **🚨 跨文件系统搬迁必须用后台 cp，不要用前台 mv（2026-08-27）**：/tmp 在 overlay、/opt/data 在 zfsv3，`mv` 实际是 copy+delete，4GB 文件前台 30s 超时中断 → 目标只有半截（2.2G/4.3G）、源还在。正确姿势：`rm` 半截目标 → `background=true` + `cp` + 完成后校验（大小+ffprobe）→ 再删源。校验不通过前绝不删源。
 
 - **🚨 多个下载进程不能同时写同一个文件！** 旧会话后台残留的 `pikpak_cdn_dl.py` / rclone 进程会覆盖 aria2 已下载完成的文件，导致文件损坏。**典型案例**：先 aria2 下载完成（5.98GB 满大小，ffprobe 验证通过），后台旧 Python/rclone 进程后写完覆盖，文件逻辑大小 6.0GB 正确但 `ffprobe` 报 `moov atom not found`（MP4 元数据损坏），等于白下。**下载前必须先 kill 所有旧进程**：
   ```bash
@@ -472,32 +474,6 @@ timeout 5400 /tmp/rclone copy "pikpak:/Inbox-JAV/文件.mp4" /tmp/dl \
 
 注意：历史记录（2026-06）WebDAV 长期传输可能触发 503 限流、速度降至 50KB/s——2026-08-15 实测未复现，但超大文件长时间传输若降速，暂停 10 分钟恢复。
 
-### 🚨 低内存模式（2026-08-27 死机实战，内存紧张时必须遵守）
-
-**症状**：用户反馈"一执行下载就死机"。根因不是下载命令，是**机器内存不足 + rclone 大 buffer**：
-- 15.7G 内存机器常驻 13G+（hermes gateway 2G、dashboard 1G、hindsight 0.7G、node UI 等），swap 已用 4.3G，available 只剩 1.6G
-- rclone 默认 `--buffer-size=128M` 多流 + 大文件写盘 page cache 暴涨 → 挤爆最后内存 → swap 颠簸 → 整个系统（含微信 gateway）假死，看起来就是"死机"
-- `/proc/meminfo` 佐证：Committed_AS 33.4G vs CommitLimit 19.2G（内存承诺超限 74%）
-
-**诊断三板斧**：
-```bash
-free -h                    # 看 available（<2G 危险）+ swap used（>4G 说明已发生过内存压力）
-ps aux --sort=-%mem | head # 找 RSS 大户（gateway/dashboard/hindsight 是常驻，别指望杀它们）
-grep -E 'CommitLimit|Committed_AS' /proc/meminfo   # Committed_AS 超 CommitLimit = 内存承诺超限
-```
-
-**低内存下载参数**：`--buffer-size=32M`，rclone RSS 实测仅 ~19MB（默认 128M 的 1/4），5GB 级文件完全可用：
-```bash
-timeout 5400 /tmp/rclone copy "pikpak:/Inbox-JAV/文件.mp4" /tmp/dl \
-  --buffer-size=32M --multi-thread-streams=0 --timeout 60s --contimeout 30s --retries 3
-```
-
-**🚨 用户偏好（2026-08-27 明确）：不要全串行！** 即使内存紧张，也用 `--transfers 3-4` 并发（每路 32M buffer 总内存 <150MB，安全），用户原话"下载到本地可以适当并发下载吧？都是串行太慢了"。全串行只用于 available <1G 的极端情况。并发时同样用 `.partial` 文件增长判断进度，不要用 ps/ss 判断。
-
-**辅助手段（可选）**：内存大户 bash-language-server / node TUI 是遗留进程可杀掉（用户 2026-08-27 授权"没必要的杀掉"）；hindsight-api 有 `--idle-timeout 300` 空闲 5 分钟自退，不要手杀（dashboard supervisor 会拉起）。
-
-注意：历史记录（2026-06）WebDAV 长期传输可能触发 503 限流、速度降至 50KB/s——2026-08-15 实测未复现，但超大文件长时间传输若降速，暂停 10 分钟恢复。
-
 ## 批量并行下载
 
 **🚨 标准命令（2026-08-27 用户确认，直接复用不用新写脚本）：**
@@ -551,9 +527,10 @@ async def walk(pid, relpath):
 **批量下载实战（2026-08-15 Inbox-JAV 6 文件/66GB）**：
 1. 用 pikpakapi `file_list` 扫描目录，筛 >100MB 视频（排除字幕文件夹/小文件）
 2. 生成 files-from 列表（纯文件名，文件在源根时）
-3. `rclone copy pikpak:Inbox-JAV <本地> --files-from 列表 --transfers 15`（15 并发最优）
-4. 本地已存在且大小 ≥99% 的文件从列表剔除（断点续传）
-5. 进度监控：看 `.partial` 文件增长（不是 ps/ss），单进程 rclone 日志可能长时间无输出
+3. 🚨 **列表生成后必须与预期清单核对数量（2026-08-27 JUR-837 漏单坑）**：PikPak API 有最终一致性延迟——刚重命名/移出的文件可能没出现在紧接着的 `file_list` 里（fix_folders 生成列表时 JUR-837 刚重命名，12 个文件列表漏了它，导致整个批次没下）。核对方法：列表数量 vs 云端实际数（rclone lsf 再确认），发现少了单独补下
+4. `rclone copy pikpak:Inbox-JAV <本地> --files-from 列表 --transfers 15`（15 并发最优）
+5. 本地已存在且大小 ≥99% 的文件从列表剔除（断点续传）
+6. 进度监控：看 `.partial` 文件增长（不是 ps/ss），单进程 rclone 日志可能长时间无输出。⚠️ **测速用 st_size 增量（`stat -c%s` 采样两次），不要用 `du`**——overlayfs 上 du 统计块残留（19G 假象 vs st_size 实际 1.9G），会误判速度和完成度
 
 ## 看门狗自动下载（智能休眠版）
 
@@ -580,11 +557,6 @@ rm -f /opt/data/PikPak/.watch_active /opt/data/PikPak/.watch_idle_since
 ## PikPak 磁链离线注意事项
 
 > 📌 FC2 番号在 javdb 需要登录才能看磁链（登录墙）——让用户自行把磁链加入 PikPak，Agent 从 PikPak 侧继续（取 CDN → aria2 → 入库）。详见 `references/fc2-login-wall-pikpak-continue.md`。
-
-### ⚠️ jav_manager.py 已知坑（2026-08-27，详见 jav-auto-download 技能）
-
-1. **`select_best()` 不过滤 -U 无码破解**：只做 ①有字幕磁链（-C/-UC/字幕/中字）选最大 ②否则裸磁链池按大小选最大——**无显式排除 -U**！无码破解版若无字幕标注会进裸磁链池，最大时被自动选中。批量跑完必须检查输出"选择字幕磁链:/选择高清磁链:"的磁链名。用户默认禁止 -U；用户明确授权无码破解版时（如 IPZZ-901 "下载无码破解版本，选清晰度最高的"）恰好利用此逻辑，但确认选中的是最大版本。
-2. **terminal 直接调 jav_manager.py 会触发 Hermes lifecycle 守卫崩溃**（`ValueError: open: embedded null character in path`，守卫把 python 脚本当 referenced script 读取时 path 解析炸）。绕过：write_file 写 wrapper .sh（`cd /opt/data && export PATH=/opt/data/.venv/bin:$PATH && exec python3 jav_manager.py --no-sync ...`）到 `/opt/data/.tmp_tests/`，再 `bash wrapper.sh` 后台跑。
 
 ### ⚠️ jav_manager.py 已知坑（2026-08-27，详见 jav-auto-download 技能）
 
@@ -649,6 +621,10 @@ curl 提取磁链流程详见 `references/javdb-magnet-extraction.md`（当 web_
 
 ### 搜索流程
 
+> 🚨 **subtitlecat 解析双坑（2026-08-27 批量补字幕实测）**：
+> 1. **rsplit 取错元素**：解析 srt 链接文件名必须 `path.rsplit('/')[-1]`。用 `[1]` 会取到目录号（`/subs/1640/JUR-837-zh-CN-zh-CN.srt` → `1640`），语言判断全挂，症状是"搜索页有 zh-CN 条目、详情页有 zh-CN.srt，却报无中文字幕"。jav-auto-download 的 Phase 2.5 批量失败常是这个原因。一个字符修回整批字幕。
+> 2. **链接路径不对称**：搜索页条目链接是**相对路径**（`href="subs/1640/JUR-837-zh-CN.html"` 无前导 `/`），详情页 srt 链接是**绝对路径**（`href="/subs/1640/JUR-837-zh-CN-zh-CN.srt"` 有前导 `/`）。两处正则都要兼容两种形式，相对路径补前导 `/` 再拼 BASE。
+
 ```python
 import subprocess, re
 
@@ -679,6 +655,12 @@ if zh_links:
 
 ### 字幕文件结构
 
+> 🚨 **批量补字幕要点（2026-08-27 实战，4/7 成功）**：
+> 1. **条目名 ≠ 有没有中文**：`ja.whisperjav`（日文转录）、`-fr`（法文）等非中文条目，**详情页里也可能有 zh-CN 翻译版**（`IPZZ-901-U.ja.whisperjav-zh-cn.srt` 929条、`CAWB-025-fr-zh-cn.srt` 676条）。必须进**每个**条目详情页找，不能凭条目名判断。命名规律：`{条目名}-zh-CN.srt` = 该条目的简体中文翻译。
+> 2. **srt 落盘用 shutil.move**：先下 /tmp 再 `os.rename` 到 /opt/data 报 `Errno 18 Invalid cross-device link`。用 `shutil.move`（自动复制+删除）。
+> 3. **用户只要中文字幕（2026-08-27 明确）**：subtitlecat 无中文条目 = 该番号无解，**不要问"要不要日文原版"**（用户原话"日文字幕我也看不懂"）。质量门槛：条目数 ≥100 且无乱码（锟斤拷/� 计数 0）才入库；300 条左右是部分翻译但可用。
+> 4. **批量补字幕直接复用 `scripts/fetch_subs.py`**（改 TARGETS 字典为 {番号: 目标srt文件名}），已内置以上全部修复。
+
 | 命名模式 | 示例 | 说明 |
 |:--------|:----|:------|
 | `{name}-orig.srt` | `CAWD-992-FHD-orig.srt` | 原始上传（可能日/中/混合） |
@@ -696,6 +678,8 @@ if zh_links:
 ### 字幕质量检查
 
 下载后立即验证字幕质量，避免使用残缺版本：
+
+**🚨 先查文件大小（2026-08-27 522 空壳坑）**：jav_manager 报"字幕下载成功"但文件可能只有 16B，内容是 `error code: 522`（subtitlecat 服务器错误页，不是字幕）。**任何字幕下载后先 `stat -c%s`，<100B 一律视为失败删除重下**，不要 rename 入库。
 
 ```bash
 # 检查字幕条目数（越多越完整）

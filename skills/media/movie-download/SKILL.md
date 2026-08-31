@@ -24,7 +24,7 @@ trigger: 用户要求下载某部电影/剧集/纪录片，或提到"下载XX片
 **14 个影视资源站**（用户提供 + 补充）保存在 `/opt/data/movie_sources.md`，含每个站的定位说明：
 
 - BT之家 https://www.1lou.me/（Discuz 论坛，实测可 web_extract 拿种子，**首选**）
-- 6V电影 https://www.66s6.cc/、BT部落天堂 https://www.btbuluo.net/、Rarbg https://rargb.to/、SeedHub https://www.seedhub.cc/、Grab4K https://www.grab4k.cn/、飘花 https://www.piaohua.com/、磁力熊 https://www.cilixiong.com/、悠悠MP4 https://www.uump4.cc/、BTDigg https://btdig.com/、1337x https://1337x.to/、YTS https://yts.mx/、电影天堂 https://www.dytt8899.com/、BT蚂蚁 https://btmayi.cc/（磁力搜索导航入口，聚合多站资源）
+- 6V电影 https://www.66s6.cc/、BT部落天堂 https://www.btbuluo.net/、Rarbg https://rargb.to/、SeedHub https://www.seedhub.cc/、Grab4K https://www.grab4k.cn/、飘花 https://www.piaohua.com/、磁力熊 https://www.cilixiong.org/（⚠️ .com 已停放，用 .org）、悠悠MP4 https://www.uump4.cc/、BTDigg https://btdig.com/、1337x https://1337x.to/、YTS https://yts.mx/、电影天堂 https://www.dytt8899.com/、BT蚂蚁 https://btmayi.cc/（磁力搜索导航入口，聚合多站资源）
 
 ## 标准流程
 
@@ -39,7 +39,9 @@ trigger: 用户要求下载某部电影/剧集/纪录片，或提到"下载XX片
 
 | 站点 | 状态 | 说明 |
 |:----|:----|:----|
-| **磁力熊 cilixiong.com** | ✅ **影视剧首选源** | 用户 2026-08-04 定：**质量比电影天堂好**。`/drama/<id>.html` 整季页面列出多版本（2160p/1080p，含大小标注），`web_extract` 直接拿全部 `magnet:?xt=urn:btih:` 明文。优先 `web_search site:cilixiong.com 片名` |
+| **磁力熊 cilixiong.org** | ✅ **影视剧首选源** | 用户 2026-08-04 定：**质量比电影天堂好**。⚠️ **cilixiong.com 域名已停放（2026-08-27 验证），用 `.org`**。`/drama/<id>.html` 整季页面列出多版本（2160p/1080p，含大小标注），`web_extract` 直接拿全部 `magnet:?xt=urn:btih:` 明文。优先 `web_search site:cilixiong.com 片名` |
+| **磁力熊站内搜索（EmpireCMS）** | ✅ 2026-08-27 验证 | POST `https://www.cilixiong.org/e/search/index.php`，**必须带全参数** `classid=1,2&show=title&tempid=1&keyboard=关键词`（缺参数返回"信息提示"JS 跳转页，不是搜索结果）。需 `Referer: https://www.cilixiong.org/` + UA，走代理。**电影结果在 `/movie/<id>.html`，剧集在 `/drama/<id>.html`**（旧版只记了 drama——电影分类在 movie 下）。压制组中字版常在这里，如 `摔跤吧！爸爸.2016.1080p.简繁中字￡CMCT梦幻.12GB` |
+| **BTDigg btdig.com** | ⚠️ 限流严重 | 2026-08-27 验证：`web_extract`/浏览器失败，**curl `-x http://127.0.0.1:10808` 代理可访问**。文件名在磁链 href 的 `dn=` 参数（HTML 转义 `&amp;` 需 replace 回 `&`，再 urllib unquote；BTDigg 标题在嵌套 div 里，别从 `<a>` 文本提取）。**连续请求被限流**（返回 <2000B），每部搜索间隔 10-12s + 失败重试 3 次 |
 | 1lou.me（BT之家） | ✅ | Discuz，`web_extract` 直接可读全文，种子附件页 `attach-download-<id>.htm` 可用 curl 下载 |
 | twlkbt 等 Discuz 论坛 | ✅ | `web_extract` 可拿 magnet hash（页面里直接有 `magnet:?xt=urn:btih:` 明文） |
 | 电影天堂 dytt8899.com | ✅ | 站内搜索：POST `https://www.dytt8899.com/e/search/index.php`（`--data-urlencode keyboard=关键词`，需 Referer 头，**GBK 编码**），无结果返回"没有搜索到相关的内容"提示页。剧集页每集一个磁链（`dn=剧名XX.mp4`）。**搜不到的美剧直接转磁力熊，别死磕** |
@@ -64,13 +66,12 @@ curl -sL --proxy http://127.0.0.1:10808 -A "Mozilla/5.0" \
 
 得到 `magnet:?xt=urn:btih:<HASH>&dn=<名称>` 后加入 PikPak。
 
-### ③ PikPak 离线 + aria2 拉回
+### ③ PikPak 离线 + 拉回本地
 
-与番号流程一致，详见 `jav-auto-download`：
-- 动态取 `/Inbox-JAV` folder id（不硬编码）
-- 离线完成后 `get_download_url` 取 `web_content_link`（不是 `url` 字段）
-- aria2：`export LD_LIBRARY_PATH=/opt/data`，8 连接分片，URL 走命令行参数（**禁止 `--input-file`**，CDN URL 超长会截断）
-- 下载到 /tmp → ffprobe 校验 → mv 入库，**不要直接下载到目标目录**（防幽灵 inode）
+与番号流程一致，详见 `pikpak-webdav-manager`：
+- 动态取 `/Movie` 或 `/Inbox-JAV` folder id（不硬编码；pikpakapi 的 `path_to_id('/')` 可能返回空，用 `file_list(parent_id='')` 从根目录找 Movie 文件夹）
+- **🚨 拉回通道（2026-08-27 CDN 直连 IP 已封，aria2 方案作废）**：离线完成后用 **WebDAV 15 并发**拉回——`bash /opt/data/pikpak.sh copy15 /Movie /tmp/dl`（或 `--files-from` + `--transfers 15 --buffer-size=32M`）。aria2 CDN 直链（`get_download_url` 取 `web_content_link`）**不可用**，仅历史参考
+- 下载到 /tmp → ffprobe 校验 → 后台 cp 入库（跨文件系统，前台 mv 会超时截断），**不要直接下载到目标目录**（防幽灵 inode）
 
 ### ④ 重命名入库（2026-08-02 用户明确）
 
@@ -105,6 +106,8 @@ curl -sL --proxy http://127.0.0.1:10808 -A "Mozilla/5.0" \
 - **avgood.com 站点结构（2026-08-04 水管工/野兽女孩）**：avgood 是中文成人影视资源站，分两种页面：`/c/` = **在线区**（仅播放，无磁链）、`/t/` 或下载二区 = **下载区**（有 `magnet:?xt=urn:btih:` 明文，`web_extract` 可提取）。同片可能有多个条目（不同大小/时长/清晰度），逐个检查。搜不到时用 `web_search site:avgood.com 片名`。菲律宾/韩国三级等资源该站覆盖面好，是 BT 之家之外的重要补充源。
 - **flash2u 神魂颠倒论坛（2026-08-04）**：帖子会标注 `Subtitles Internal: Chinese`（内嵌中字），但下载链接常是第三方网盘（xunniufxp 等），**这些网盘链接容易失效/无法直接磁链**。处理：把网盘链接当作"存在中字版"的线索，去 avgood 或 BT 之家搜同片磁链版。
 - **找片顺序（2026-08-04 验证）**：`web_search 片名 年份 中字 magnet` → BT之家(1lou.me) 种子附件 → avgood 下载区磁链 → flash2u（网盘链接仅作线索）。三个来源互补，全都没有再告知用户。
+- **中字版搜索核心技巧（2026-08-27 五部经典实战）**：磁力熊/电影天堂只有无字原版时，**用 BTDigg 搜压制组种子名**——`MiniHD`/`BTBTT`/`高清影视之家`（BBQDDQ.com、HDBTHD.com、BBEDDE.com 等转发站），典型命名「片名[国语音轨+中文字幕/简繁字幕].1080p/2160p...」。优选「国语配音+中文字幕」WEB-DL 2160p 60帧版（爱奇艺/优酷源）和 REMUX 版（无损最大最清晰）。种子文件夹名带压制站前缀（【高清影视之家...】），处理同 jav：移出视频→删 3 个 www.HD 开头广告→file_list 验证后才删文件夹。
+- **经典老片中字版寻找路径（2026-08-27 验证，5 部豆瓣高分片实战）**：① **磁力熊站内搜索**（EmpireCMS POST，见上表）——压制组中字版（CMCT/CHD）常直接命中；② **BTDigg 代理搜索**（限流友好间隔）——能搜到大量版本但中字标注少；③ 网盘站（bzswh.com / yhzyw.cc / wpxz.pro 等）——有"国语音轨/中文字幕"版但**只有网盘链接无磁链**，仅作"存在中字版"的线索，别死磕；④ hdchd.cc 等高清论坛有国英多音轨简繁字版但被 Cloudflare 拦（需浏览器过 CF）；⑤ 电影天堂（dytt8899）搜经典老片常无结果（GBK 搜索 + `--data-urlencode`）。**找不到内嵌中字版就如实告知用户，不直接用无字版**（用户硬规则）。
 - **PikPak CDN URL 过期（2026-08-04 心灵猎人事故）**：批量取完 URL 后隔较久才启动 aria2，CDN URL 可能已过期——aria2 显示 INPR（下载中）但实际只拉到 **61-150 字节的空文件**，ffprobe `dur=` 为空，校验全挂。**症状不是报错而是静默空文件**。对策：① 取 URL 后尽快下载（别隔太久）② 校验失败时先看文件大小，<1KB 基本是 URL 过期 ③ 重新 `get_download_url` 换新 URL 再下（旧 URL 作废，重试同一 URL 没用）。
 - **电影天堂剧集可能缺集（2026-08-04 心灵猎人）**：电影天堂版 8 集磁链缺 09/10 两集（那两集磁链在 PikPak 始终无种源），磁力熊整季种子 10 集齐全。**剧集优先用磁力熊整季种子**，单集散磁链有缺集风险。换源后记得清理旧版临时文件（`rm -rf /tmp/<旧目录>`）+ 停掉旧下载进程，避免占带宽。
 - **磁力熊 cilixiong.org 剧集磁链源（2026-08-04 怪奇物语实战）**：`/drama/<id>.html` 页面列出整季多个压制版本（RARBG x265 小体积 / SHORTBREHD BluRay x264 高清大体积），`web_extract` 直接提取 `magnet:?xt=urn:btih:` 明文。**用户偏好选最大的高清版**（见上文版本偏好）。dytt8899 站内搜不到的美剧（如怪奇物语）优先查磁力熊。BT蚂蚁 btmayi.cc 是导航站（列其他磁力搜索器），搜索结果需 JS 渲染，不如磁力熊直接。
