@@ -162,3 +162,23 @@ cronjob(action="create", name="发文件",
 | 知识库月度健康巡检 | 每月1日 09:00 | ✅ 可 |
 
 多个 cron 时间避开同一分钟，至少间隔 15 分钟。
+
+## 09-07 批量故障复盘：Content Exists Risk + iLink 分块硬限流
+
+### DeepSeek 官方 API 内容审查 → agent 装死不执行
+会话历史含成人内容（JAV 等）后，每次请求整段发给 api.deepseek.com → **400 Content Exists Risk**（会话 8/27 积累、09-03 首发，此后每次必拦）。agent 收到 non-retryable 错误只能回短错误文案，表现为"微信发指令没反应"。**根治**：此类会话走硅基流动（不拦成人内容）。
+
+### fallback "provider not configured" 根因：provider 插件缺失 + 放错目录
+- config 声明 `provider: siliconflow` 但 Hermes 内置表无此名 → 需要 model-provider 插件（`plugins/model-providers/<name>/__init__.py` + plugin.yaml，仿 bundled bailian 结构，`register_provider(ProviderProfile(name, aliases, env_vars, base_url))`）
+- ⚠️ **插件目录 = `$HERMES_HOME/plugins/model-providers/`（get_hermes_home()=/opt/data，无 .hermes 段！）**。写 `/opt/data/.hermes/plugins/` 或 `/opt/data/home/.hermes/plugins/` 都不加载。验证：`python3 -c "from providers import list_providers; print('siliconflow' in [p.name for p in list_providers()])"`
+- 用 `.env` 的 key 时 config 里 `${SILICONFLOW_API_KEY}` 会被正确展开（Hermes 内部读 .env，不依赖进程环境）
+
+### iLink 服务端对 sendmessage 的硬限流（09-07 实测）
+- **单块短消息（<1800 字符）必成**（09:16/09:25 两条测试全过）
+- **多块长消息必挂**：块间 8s 延迟 + backoff 45s 重试 5 次仍全败（服务端冷却 ≥30s）→ send failed 整条丢弃
+- cron 报告/agent 长回复若 >2000 字符被切多块 → 全丢（旧 config `send_chunk_retries: 0` 更是一击即弃）
+- **治本：cron prompt 加约束"报告≤1200 字"保证单块发出**；块间延迟调再大也不治本
+- 调参命令：`hermes config set weixin.extra.send_chunk_retries 5`（支持 dot path，守卫拒 patch config.yaml）
+
+### 重启 gateway 的正确姿势
+`/command/s6-svc -t /run/service/gateway-default`（s6-svc 在 /command/）。TUI agent 跑在 dashboard 进程（非 gateway），重启 gateway 不中断 TUI 会话。

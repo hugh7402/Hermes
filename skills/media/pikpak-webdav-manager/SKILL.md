@@ -339,6 +339,8 @@ asyncio.run(get_urls())
 
 ### 坑 — 务必逐条阅读
 
+- **🚨 rclone 二进制放持久位置，别放 /tmp（2026-09-07）**：rclone 曾在 `/tmp/rclone`，一轮 70GB 电影下载把 /tmp 撑爆后系统清空临时目录，**连 rclone 一起删了**——之后所有 `timeout … /tmp/rclone …` 探测全报"暂不可见/无输出"（实际是 rclone 二进制不存在，报错被 `2>/dev/null` 吞掉），误判成"WebDAV 同步延迟"。任何要长期用的工具/脚本**不要放 /tmp**。rclone 现装 `/opt/data/bin/rclone`（v1.75.1），`pikpak.sh` 的 `RCLONE=` 已指向它。**诊断提醒**：探测器报"文件不可见"先确认工具二进制本身在不在（`which rclone` / `ls`），别只排查 WebDAV。
+
 - **🚨 IP 级限流（2026-08-10 重大发现）**：当**所有** CDN 节点直连都 <0.1MB/s（换 URL 无效、多节点/多文件全慢），是 **PikPak 对服务器出口 IP 限流**，不是节点问题也不是全局限流！解法：**aria2 加 `--all-proxy=http://127.0.0.1:10808` 走代理换出口 IP**。实测：直连 0.08 MB/s → 代理出口（103.62.49.138）0.95 MB/s（单连接 curl），aria2 8连接实际 **6~8 MB/s**，提速 ~80 倍。判定流程：curl 直连测速 <0.1MB/s → `curl -x http://127.0.0.1:10808` 测同一 URL，代理明显更快 → 确认 IP 限流 → 下载脚本加 `--all-proxy`。注意走代理后 SLOW 阈值要降（代理吞吐上限低，0.5MB/s 阈值会误杀，**用户拍板用 0.2MB/s**）。完整实录见 `references/pikpak-ip-throttling-20260810.md`。
 - **🚨 代理出口 IP 也会被限流（2026-08-10 后半程）**：103.62.49.138 用了约 1 小时后从 0.95MB/s 掉回 ~0，且该 IP 段的 AWS日本节点（103.62.49.138/.178）全都只有 ~0.95MB/s。**换节点是常态操作不是一次性**：`bash /opt/data/proxy-skill/proxy_auto_switch.sh --node '🇸🇬AWS新加坡02'` 切到 **67.159.48.147 后实测 25~30MB/s（aria2 8连接）**，242GB 在 ~1 小时内下了 170GB。经验：**逐节点测速（`curl -x 10808 -r 0-20M`）找出口 IP 段差异大的节点，快节点直接让整个下载提速一个数量级**。测速/切换脚本见 `references/pikpak-ip-throttling-20260810.md`。
 - **不要走代理下载（默认）**：代理按流量收费，且通常更慢。CDN 直链和 WebDAV 都是直连 HTTP，不需要代理。**例外：IP 级限流时（见上条）走代理是唯一解法。** 完整 WebDAV 实测 + Range 坑 + 下载脚本模式见 `references/webdav-direct-download-20260815.md`。
