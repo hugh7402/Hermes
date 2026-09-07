@@ -1,0 +1,67 @@
+# 2026-08-02 实战：惊天魔盗团3 + NMSL-011 换 2.6G 中字版
+
+## 场景
+
+1. 下载《惊天魔盗团3》(Now You See Me 3, 2025)
+2. NMSL-011 7.07GB 高清版 PikPak 限速死局 → 换 2.6GB 中字版（用户拍板）
+
+## 惊天魔盗团3 流程（BT之家首选路径复现）
+
+1. `web_search` 搜 `惊天魔盗团3 Now You See Me 3 2025 1080p 中字 磁力 BT之家 1lou` → 命中 `1lou.me/thread-941409.htm`（Bluray 1080p 3.31GB 中文字幕版）
+2. `curl --proxy 127.0.0.1:10808` 拿帖子页 → `search_files` 找 `attach-download-2909973.htm`
+3. curl 下载 .torrent（9.7KB）→ `scripts/btih_from_torrent.py` 提取 → `B68AAB067AEB0767F375DC09ABB0C94FB66DBA90`
+4. PikPak 离线 → 文件夹内有 3 个广告 png + 主视频 3.30GB → 取主视频 URL → aria2 下载（1.7MB/s 正常）
+
+## NMSL-011 换 2.6G 版（限速死局的处理）
+
+### 背景
+- 7.07GB 高清版在 PikPak CDN 被按文件限速：20-250KB/s 持续恶化到 3-5KB/s，ETA 从 15h 涨到 500h+，最终 Got EOF (exit 1)
+- 试过：换 5+ 节点、3 个磁链、后台慢爬 → 全部无效
+- 用户拍板：换 2.6GB 中字版
+
+### 处理步骤
+1. `rm -f /tmp/dl/NMSL-011.mp4*` 清残留（预分配 7GB 文件会占满磁盘）
+2. **用 jav_manager.py 而不是手写脚本**（用户硬性规则）：
+   ```
+   /opt/data/.venv/bin/python3 /opt/data/jav_manager.py --no-sync NMSL-011
+   ```
+   自动搜 javdb → 选中 `NMSL-011-中文字幕 (2.63GB)` → PikPak 离线 → 自动清广告（manko.fun.mp4 + NMSL-011.srt 被当广告删了，注意这个坑：真实 srt 也可能被误删）
+3. 取 URL → aria2 下载：**3.4MB/s 全程无限速**（2.6G 版没被限速，7G 版被限——疑似限速与文件大小相关）
+
+## ⚠️ "中文字幕"标注不可靠（NMSL-011 案例）
+
+- jav_manager 判定"影片含内嵌字幕"（依据磁链名含"中文字幕"）
+- 但 ffprobe `-select_streams s` 无字幕流；抽帧 600/2400/4200s 多处，RapidOCR 只识别到 `SUPJAV.COM` 水印，**无任何字幕**
+- 结论：该版本实际无中字（可能是压制组标错，或字幕是外挂 srt 被 PikPak 广告清理误删）
+- 处理：按 jav-auto-download 规则从 subtitlecat 补外挂 srt：
+  - 搜 `NMSL-011` → 命中 whisperjav.en 版
+  - 进详情页找 `en-zh-CN.srt`（`/subs/1135/NMSL-011.ja.whisperjav.en-zh-CN.srt`）
+  - 下载后与视频同名入库（`NMSL-011-中文字幕.mp4` + `.srt`）
+
+## 字幕验证标准流程（电影/番号通用）
+
+```bash
+# 1. 查字幕流
+ffprobe -v error -select_streams s -show_entries stream=index,codec_name -of csv /tmp/dl/xxx.mp4
+# 有输出 → 内嵌字幕 ✅；无输出 → 可能是硬字幕或无字幕
+
+# 2. 抽帧验证硬字幕（无字幕流时）
+for t in 600 2400 4200 6000 7800; do
+  ffmpeg -v error -ss $t -i /tmp/dl/xxx.mp4 -frames:v 1 -vf scale=480:-1 /tmp/f_$t.jpg -y
+done
+# 3. OCR 识别
+/opt/data/ocr_venv/bin/python3 -c "
+from rapidocr_onnxruntime import RapidOCR
+ocr = RapidOCR()
+for f in ['/tmp/f_600.jpg','/tmp/f_2400.jpg','/tmp/f_4200.jpg']:
+    result, _ = ocr(f)
+    print(f, [t[1] for t in result] if result else '无文字')
+"
+# 只出水印/无文字 → 无字幕，如实告知用户
+```
+
+## 电影移入 Movie 目录
+
+- 大文件（>4GB）cp/mv 前台会超时截断 → 用 `background=true` + `notify_on_complete=true` 后台执行
+- rsync 未安装 → 用 `cp --reflink=never` + 完成后对比字节数
+- 移入后删 /tmp 源文件释放空间
