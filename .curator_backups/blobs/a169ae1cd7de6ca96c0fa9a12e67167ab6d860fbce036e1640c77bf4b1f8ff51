@@ -116,7 +116,6 @@ hermes gateway restart
 - Use a custom plugin for alternative endpoints serving DeepSeek models.
 - **模型别名映射** ⚠️：DeepSeek 官方 API 会将 `deepseek-chat` 这个别名**内部路由至 `deepseek-v4-flash`**。即你在代码里写 `model: "deepseek-chat"`，实际调用的是 `deepseek-v4-flash`。这是服务端路由策略，不是 Hermes 的配置问题。可以通过 `curl https://api.deepseek.com/v1/models`（Bearer auth）查看官方实际可用的模型列表——只会看到 `deepseek-v4-flash` 和 `deepseek-v4-pro`，没有 `deepseek-chat`。建议所有脚本直接写 `deepseek-v4-flash` 以避免混淆。
 - **API Key**: `DEEPSEEK_API_KEY`（env var）
-- **模型同标识平滑升级 + 服务端跨档路由（2026-09-10 V4.1 Flash 实测）**：DeepSeek 官方发布新版时通常**不换模型标识**——`deepseek-v4-flash` 发布后自动指向 V4.1 Flash（调用名不变，服务端路由）。官方还会做跨档路由：V4.1 Flash 上线后、V4.1 Pro 上线前，**对 `deepseek-v4-pro` 的请求全部路由到 V4.1 Flash 并按 V4.1 单价计费**。因此用户要求"升级到 V4.1"时大概率**零配置改动**。核查方法：发布前 `curl https://api.deepseek.com/v1/models`（Bearer auth）记基线 → 发布后重查——若仍是旧标识集合=平滑升级，别乱改 config；若出现新独立标识才需要 `config set model.default`。⚠️ 第三方托管渠道（百炼/硅基流动）版本跟进滞后，官方发布当天仍是旧版；且第三方价格与官方独立。官方定价页可能挂"近期整体上调"预告——涨价窗口前是低成本囤量期。
 - **💰 高峰时段价格翻倍**：DeepSeek 在以下北京时段价格翻倍：**每日 9:00-12:00、14:00-18:00**。所有 cron 定时任务必须排在这些时段之外。可用非高峰窗口：
   - 凌晨：0:00-8:59（最佳）
   - 午休：12:00-13:59
