@@ -31,45 +31,6 @@ trigger: 用户要求"导出word/按模板生成docx/格式和XX一致/发到微
 - 正文首行缩进 first_indent=279400 EMU（≈22pt）
 - 编号段（"1. xxx"）无缩进，编号是手打文本、非自动编号
 
-## 月度汇报内容组织（智慧民政团队月度重点项目汇报材料）
-
-六段式固定结构（团队月度汇报，2026 年 7-8 月版起沿用）：
-一、重点业务产品打造情况｜二、重点项目攻坚与落地成果｜三、商机拓展与储备转化情况｜四、现存问题、卡点与风险事项｜五、工作计划与攻坚举措｜六、其他事项
-
-数据源 → 章节映射：
-- 一/二/四/五 ← 最新一期**双周工作汇报**（建设推进口径：任务总数、当期完成率、累计进度、延期构成、重点工作、问题与建议）
-- 平台运行数据（账号数、登录次数、点击量、共享/归集数据量）← 知识库 `concepts/陕西省智慧民政…月度报告…md`
-- 三、商机 ← 双周汇报一般没有，**须向用户要**（上期内容：农资监管平台调研、村社区系统建设建议书、蚂蚁集团/医保住建对标/捐赠系统对接）
-- 六、其他，以及三在无数据时 → **保持空标题**，与上期体例一致，不要编造
-
-**缺数据纪律**：缺什么（当月商机、平台运行数据、上一双周结束后的最新进展）**列成清单向用户要**，不要拿上期数字顶替、不要把占位符写进成品 docx。
-
-**先找脚本再动手**：`/opt/data/scripts/gen_report_docx.py` 是 7-8 月版的生成脚本，改 `content` 列表就能出下一期。用户明确说过“之前都有脚本，不用新写”——先搜已有脚本。
-
-### 读双周汇报 PDF：先过滤表格行
-
-markitdown 转换双周汇报 PDF 时，横排表格行与正文交错输出，正文被 `|` 行切碎（只剩约 1/6，容易误以为内容缺失）。过滤后再读：
-
-```python
-lines = [l.strip() for l in t.split('\n')]
-body = [l for l in lines if not (l.startswith('|') or l.startswith('---'))]
-# 再滤掉纯数字行（页码）和空行
-```
-
-附件任务明细表单独按 `|` 行解析：责任处室、责任人、计划日期、"已延期"标记 → 统计延期构成与下一双周节点。
-
-### 交付后校验
-
-```bash
-export PATH=/opt/data/.venv/bin:$PATH
-python3 /opt/data/skills/productivity/docx/scripts/docx_validate.py <out.docx>   # 期望 {"ok": true, "issues": []}
-python3 -c "from markitdown import MarkItDown; print(MarkItDown().convert('<out.docx>').text_content[:800])"
-```
-
-再打印每段 style + 字号，确认格式继承成功（18.0pt 标题 / 10.0pt 信息行 / Heading 2 章节 / 编号正文）。
-
-详见 `references/monthly-team-report-workflow.md`（章节映射、已产出记录、复用脚本骨架）。
-
 ## 微信文件投递
 
 - chat_id 从 `/opt/data/channel_directory.json` 的 `platforms.weixin[].id` 取（如 `o9cq807-...@im.wechat`）
@@ -77,8 +38,6 @@ python3 -c "from markitdown import MarkItDown; print(MarkItDown().convert('<out.
   `cronjob(action="create", name=..., prompt="将文件 <绝对路径> 作为附件投递给当前微信用户（用文件投递能力发送，不要只发路径文本）", schedule="1m", deliver="weixin:<chat_id>")`
 - 验证：`cronjob(action="list")` 看该 job 的 last_status=ok、last_delivery_error=null、state=completed
 - 限流兜底：iLink rate limited 会导致投递失败（cron last_delivery_error 可见 "rate limited"）；文件同时放 OutPut Box 目录并告知用户路径，用户可自行取
-- **MEDIA 路径不能含空格** ⚠️：`MEDIA:/opt/data/OutPut Box/xxx.docx` 里的空格会让路径被截断、文件发不出去。发送前先 `cp` 到无空格路径（如 `/opt/data/<文件名>.docx`），再在回复里写 `MEDIA:/opt/data/<文件名>.docx`
-- 在线会话直接在回复里用 `MEDIA:<绝对路径>` 比 cron 快（cron 适合定时/离线投递）；两种方式交付后都要确认用户确实收到
 
 ## 终端守卫坑（lifecycle_guard embedded null bug）
 

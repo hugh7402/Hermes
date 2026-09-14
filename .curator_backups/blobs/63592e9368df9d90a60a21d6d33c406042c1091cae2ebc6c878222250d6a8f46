@@ -77,8 +77,6 @@ python3 -c "from markitdown import MarkItDown; print(MarkItDown().convert('<out.
   `cronjob(action="create", name=..., prompt="将文件 <绝对路径> 作为附件投递给当前微信用户（用文件投递能力发送，不要只发路径文本）", schedule="1m", deliver="weixin:<chat_id>")`
 - 验证：`cronjob(action="list")` 看该 job 的 last_status=ok、last_delivery_error=null、state=completed
 - 限流兜底：iLink rate limited 会导致投递失败（cron last_delivery_error 可见 "rate limited"）；文件同时放 OutPut Box 目录并告知用户路径，用户可自行取
-- **MEDIA 路径不能含空格** ⚠️：`MEDIA:/opt/data/OutPut Box/xxx.docx` 里的空格会让路径被截断、文件发不出去。发送前先 `cp` 到无空格路径（如 `/opt/data/<文件名>.docx`），再在回复里写 `MEDIA:/opt/data/<文件名>.docx`
-- 在线会话直接在回复里用 `MEDIA:<绝对路径>` 比 cron 快（cron 适合定时/离线投递）；两种方式交付后都要确认用户确实收到
 
 ## 终端守卫坑（lifecycle_guard embedded null bug）
 
