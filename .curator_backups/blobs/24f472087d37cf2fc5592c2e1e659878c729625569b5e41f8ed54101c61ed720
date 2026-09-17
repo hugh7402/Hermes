@@ -155,8 +155,6 @@ uv pip install --python /opt/data/.venv/bin/python yt-dlp
   ```
   **device_id 必须沿用旧的**（换新 device_id 可能触发风控）。
 - **🧹 删云端文件夹用 `rclone purge` 一步到位**：`delete` + `rmdir` 两步法在文件夹含**子目录**时 rmdir 会报 `directory not empty`（黑钱胜地案例：残留「封面以及截图」子目录）。直接 `rclone purge "pikpak:/Inbox-JAV/<文件夹>"` 递归删除，一步干净。
-- **🔠 pikpakapi `path_to_id` 大小写敏感（2026-09-16）**：`await client.path_to_id('/inbox-jav')` 返回**空列表** → `r[0]['id']` 抛 `IndexError`；必须写 `/Inbox-JAV`（与云端目录名完全一致）。取不到 folder id 时先核对大小写，别怀疑账号或目录被删。
-- **📊 离线进度别用 `offline_list()` 判断**：PikPak 任务**完成后即从 `offline_list()` 列表移除**，常返回 `tasks: []`（看起来像“任务没建成功”）。**可靠判定**：轮询云端目标文件夹 `file_list(parent_id=<folder_id>)` 累计子文件大小，接近预期体积（≥99.5%）或连续 3 次不增长即算离线完成，再启动 WebDAV 拉回（本次 4K 30GB 大片即用此法，另外在线文件夹刚创建时大小显示 0.00GB 属正常）。
 - **🧩 shell cwd 陷阱**：若在 `/tmp/xxx` 里执行过命令又 `rmdir` 了该目录，后续 terminal 调用的 shell cwd 仍是已删目录 → 报 `cd: No such file or directory` / `Exit 126`。**修法**：下一个 terminal 调用显式传 `workdir=/opt/data`。
 - **🚫 `pkill -f '<模式>'` 会杀掉自己（2026-09-15 停黑钱胜地 S02 时）**：`pkill -f` 匹配**整条命令行**，而你的 terminal 命令行里恰好包含那个模式字符串 → 把自己所在的 bash 连同后续命令一起 SIGTERM 掉（表现为 `exit_code: -15`、后半段命令没执行、状态不可信）。**正确做法**：先 `pgrep -af '<模式>'` 看命中哪些 PID 并确认没有自己，再 `kill <精确PID>`；停后台任务优先用 **process 工具的 session_id**（`process(action='kill', session_id='proc_xxx')`），不要用 pkill -f 匹配长模式。
 - **⏱ 后台下载的“完成通知”可能只代表包装 shell 退出（2026-09-15 黑钱胜地）**：`terminal(background=True)` 里写 `nohup rclone copy ... &` 时，**包装 shell 退出就发完成通知**（几十秒后），而 rclone 还在跑——别把那条通知当“下载完成”。**两种安全写法**：① 前台跑 rclone（通知与下载同寿）；② 另起一个等待脚本 `while ls <目录>/*.partial >/dev/null 2>&1; do sleep 30; done` + `notify=true`，那才是真正的完成信号。判断完成也要看**两个条件**：`.partial` 数量归零 **且** rclone 进程（`pgrep -af 'bin/rclone'`）已退出。
@@ -199,5 +197,3 @@ uv pip install --python /opt/data/.venv/bin/python yt-dlp
 - `references/beastie-girls-20260802.md` — 野兽女孩下载：假种子识别（时长验证）、换源、无字幕入库标注决策
 - `scripts/btih_from_torrent.py` — 从 .torrent 提取 btih hash 的脚本
 - `references/streaming-exclusive-bilibili.md` — 流媒体独家纪录片（DAZN 案例）无 BT 源时走 B站 + yt-dlp 的完整实战：无源判定、BV 探测、下载参数、画质现实、字幕模式
-- `references/zh-movie-sites-direct-20260916.md` — 国内影视站**直连 vs 代理**探测结果、悠悠MP4→.torrent→磁链工作流、DreamHD 命名解读、碟中谍8 版本挑选与 PikPak 判定细节
-- `scripts/torrent_to_magnet.py` — .torrent → btih → magnet（含 tracker 拼装 + 文件清单 + 外挂字幕文件检测），比 `btih_from_torrent.py` 多输出文件结构和字幕明细

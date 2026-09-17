@@ -19,16 +19,6 @@ trigger: 用户要求下载某部电影/剧集/纪录片，或提到"下载XX片
 - 若只有原版无中字磁链，**不要直接用**——继续找内嵌中字版，找不到就如实告诉用户
 - 下载后可用 `ffprobe -v error -select_streams s -show_entries stream=index,codec_name -of csv=p=0 file.mp4` 验证确有字幕流（注意：mkv 内封软字幕也算内嵌，播放器直接可显）
 
-## 🚨 用户规则：不要自动续下后续季 / 系列续作（2026-09-15 明确）
-
-交付一季/一部之后，**不要自己接着下载后续季或同系列续作**。用户原话：
-
-> “不要下载黑钱胜地第二季，我先看看第一季，如果好看我会告诉你下载”
-
-- 可以**列出**后续季的可下性（hash / 源 / 体积）供用户决策，但**不要直接加离线、不要开始下载**
-- 用户没明确说“继续下”之前，下一季一律不动
-- 同理适用于系列电影、同一 UP 主/压制组的其他作品（例：B站搜到其他米兰纪录片时，先问再下）
-
 ## 资源站清单
 
 **14 个影视资源站**（用户提供 + 补充）保存在 `/opt/data/movie_sources.md`，含每个站的定位说明：
@@ -58,7 +48,7 @@ trigger: 用户要求下载某部电影/剧集/纪录片，或提到"下载XX片
 | 站点 | 状态 | 说明 |
 |:----|:----|:----|
 | **磁力熊 cilixiong.org** | ✅ **影视剧首选源** | 用户 2026-08-04 定：**质量比电影天堂好**。⚠️ **cilixiong.com 域名已停放（2026-08-27 验证），用 `.org`**。`/drama/<id>.html` 整季页面列出多版本（2160p/1080p，含大小标注），`web_extract` 直接拿全部 `magnet:?xt=urn:btih:` 明文。优先 `web_search site:cilixiong.com 片名` |
-| **磁力熊站内搜索（EmpireCMS）** | ✅ 2026-08-27 验证 | POST `https://www.cilixiong.org/e/search/index.php`，**必须带全参数** `classid=1,2&show=title&tempid=1&keyboard=关键词`（缺参数返回"信息提示"JS 跳转页，不是搜索结果）。需 `Referer` + UA，且**必须直连**（`curl --noproxy '*'`）——2026-09-16 实测：**走代理返回空/骨架页，直连 HTTP 200**。同类：国内影视站一律先直连试，别默认套代理。**电影结果在 `/movie/<id>.html`，剧集在 `/drama/<id>.html`**（旧版只记了 drama——电影分类在 movie 下）。压制组中字版常在这里，如 `摔跤吧！爸爸.2016.1080p.简繁中字￡CMCT梦幻.12GB` |
+| **磁力熊站内搜索（EmpireCMS）** | ✅ 2026-08-27 验证 | POST `https://www.cilixiong.org/e/search/index.php`，**必须带全参数** `classid=1,2&show=title&tempid=1&keyboard=关键词`（缺参数返回"信息提示"JS 跳转页，不是搜索结果）。需 `Referer: https://www.cilixiong.org/` + UA，走代理。**电影结果在 `/movie/<id>.html`，剧集在 `/drama/<id>.html`**（旧版只记了 drama——电影分类在 movie 下）。压制组中字版常在这里，如 `摔跤吧！爸爸.2016.1080p.简繁中字￡CMCT梦幻.12GB` |
 | **BTDigg btdig.com** | ⚠️ 限流严重 | 2026-08-27 验证：`web_extract`/浏览器失败，**curl `-x http://127.0.0.1:10808` 代理可访问**。文件名在磁链 href 的 `dn=` 参数（HTML 转义 `&amp;` 需 replace 回 `&`，再 urllib unquote；BTDigg 标题在嵌套 div 里，别从 `<a>` 文本提取）。**连续请求被限流**（返回 <2000B），每部搜索间隔 10-12s + 失败重试 3 次 |
 | 1lou.me（BT之家） | ✅ | Discuz，`web_extract` 直接可读全文，种子附件页 `attach-download-<id>.htm` 可用 curl 下载 |
 | twlkbt 等 Discuz 论坛 | ✅ | `web_extract` 可拿 magnet hash（页面里直接有 `magnet:?xt=urn:btih:` 明文） |
@@ -69,18 +59,6 @@ trigger: 用户要求下载某部电影/剧集/纪录片，或提到"下载XX片
 | assrt.net（射手网伪站） | ⚠️ | 反爬严，curl 返回 812B 错误页，需浏览器 |
 | zimuku 字幕库 | ⚠️ | 有云锁验证码页，需浏览器 |
 | subhd.tv | ⚠️ | 云锁验证码（代理也触发），验证码页 HTML 埋"伪搜索结果"诱饵（如"YYeTs字幕组..."实为防火墙页）——解析前先确认标题不是"网站防火墙/安全验证" |
-
-### 🎬 找内嵌中字版：悠悠MP4（2026-09-16 碟中谍8 实战，中字源命中率最高）
-
-**磁力熊只有国际版无中字时，第一站转悠悠MP4**。本次磁力熊给的 4 个磁链全是 YTS/RMTeam 无字版，页面自己写“下载字幕请前往 Subhd/Zimuku”（= 不符合用户内嵌中字硬规则）；悠悠MP4 一次搜出 **40+ 个版本**，国语/中字版一应俱全。
-
-- 搜索（**直连**）：`curl -sL --noproxy '*' -A "<UA>" "https://www.uump4.cc/search.htm?keyword=<urlencode 片名>"`
-- 结果标题自带规格，直接筛：`[国英多音轨+简繁英双语特效字幕]` / `[简繁英字幕]` / `[国语配音/中文字幕]` / `[无字片源]`，加 `1080P` / `4K-2160P` 与体积
-- 帖子页正文**没有磁链**，但页面里有 **`.torrent` 直链**（`https://bt.uump4.cc/btdown/YYYY/MM/DD/<hash>.torrent`）→ curl 下载后用 bencode 解析 info dict 得 btih 转磁链（`scripts/torrent_to_magnet.py`）
-- 常见优质压制组：**DreamHD**（`片名[国英多音轨+简繁英双语特效字幕].2025.2160p.iTunes.WEB-DL.DDP.5.1.Atmos.HDR10+.H.265-DreamHD`，**字幕内封在 mkv**，不是外挂文件）；PandaQT 也常见
-- 版本挑选：4K 2160p HDR10+ 30GB 级 / 1080p H.264 13GB 级（兼容性最好）。按用户“高清大版本”偏好默认 4K，但**主动说明 HDR/H.265 需要支持设备**并给 1080p 备选，别默认替用户降级
-
-**同日直连实测**：✅ 6V电影 66s6.cc、SeedHub seedhub.cc、飘花 piaohua.com、电影天堂 dytt8899.com、BT蚂蚁 btmayi.cc（导航站，`?s=` 只给其他搜索引擎入口，不给磁链）；❌ `1lou.me`/`btbuluo.net`/`grab4k.cn` 直连 HTTP 000（改用 `web_extract` 试）；⚠️ `hdchd.cc`/`space-empires.com` 等高清 Discuz 论坛（DreamHD/REMUX 首发，标题写明“国英多音轨+特效中文字幕”）**只剩 3-5KB 登录壳页，拿不到 magnet**——别在这耗时间，去悠悠MP4 找同版种子。
 
 **搜索技巧**：`web_search` 搜 `"片名" 年份 1080p 中字 magnet` 或 `"片名" 年份 btih`，命中 Discuz 论坛页后用 `web_extract` 直接提取 `magnet:?xt=urn:btih:<40位hash>`。
 
@@ -114,52 +92,8 @@ curl -sL --proxy http://127.0.0.1:10808 -A "Mozilla/5.0" \
 - 移入用 cp 后台 + 校验大小一致（rsync 未安装，用 `cp` + 手动对比字节数；跨文件系统 mv 会超时被截断）
 - 移入后删 /tmp 源文件
 
-## 无 BT 源的流媒体独家内容（DAZN / Netflix 原创纪录片等）→ B站 + yt-dlp
-
-有一类片子**在 BT 圈根本不存在**：流媒体独家出品、无蓝光/DVD 发行的体育/平台自制纪录片（案例：AC米兰 DAZN 纪录片《我们在一起很好 / Stavamo bene insieme》2022，用户要下载）。
-
-**无源判定**：BTDigg 用**原文名 + 平台名 + 中文名**三路搜都没有相关命中（注意排除同名噪音：搜 `Stavamo bene insieme` 只出无关意大利语杂志 → 就是没有），就**不要再在 BT 站上耗时间**，转 B站。
-
-**替代路径：B站（bilibili）**——国内字幕组/球迷会搬这类片子，常带机翻中文字幕：
-
-1. `web_search`：`B站 中文片名 原名 全片 bilibili BV`
-2. 探测确认是**全片**：`yt-dlp --no-warnings --dump-json "https://www.bilibili.com/video/BVxxxx"` → 核 `title` / `uploader` / `duration`，**时长与豆蔻/IMDb 对得上**（案例 93.5 分钟 vs 豆蔻 93 分钟）才是全片；否则只是片段
-3. 下载（带字幕）：
-```bash
-yt-dlp -f "bv*[height<=1080]+ba/b[height<=1080]/b" --merge-output-format mp4 \
-  --write-subs --write-auto-subs --sub-langs "all" --embed-subs \
-  --retries 5 --fragment-retries 10 \
-  -o "<目标目录>/<中文名>.<外文名>.年份.%(ext)s" "<B站URL>"
-```
-4. B站**未登录**通常最高 1080p（1080p60/4K 要大会员）——**分辨率上限就是搬运源的上限**，如实告知用户“这是全网最佳可得版本”，不要承诺 4K
-5. 交付时说明“BT 无源”的结论 + 画质现实（用户关心源质量，别假装下了高清版）
-
-**⚠️ B站标题里的“机翻中文字幕”可能是空头支票**（2026-09-16 AC米兰纪录片实测）：标题明写“机翻中文字幕”，但 `yt-dlp --list-subs` 只列出 `danmaku`；B站 API `https://api.bilibili.com/x/player/v2?aid=<aid>&cid=<cid>` 返回 `subtitle.subtitles: []`；全片 9 个时间点抽帧 OCR 也只有球衣名/水印 → **实际零字幕**。**下载前先核这三项**，别下完才发现没字幕（aid/cid 从 `yt-dlp --dump-json` 输出里捞）。
-
-**确认无字幕时不要放弃**：不搞外挂字幕、也不用退货——用 `ai-subtitle-pipeline` skill 走 ASR 转写 + AI 翻译 + 内嵌（本次 93.5 分钟意大利语纪录片端到端约 15 分钟，生成 1319 条中文字幕，成功率取决于 ASR 是否支持该语种）。
-
-**yt-dlp 安装**（本机 .venv 用 uv，PEP 668 环境无 pip）：
-```bash
-uv pip install --python /opt/data/.venv/bin/python yt-dlp
-```
-
-实战细节（含 47BT 与 B站两条路的分工、字幕模式）见 `references/streaming-exclusive-bilibili.md`。
-
 ## 踩坑记录
 
-- **🔑 PikPak token 失效（`invalidate refresh token token index 3 not found`）→ 重新登录刷新（2026-09-15 黑钱胜地）**：`.pikpak_token.json` 里存有 `username`/`password`/`device_id`，直接重新 login 即可，不要以为账号被封：
-  ```python
-  old = json.load(open('/opt/data/.pikpak_token.json'))
-  client = PikPakApi(username=old['username'], password=old['password'], device_id=old['device_id'])
-  await client.login()   # 登录后把新的 access/refresh/encoded_token + device_id 写回同一 JSON
-  ```
-  **device_id 必须沿用旧的**（换新 device_id 可能触发风控）。
-- **🧹 删云端文件夹用 `rclone purge` 一步到位**：`delete` + `rmdir` 两步法在文件夹含**子目录**时 rmdir 会报 `directory not empty`（黑钱胜地案例：残留「封面以及截图」子目录）。直接 `rclone purge "pikpak:/Inbox-JAV/<文件夹>"` 递归删除，一步干净。
-- **🔠 pikpakapi `path_to_id` 大小写敏感（2026-09-16）**：`await client.path_to_id('/inbox-jav')` 返回**空列表** → `r[0]['id']` 抛 `IndexError`；必须写 `/Inbox-JAV`（与云端目录名完全一致）。取不到 folder id 时先核对大小写，别怀疑账号或目录被删。
-- **📊 离线进度别用 `offline_list()` 判断**：PikPak 任务**完成后即从 `offline_list()` 列表移除**，常返回 `tasks: []`（看起来像“任务没建成功”）。**可靠判定**：轮询云端目标文件夹 `file_list(parent_id=<folder_id>)` 累计子文件大小，接近预期体积（≥99.5%）或连续 3 次不增长即算离线完成，再启动 WebDAV 拉回（本次 4K 30GB 大片即用此法，另外在线文件夹刚创建时大小显示 0.00GB 属正常）。
-- **🧩 shell cwd 陷阱**：若在 `/tmp/xxx` 里执行过命令又 `rmdir` 了该目录，后续 terminal 调用的 shell cwd 仍是已删目录 → 报 `cd: No such file or directory` / `Exit 126`。**修法**：下一个 terminal 调用显式传 `workdir=/opt/data`。
-- **🚫 `pkill -f '<模式>'` 会杀掉自己（2026-09-15 停黑钱胜地 S02 时）**：`pkill -f` 匹配**整条命令行**，而你的 terminal 命令行里恰好包含那个模式字符串 → 把自己所在的 bash 连同后续命令一起 SIGTERM 掉（表现为 `exit_code: -15`、后半段命令没执行、状态不可信）。**正确做法**：先 `pgrep -af '<模式>'` 看命中哪些 PID 并确认没有自己，再 `kill <精确PID>`；停后台任务优先用 **process 工具的 session_id**（`process(action='kill', session_id='proc_xxx')`），不要用 pkill -f 匹配长模式。
-- **⏱ 后台下载的“完成通知”可能只代表包装 shell 退出（2026-09-15 黑钱胜地）**：`terminal(background=True)` 里写 `nohup rclone copy ... &` 时，**包装 shell 退出就发完成通知**（几十秒后），而 rclone 还在跑——别把那条通知当“下载完成”。**两种安全写法**：① 前台跑 rclone（通知与下载同寿）；② 另起一个等待脚本 `while ls <目录>/*.partial >/dev/null 2>&1; do sleep 30; done` + `notify=true`，那才是真正的完成信号。判断完成也要看**两个条件**：`.partial` 数量归零 **且** rclone 进程（`pgrep -af 'bin/rclone'`）已退出。
 - **🚨 网络命令必须带 timeout（2026-08-16 驭风男孩 gateway 卡死事故）**：`rclone lsf pikpak:Movie/` 在 PikPak 瞬时连接故障时会**无限挂起** → agent 的 terminal 调用不返回 → gateway 线程死循环烧 CPU（实测单线程 97%）→ 整个微信网关无响应（用户感知"死机"，且恰好发生在启动 skill 之后，容易误判成 skill 问题——**skill 本身是好的，是网络调用挂起拖死了 agent**）。预防：**所有 rclone/PikPak/curl 网络命令一律加 `timeout <秒>` 前缀**（如 `timeout 60 /tmp/rclone lsf "pikpak:Movie/"`），长下载用 background=true + notify_on_complete，不要前台长阻塞。gateway 卡死诊断与恢复见 `weixin-gateway-troubleshooting` skill。
 - **🚨 时长校验禁用 bc 命令（2026-08-04 三剧连环误删事故）**：批量脚本写 `echo "$dur > 100" | bc` 判断时长，但**服务器没装 bc** → 判断恒为空 → **已下载成功的完整文件全部当失败删除**（护宝寻踪 8 集 45 分钟正常时长全被 rm）。症状隐蔽：日志显示 `校验失败 (dur=2734)`，时长明明是正常的。**必须用 python 判断**：`[ "$(python3 -c "print('1' if float('$dur') > 100 else '0')" 2>/dev/null)" = "1" ]`。所有批量校验脚本统一走 python，不要假设系统装了 bc。附带影响：**改完校验逻辑后，旧进程仍在跑旧逻辑**——重启脚本才生效，已启动的后台任务要 kill 掉用修好的版本重跑（配合 `--continue=true` 断点续传不浪费已下载部分）。
 - **Cloudflare 站不要死磕**：yts/1337x/bt4g 全部 CF 拦截，直接换 Discuz 论坛或 web_search 挖 hash
@@ -198,6 +132,3 @@ uv pip install --python /opt/data/.venv/bin/python yt-dlp
 - `references/nysm3-nmsl-20260802.md` — 惊天魔盗团3 下载 + NMSL-011 换 2.6G 中字版：限速死局换版、jav_manager 处理番号、"中文字幕"标注不可靠、抽帧 OCR 字幕验证标准流程
 - `references/beastie-girls-20260802.md` — 野兽女孩下载：假种子识别（时长验证）、换源、无字幕入库标注决策
 - `scripts/btih_from_torrent.py` — 从 .torrent 提取 btih hash 的脚本
-- `references/streaming-exclusive-bilibili.md` — 流媒体独家纪录片（DAZN 案例）无 BT 源时走 B站 + yt-dlp 的完整实战：无源判定、BV 探测、下载参数、画质现实、字幕模式
-- `references/zh-movie-sites-direct-20260916.md` — 国内影视站**直连 vs 代理**探测结果、悠悠MP4→.torrent→磁链工作流、DreamHD 命名解读、碟中谍8 版本挑选与 PikPak 判定细节
-- `scripts/torrent_to_magnet.py` — .torrent → btih → magnet（含 tracker 拼装 + 文件清单 + 外挂字幕文件检测），比 `btih_from_torrent.py` 多输出文件结构和字幕明细

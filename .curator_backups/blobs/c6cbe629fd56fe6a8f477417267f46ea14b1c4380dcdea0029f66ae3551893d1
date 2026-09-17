@@ -199,5 +199,3 @@ uv pip install --python /opt/data/.venv/bin/python yt-dlp
 - `references/beastie-girls-20260802.md` — 野兽女孩下载：假种子识别（时长验证）、换源、无字幕入库标注决策
 - `scripts/btih_from_torrent.py` — 从 .torrent 提取 btih hash 的脚本
 - `references/streaming-exclusive-bilibili.md` — 流媒体独家纪录片（DAZN 案例）无 BT 源时走 B站 + yt-dlp 的完整实战：无源判定、BV 探测、下载参数、画质现实、字幕模式
-- `references/zh-movie-sites-direct-20260916.md` — 国内影视站**直连 vs 代理**探测结果、悠悠MP4→.torrent→磁链工作流、DreamHD 命名解读、碟中谍8 版本挑选与 PikPak 判定细节
-- `scripts/torrent_to_magnet.py` — .torrent → btih → magnet（含 tracker 拼装 + 文件清单 + 外挂字幕文件检测），比 `btih_from_torrent.py` 多输出文件结构和字幕明细
