@@ -20,20 +20,23 @@ related_skills: [multi-search-engine, weixin-gateway-troubleshooting]
 2. **绝不给**：trip.com 国际站（www/hk/tw/jp 子域）、eztravel.com.tw、wingontravel.com、antianbaoche.com、booking.com 等——国内打不开或英文界面
 3. **关键技巧：国际站 trip.com 的酒店详情页 ID 与携程国内站是同一套 ID**。搜到 `trip.com/hotels/beijing-hotel-detail-{ID}/...` 时，直接把 ID 套进 `m.ctrip.com/html5/hotel/hoteldetail/{ID}.html` 即可，无需重新搜
 4. 无独立预订页的（如 HIGH旅行民宿）→ 指明 **美团/携程 App 内搜店名**
-5. 每个链接**必须验证**再交付（见下），不要只靠搜索摘要里的 URL
+5. 交付前尽量校验，但**携程已改 SPA、旧的 title 校验法已失效**（见下节）——不要因为抓不到 title 就把有效链接丢掉
 
-## 验证命令（抓 <title> 确认店名）
+## 链接校验：携程已改 SPA（2026-09-15 实测更新）
 
-```bash
-for id in 80935572 90215209; do
-  title=$(curl -s --max-time 15 -L -A 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36' \
-    "https://m.ctrip.com/html5/hotel/hoteldetail/${id}.html" \
-    | python3 -c "import sys,re,html; t=re.search(r'<title>(.*?)</title>', sys.stdin.read(), re.S); print(html.unescape(t.group(1).strip())[:40] if t else 'NO TITLE')")
-  echo "$id -> $title"
-done
-```
+**旧法失效**：`curl`（无论 UA、无论 `m.ctrip.com/html5/...` 还是 `hotels.ctrip.com/hotels/{id}.html`）抓携程详情页，**所有 ID 都只返回 ~19.7KB 的 JS 骨架页、无 `<title>`** —— 所以 `NO TITLE` **不再代表 ID 用错**，别据此丢弃链接（该法已不可用）。
 
-`<title>` 含店名（如 `携程酒店-赛努精品民宿(白河湾店)预订-...`）= 有效且是那家店。title 对不上 = ID 用错，别交付。
+**现在的可信度排序**：
+
+1. **搜索结果里直接出现的 `m.ctrip.com/html5/hotel/hoteldetail/{id}.html`** → 最可信，直接用
+2. **`m.ctrip.com/webapp/hotel/hoteldetail/{id}.html`**（另一套移动端路径，同样可用）
+3. **国际站/周边页同源 ID**：`hk.trip.com/hotels/...-hotel-detail-{id}/...`、`contents.ctrip.com/.../hotelbook/{id}.html`、`hotels.corporatetravel.ctrip.com/hotels/{id}.html` → 提取 ID 套进国内站模板
+4. 都拿不到 → 给“App 内搜店名”指引，别硬编 ID
+
+**交付文案**（主动说明，别声称已验证）：
+> 链接来自携程站内/同源 ID，本环境打不开携程页面做最终点开校验——打不开就用携程 App 搜店名，或直接打电话。
+
+小体量民宿（< 10 间房）几乎都支持**电话直订**，而且往往比平台便宜——推荐时把电话一起给出，比链接更实用。
 
 ## 获取 ID 的方式
 
@@ -47,6 +50,27 @@ done
 - 资源位：怀柔·白河湾（玩水+烧烤首选）、平谷·金海湖（湖景+烧烤免费）、延庆·百里山水画廊（独院安静）
 - 推荐时标注每家关键卖点（亲子间、烧烤是否免费、河边位置），末尾提醒"订前电话确认河边位和烧烤位"——玩水季房源紧，别只信平台房态
 - 用户选定清单后可能要求"发到微信"——走一次性 cron + deliver='all'（见 weixin-gateway-troubleshooting）
+
+## 私汤 / 两人度假场景资源位（2026-09-15 新增）
+
+用户要“**两人度假 + 私汤 + 私密性好 + 人不多 + 山/湖景**”时：
+
+| 区域 | 可选店（均已核过携程有页） | 特点 |
+|---|---|---|
+| **门头沟·潭柘寺紫旸山庄** | 一瓢客栈、怡宁山隐、沐山私汤、隐石、无霜山居、隐谷 | + 京郊私汤集群；多家“每间房带私院+户外私汤”；潭柘寺山顶 |
+| **昌平·黑山寨** | 云苏里（4.9 分/600+ 评） | 市区 1h；原木+原石室内外汤池、独门独院 |
+| **密云·古北口/新城子** | 慕隐初见（8 间房/每间独立私汤）、归璞南山（海拔 800m、可观星）、隐谷私院（古北水镇**山巅**、有双人私汤复式套房） | 潮白河、群山、85% 森林 |
+| **延庆·八达岭/刘斌堡** | 观山悦（6 间独门独院/洞穴私汤/长城景）、净隐南山（日式独栋，需包栋） | 山景+长城 |
+| **天津蓟州·盘山** | 坐忘·山林温汤（山景露台私汤房）、盘溪格调、溪雲渡（自有山谷） | 车程 1.5-2h，天津精品民宿榜 |
+| **承德隆化·茅荆坝/七家** | 秋栾·热河宿集（独栋小院+专属私汤）、泉悦居 | ⭐ **真地热温泉**（京郊多是山泉水加热）；高铁 1.5h |
+
+**选品要点（硬指标）**：
+- **只看 5-8 间房的小体量**——房间少 = 人少 = 私密，比“评分高”更决定体验
+- 房型名里必须明写 **私汤/独院/户外泡池**；搜索时直接抓这些词
+- 下单前电话问清：**独立室外池 vs 公共汤池**、水源（真温泉/山泉加热）、换水频率、24h 热水
+- 翻差评重点看“图不符 / 临时换房 / 房型缩水”（AI 造图时代照骗变多）
+
+**避坑**：私汤行程配酒要控量——酒精+热水扩血管易昃厥溺水；若用户提“灌醉”类需求，改为给“泡完再喝、中间隔 30 分钟、酒水 1:1 交替”的安全建议。
 
 ## 陷阱
 
