@@ -70,18 +70,31 @@ json.dump(cfg, open('/tmp/probe_$port.json','w'))
     $SB run -c /tmp/probe_$port.json > /tmp/probe_$port.log 2>&1 &
     local spid=$!
     sleep 3
-    local code=$(curl -s --max-time 10 --proxy http://127.0.0.1:$port \
-        -A "Mozilla/5.0" -o /dev/null -w "%{http_code}" "$JAVDB_TEST_URL" 2>/dev/null)
+    # 用搜索页测试（over18 正常时也可能很小，无法区分拦截页）
+    local url="${JAVDB_TEST_URL_FULL:-https://javdb.com/search?q=DSOD-005&f=all}"
+    local body code
+    body=$(curl -s --max-time 20 --proxy http://127.0.0.1:$port \
+        -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120" \
+        -w "\n__HTTP__%{http_code}" "$url" 2>/dev/null)
+    code=$(printf '%s' "$body" | grep -o '__HTTP__[0-9]*' | grep -o '[0-9]*')
     kill $spid 2>/dev/null
     wait $spid 2>/dev/null
     rm -f /tmp/probe_$port.json /tmp/probe_$port.log
-    if [ "$code" = "200" ] || [ "$code" = "302" ]; then
-        echo "OK"
-        return 0
-    else
-        echo "FAIL($code)"
+    # 内容判断：区分「IP 封禁」「地区版权限制」「正常」
+    if printf '%s' "$body" | grep -q 'banned your access'; then
+        echo "FAIL(banned)"
         return 1
     fi
+    if printf '%s' "$body" | grep -q 'prohibited in the country'; then
+        echo "FAIL(region)"
+        return 1
+    fi
+    if printf '%s' "$body" | grep -qi 'javdb' && [ "$code" = "200" ]; then
+        echo "OK"
+        return 0
+    fi
+    echo "FAIL($code)"
+    return 1
 }
 
 # 3. 主流程

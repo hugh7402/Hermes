@@ -101,6 +101,59 @@ curl -s --proxy http://127.0.0.1:10808 \
 3. **禁止 `-U`（无码破解版）**：文件名含 `-U`（非 `-UC`）或 `无码破解` 标注的磁链**一律禁止选择**。用户明确禁止下载无码破解版。`-UC`（无码中字版）是可接受的。
 4. **大小过滤**：视频文件小于 **2GB** 的**跳过不下载**（清晰度太差）。必须在当前番号的 javdb 页面其他磁链中找 >=2GB 的高清版。如果当前番号仅有的磁链都 <2GB，如实告知用户。
 
+#### 🚨 批量跑完必须回查「选中」行 —— jav_manager 会选 -U（2026-09-21 再次实测）
+
+`jav_manager.py` 的 select_best **不过滤 `-U`**（无码破解版，用户禁选），只看文件大小 → 每次批量结束都要回查日志：
+
+```bash
+grep '选中:' /tmp/jav_batch*.log      # 含 -U 的必须换掉
+```
+
+**修复流程**（jav_manager 不支持指定磁链，必须手动离线）：
+
+1. 抓 javdb 页面列全部版本 + 大小（curl 或 `/opt/data/.tmp_tests/dump_jur838.sh` 模板）
+2. 选**非 -U 中最大**的版本，记下 btih
+3. 手动离线（脚本模板 `/opt/data/.tmp_tests/jur838_reoffline.py`）：
+   ```python
+   MAGNET = f"magnet:?xt=urn:btih:{BTIH}&dn={quote(DN)}&tr=udp://tracker.opentrackr.org:1337/announce"
+   task = await client.offline_download(MAGNET, parent_id=inbox_id)
+   ```
+4. 新版本离线完成后 `rclone delete` 删掉 -U 版
+
+**同类坑：jav_manager 优先选「字幕版」不看清晰度（2026-09-21 ROE-540）**
+
+有 `-中文字幕` / `-C` 磁链时 jav_manager 直接选它，**不管体积**。ROE-540 实例：`ROE-540.torrent` 6.35GB 高清 / `ROE-540` 6.32GB 高清 / **`ROE-540-中文字幕` 1.71GB（无高清标签）** → jav_manager 选了 1.71GB（仅 27% 体积）。
+
+**用户规则是「清晰度优先 → 同清晰度才看字幕」**，所以：
+
+```bash
+grep '选择.*磁链' /tmp/jav_*.log   # 出现「选择字幕磁链」就要警惕，核对体积
+```
+
+字幕版明显小于高清版（如 < 50%）→ **换高清版 + 外挂 srt**（用 `fetch_sub_srt.sh <番号>`）。
+
+**附带坑**：jav_manager 的广告清理会把 `.srt` 当广告删掉（日志 `🗑️ ROE-540.srt (0.1 MB)`）—— 离线包里自带的字幕文件不可靠，**外挂字幕一律自己补**。
+
+**再附带**：当次那个 1.71GB 版离线实际没成功（API 直查云端无文件，但 jav_manager 打了 `✅ 已添加到 PikPak Inbox-JAV`）——**jav_manager 的成功日志不代表文件真的在云端**，关键步骤用 API 直查核实。
+
+#### 实例（JUR-838，2026-09-21）：3 个版本 `JUR-838.torrent` 3.74GB / **`JUR-838-U` 5.41GB（禁）** / `JUR-838` 3.72GB → 选 3.74GB 的 `14be6356…`。
+
+**顺带澄清**：javdb 详情页 `dn=` 里带 `.ja.whisperjav` 字样**不代表字幕是日文**——那是 subtitlecat 的来源标记，实际下载的仍是 zh-CN（JUR-838 / DSOD-054 实测 7454 / 8605 个汉字、0 假名）。验证法：数汉字与假名 `re.findall(r'[\u3040-\u309f\u30a0-\u30ff]', s)`。
+
+#### 🚨 javdb 返回 522 会伪装成「无磁链」（2026-09-21）
+
+节点路由挂掉时 javdb 返回 **Cloudflare 522**（响应仅 16 字节），`jav_manager.py` 会打印 `❌ 无磁链` —— **这是假象，不是该片没资源**。
+
+**判别**：先手动验证节点，再怀疑片源。
+
+```bash
+UA="Mozilla/5.0"; curl -s --proxy http://127.0.0.1:10808 -A "$UA" \
+  "https://javdb.com/search?q=<番号>&f=all" -o /tmp/jv.html -w "HTTP:%{http_code} size:%{size_download}\n"
+# 200 且 28KB+ 且含番号 → 正常；522 / 16 字节 → 换节点
+```
+
+**522 ≠ IP 被封**（封禁是 403 或地区限制页）。测 google 通、javdb 522 = 该节点到 javdb 的路由问题，换节点即可（实测圣何塞03 `104.251.122.87` 可通）。
+
 ### ⚠️ 磁链选择后字幕判断流程（2026-07-18 用户纠正）
 
 **重要**：流程顺序必须是 **先看磁链版本再决定是否需要外挂字幕**，不是先搜字幕再找磁链。
@@ -357,6 +410,35 @@ if skip_subs:
 **如果直接搜索没找到中文**：检查 Eng 页面（如 `subs/1432/DRPT-109%20Eng.html`）。有些番号的中文翻译版本放在了英文页面上（文件名 `{番号} Eng-zh-CN.srt`），直接搜索番号只能看到 "Eng" 结果，点进去才有 zh-CN。下载量可能低于原版页面但质量相同。
 
 详见 `references/subtitlecat-scraping.md`。
+
+#### ⚠️ jav_manager.py Phase 2.5 字幕下载失败时（2026-09-21 实测：3 个番号中 2 个失败）
+
+jav_manager.py 的 Phase 2.5 经常报 `⚠️ 字幕下载失败`（MIKR-118、MIDA-774 都中招），**不要以为是无字幕**。两个原因：
+
+1. **URL 编码**：subtitlecat 的 SRT 路径含 `[`、`]` 和 U+2019 撇号（如 `[Reducing Mosaic]MIDA-774 My Mother-in-law’s J-cup Nipples…-zh-CN.srt`）→ **curl 不编码直接请求会 404**（日志只显示"下载失败"，误导性强）
+2. **时序**：页面刚抓完立刻下 SRT 偶发失败，重试即可
+
+**通用补救脚本**（已固化）：`/opt/data/.tmp_tests/fetch_sub_srt.sh <番号>`
+
+```bash
+bash /opt/data/.tmp_tests/fetch_sub_srt.sh MIDA-774
+# → /opt/data/PikPak/Inbox-JAV/mida-774.srt
+```
+
+**核心实现点 —— SRT 路径必须 URL 编码**：
+
+```python
+from urllib.parse import quote
+url = 'https://www.subtitlecat.com' + quote(srt_path)  # 正确处理 [ ] 和 U+2019
+```
+
+手动流程：
+1. `curl "https://www.subtitlecat.com/index.php?search={番号}&show=1000"` → 正则 `href="(subs/\d+/[^"]*)"` 找详情页
+2. 抓详情页 → 正则 `href\s*=\s*["']([^"']*\.srt)["']` 找 SRT（**有的页面是 `href = ` 带空格**），优先选含 `zh-CN` 的
+3. **URL 编码后**下载，加 `-e <详情页URL>` 作 referer
+4. 校验：正则数中文字符，**> 100 才算拿到**（`len(re.findall(r'[\u4e00-\u9fff]', s))`）
+
+实测字幕体量参考：MIKR-118 = 19KB / 1240 行 / 2614 中文字；MIDA-774 = 80KB / 7855 中文字。
 
 ### 5. 本地同步（Phase 3 — aria2 CDN 并行下载 **推荐** / rclone 备选）
 

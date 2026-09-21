@@ -192,6 +192,7 @@ uv pip install --python /opt/data/.venv/bin/python yt-dlp
 
 ## 参考
 
+- 写会议发言稿/汇报讲演稿（三段式、按时长控字数）用 `speech-draft` skill——与下载无关，但手法可复用：用户发来的方案 PDF / 配置表 / 现场照片是"一手素材源"，检索结果只配当背景
 - `references/colombiana-20260801.md` — 《致命黑兰》完整实战：磁链搜索路径、种子→btih 提取、站点可用性实测
 - `references/madame-claude-20260801.md` — 《应召女王》第二次实战：多译名搜索、种子附件 id 定位、版本筛选
 - `references/batch-4-movies-20260801.md` — 批量下载 4 部电影：多译名识别、CDN 全节点 503 恢复模式（等 10 分钟重取 URL）、广告文件过滤、批量 aria2 脚本

@@ -1,9 +1,9 @@
 {
-  "last_report_path": "/opt/data/logs/curator/20260910-093859",
-  "last_run_at": "2026-09-10T09:38:59.456726+00:00",
-  "last_run_duration_seconds": 1.186029,
-  "last_run_summary": "auto: 8 marked stale; llm: skipped (consolidation off)",
+  "last_report_path": "/opt/data/logs/curator/20260917-100747",
+  "last_run_at": "2026-09-17T10:07:47.694194+00:00",
+  "last_run_duration_seconds": 1.422342,
+  "last_run_summary": "auto: 5 marked stale, 1 archived; llm: skipped (consolidation off)",
   "last_run_summary_shown_at": null,
   "paused": false,
-  "run_count": 13
+  "run_count": 14
 }
