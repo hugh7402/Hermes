@@ -144,3 +144,33 @@ Thumbs.db
 
 # Media downloads (huge binaries, never push)
 Movie/
+
+# ===== 2026-09-24 备份瘦身：数据库内部文件 / 临时草稿 / 二次备份 =====
+.pg0/
+.tmp_tests/
+.hindsight/
+hindsight/
+.curator_backups/
+.memory_gep_backup_*/
+backups/
+subtitles_backup/
+
+# 媒体 / 压缩包（体积大，绝不进版本库）
+*.mp3
+*.mp4
+*.mkv
+*.avi
+*.mov
+*.wav
+*.flac
+*.m4a
+*.webm
+*.m4v
+*.wmv
+*.flv
+*.aac
+*.ogg
+*.wma
+*.zip
+*.rar
+*.7z
