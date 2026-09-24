@@ -60,7 +60,8 @@ humanize-ppt/
 *.pid
 *.log
 evolver.pid
-cron/
+/cron/*
+!/cron/jobs.json
 *.bak*
 auth.json
 *.db
@@ -80,7 +81,7 @@ gateway_state.json
 weixin/
 apps/
 bin/
-scripts/
+
 home/
 logs/
 processes.json
@@ -174,3 +175,10 @@ subtitles_backup/
 *.zip
 *.rar
 *.7z
+
+# ===== 2026-09-24 恢复力补强 =====
+# 技能辅助脚本（skills/*/scripts/）与备份脚本（scripts/）现在纳入版本库
+# cron 任务定义单独备份，运行产物不备份
+
+# cron 任务定义（须在 *.json 规则之后才能生效）
+!/cron/jobs.json

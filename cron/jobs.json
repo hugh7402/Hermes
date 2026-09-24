@@ -1,0 +1,240 @@
+{
+  "jobs": [
+    {
+      "id": "c3e92b82c93a",
+      "name": "每日文档自动入库",
+      "prompt": "运行文档自动入库任务：\n\n1. 执行 `cd /opt/data && python3 /opt/data/ingest_docs.py` 扫描 `/opt/data/WebChat BackUp/文档/` 中的新文档\n2. 每批最多处理 7 个文件\n3. 如果 OCR 扫描件超时（超过 400 秒），直接跳过该文件，不要重试，不要卡住。继续处理下一个文件。\n4. 用中文报告处理结果：处理了几个文件、成功几个、失败几个（分别报文件名和原因）\n5. 报告总长度必须控制在 1200 字以内（微信单条消息上限约 2000 字符，超长分块会被微信限流丢弃，宁可精简）",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": null,
+      "no_agent": false,
+      "context_from": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 8 * * *",
+        "display": "0 8 * * *"
+      },
+      "schedule_display": "0 8 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 110
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-06-16T21:38:59.096552+08:00",
+      "next_run_at": "2026-09-25T08:00:00+08:00",
+      "last_run_at": "2026-09-24T08:02:27.528996+08:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "origin",
+      "origin": {
+        "platform": "weixin",
+        "chat_id": "o9cq807-R1vQ2rE1tVqRjIack5QA@im.wechat",
+        "chat_name": null,
+        "thread_id": null
+      },
+      "enabled_toolsets": [
+        "terminal",
+        "file"
+      ],
+      "workdir": null,
+      "profile": null,
+      "fire_claim": null,
+      "failure_streak": 0
+    },
+    {
+      "id": "f1e56e8511d3",
+      "name": "知识库月度健康巡检",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "lint_vault.sh",
+      "no_agent": true,
+      "context_from": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 20 1 * *",
+        "display": "0 20 1 * *"
+      },
+      "schedule_display": "0 20 1 * *",
+      "repeat": {
+        "times": null,
+        "completed": 4
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-06-17T16:01:33.575816+08:00",
+      "next_run_at": "2026-10-01T20:00:00+08:00",
+      "last_run_at": "2026-09-01T20:00:49.265575+08:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": "live adapter send failed: iLink sendmessage rate limited; cooldown active for 15.0s; live adapter delivery to weixin:o9cq807-R1vQ2rE1tVqRjIack5QA@im.wechat failed: iLink sendmessage rate limited; cooldown active for 15.0s; delivery error: Weixin send failed: iLink sendmessage rate limited; cooldown active for 15.0s",
+      "deliver": "origin",
+      "origin": {
+        "platform": "weixin",
+        "chat_id": "o9cq807-R1vQ2rE1tVqRjIack5QA@im.wechat",
+        "chat_name": null,
+        "thread_id": null
+      },
+      "enabled_toolsets": null,
+      "workdir": null,
+      "profile": null,
+      "fire_claim": null
+    },
+    {
+      "id": "5652f5032fe5",
+      "name": "思源笔记同步入库",
+      "prompt": "运行思源笔记同步入库任务：\n\n1. 运行 `cd /opt/data && python3 siyuan_sync.py` 脚本，将思源笔记抽取到 Obsidian 知识库\n2. 此脚本会自动：\n   1) 尝试通过思源 API 拉取最新笔记\n   2) 扫描 00-INBOX 目录中的 .sy 文件\n   3) 提取内容并转换为层级中文文件名（如 陕西智慧民政项目-领导对接会.md）\n   4) 调用 note_enhance.py 增强 frontmatter\n3. 记录入库的笔记数量\n4. **无论是否有新笔记入库**，都用中文输出简短的执行报告（包含：执行时间、新入库数量、00-INBOX/ 总笔记数、状态）\n5. 报告总长度必须控制在 1200 字以内（微信单条消息上限约 2000 字符，超长分块会被微信限流丢弃，宁可精简）",
+      "skills": [
+        "hermes-agent"
+      ],
+      "skill": "hermes-agent",
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": null,
+      "no_agent": false,
+      "context_from": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "5 12 * * *",
+        "display": "5 12 * * *"
+      },
+      "schedule_display": "5 12 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 100
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-06-18T22:31:48.412387+08:00",
+      "next_run_at": "2026-09-25T12:05:00+08:00",
+      "last_run_at": "2026-09-24T12:05:57.254242+08:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "origin",
+      "origin": {
+        "platform": "weixin",
+        "chat_id": "o9cq807-R1vQ2rE1tVqRjIack5QA@im.wechat",
+        "chat_name": null,
+        "thread_id": null
+      },
+      "enabled_toolsets": [
+        "terminal",
+        "file"
+      ],
+      "workdir": null,
+      "profile": null,
+      "fire_claim": null,
+      "failure_streak": 0
+    },
+    {
+      "id": "738a78285a03",
+      "name": "auto-git-backup",
+      "prompt": "自动备份：cd /opt/data，检查是否有未提交的变更，有则 git add -A && git commit -m \"auto backup $(date +%Y-%m-%d)\" && git push，无变更则静默跳过。",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "provider_snapshot": null,
+      "model_snapshot": null,
+      "base_url": null,
+      "script": "git_backup.sh",
+      "no_agent": true,
+      "context_from": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "5 18 * * 1,4",
+        "display": "5 18 * * 1,4"
+      },
+      "schedule_display": "5 18 * * 1,4",
+      "repeat": {
+        "times": null,
+        "completed": 21
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-07-29T11:24:16.842788+08:00",
+      "next_run_at": "2026-09-28T18:05:00+08:00",
+      "last_run_at": "2026-09-24T18:07:18.184442+08:00",
+      "last_status": "error",
+      "last_error": "Interrupted by shutdown before terminal completion.",
+      "last_delivery_error": null,
+      "deliver": "origin",
+      "origin": {
+        "platform": "weixin",
+        "chat_id": "o9cq807-R1vQ2rE1tVqRjIack5QA@im.wechat",
+        "chat_name": null,
+        "thread_id": null,
+        "user_id": "o9cq807-R1vQ2rE1tVqRjIack5QA@im.wechat"
+      },
+      "enabled_toolsets": [
+        "terminal"
+      ],
+      "workdir": "/opt/data",
+      "fire_claim": null,
+      "failure_streak": 1
+    },
+    {
+      "id": "aae86abc9bc3",
+      "name": "扫描件OCR补入库重试",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "provider_snapshot": null,
+      "model_snapshot": null,
+      "base_url": null,
+      "script": "retry_pdf_ingest.sh",
+      "no_agent": true,
+      "monitor_script": null,
+      "monitor_url": null,
+      "monitor_state": null,
+      "context_from": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/30 * * * *",
+        "display": "*/30 * * * *"
+      },
+      "schedule_display": "*/30 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 75
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-09-23T08:19:40.068078+08:00",
+      "next_run_at": "2026-09-24T21:00:00+08:00",
+      "last_run_at": "2026-09-24T20:30:46.676319+08:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "failure_streak": 0,
+      "deliver": "weixin:o9cq807-R1vQ2rE1tVqRjIack5QA@im.wechat",
+      "origin": null,
+      "enabled_toolsets": null,
+      "workdir": null,
+      "fire_claim": null
+    }
+  ],
+  "updated_at": "2026-09-24T20:30:46.677211+08:00"
+}

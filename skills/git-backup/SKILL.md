@@ -194,6 +194,76 @@ git push 2>&1
   5. `git reflog expire --expire=now --all && git gc --prune=now`（清除历史里 55GB 孤儿 blob，.git 从 60G 回到 11M）
 - **hermes-agent-self-evolution 等实验工具装前先 push 一次**：确保有可回退点
 
+## 进阶坑：数据库目录 / 临时草稿膨胀（2026-09-24 实战）
+
+媒体目录不是唯一的膨胀源。**嵌入型数据库目录同样致命**——本次备份仓库被撑到 3995 文件 / 274MB：
+
+| 目录 | 实测 | 是什么 |
+|---|---|---|
+| `.pg0/` | **2760 文件 / 163MB** | Hindsight 的嵌入 Postgres（`pg_wal/` 单个日志 16MB） |
+| `.tmp_tests/` | 564 文件 / 94MB | 调试草稿（含 42MB mp3、30MB rclone.zip） |
+| `.hindsight/` | 2 文件 / 10MB | Hindsight 运行日志 |
+| `.curator_backups/` | 120 文件 / 1.3MB | curator 二进制 blob（与 git 历史重复） |
+
+**判据**：`git ls-files` 里出现 `.pg0`、`*.mp3`、`blobs/` 就该清了。数据库内部文件不能靠 git 恢复，备份它们毫无意义。
+
+### .gitignore 必须补的条目
+
+```gitignore
+# 数据库内部 / 临时 / 二次备份
+.pg0/
+.tmp_tests/
+.hindsight/
+hindsight/
+.curator_backups/
+.memory_gep_backup_*/
+backups/            # ⚠️ 安全 bundle 存这里，漏了会被自己提交进去
+subtitles_backup/
+
+# 媒体 / 压缩包
+*.mp3 *.mp4 *.mkv *.avi *.mov *.wav *.flac *.m4a *.webm *.m4v
+*.wmv *.flv *.aac *.ogg *.wma *.zip *.rar *.7z
+```
+
+> ⚠️ 别把 `*.ts` 写进媒体规则——会误伤 TypeScript 源文件。视频 `.ts` 用目录规则覆盖即可。
+
+### 历史重写流程（git-filter-repo，比 filter-branch 快且稳）
+
+```bash
+# 0. 安全网：全量 bundle（可完整恢复旧历史）
+cd /opt/data && mkdir -p backups
+git bundle create backups/git-before-filter-$(date +%Y%m%d_%H%M).bundle --all
+
+# 1. 装工具（系统 pip 装不了就用 uv）
+uv tool install git-filter-repo
+export PATH="$HOME/.local/bin:$PATH"
+
+# 2. 补 .gitignore + 从 index 摘除（磁盘文件不动）
+git rm -r --cached .pg0 .tmp_tests .hindsight .curator_backups
+#   媒体：注意排除 .ts，用 grep -z 处理含空格/中文的路径
+git ls-files -z | grep -z -iE '\.(mp3|mp4|mkv|avi|zip)$' | xargs -0 -r git rm --cached --quiet --
+git add -A .gitignore && git commit -m "chore: 备份瘦身"
+
+# 3. 重写历史（--invert-paths = 删除指定路径）
+git filter-repo --force --invert-paths \
+  --path .pg0 --path .tmp_tests --path .hindsight --path .curator_backups \
+  --path-glob '*.mp3' --path-glob '*.mp4' --path-glob '*.mkv' --path-glob '*.zip'
+
+# 4. 清孤儿对象
+git reflog expire --expire=now --all && git gc --prune=now --aggressive
+
+# 5. ⚠️ filter-repo 会“为安全”移除 origin，必须重新挂并强推
+git remote add origin https://github.com/<user>/<repo>.git
+git push --force origin main
+git rev-parse HEAD; git ls-remote origin -h refs/heads/main   # 两个 hash 必须一致
+```
+
+**效果实测**：跟踪 3995→**540** 文件、274→**4.2MB**；`.git` 222MB→**11MB**；下次备份的增量 477→**5** 条。
+
+**验证清单**（改完必查）：①`git check-ignore -v <路径>` 确认拦住了 ②`git add -A --dry-run | wc -l` 看增量降到个位数 ③`git status -sb` 无 ahead/behind ④磁盘上的 Obsidian Vault / skills / config.yaml 都还在（只摘索引不是删文件）。
+
+**排查“陈旧锁”误判**：输出里的 `已在运行 (PID xxx)` 来自 `proxy.sh`（sing-box 已在跑），不是 git 备份锁冲突，别被误导。
+
 ## 恢复
 
 ```bash
