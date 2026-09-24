@@ -18,7 +18,7 @@ def get_key():
     data = os.read(fd, 100000).decode()
     os.close(fd)
     for line in data.splitlines():
-        if line.startswith('SILICONFLOW_API_KEY='):
+        if line.startswith('BAILIAN_API_KEY='):
             return line.split('=', 1)[1].strip()
     raise RuntimeError("no key")
 
@@ -51,23 +51,22 @@ def ocr_page_vlm(pdf_path, page_idx, total):
     try:
         img_b64 = base64.b64encode(open(png, 'rb').read()).decode()
         payload = {
-            "model": "PaddlePaddle/PaddleOCR-VL-1.5",
+            "model": "qwen-vl-ocr-latest",
             "messages": [{"role": "user", "content": [
                 {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img_b64}"}},
                 {"type": "text", "text": "识别图片中所有文字，按阅读顺序输出，保留段落结构。不要输出任何解释。"}
             ]}],
             "max_tokens": 2000
         }
-        proxy = urllib.request.ProxyHandler({'http': 'http://127.0.0.1:10808', 'https': 'http://127.0.0.1:10808'})
-        opener = urllib.request.build_opener(proxy)
+        # 百炼(国内直连，不走代理) —— 硅基流动账户欠费后切换
         req = urllib.request.Request(
-            "https://api.siliconflow.cn/v1/chat/completions",
+            "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
             data=json.dumps(payload).encode(),
             headers={"Authorization": f"Bearer {KEY}", "Content-Type": "application/json"}
         )
         for attempt in range(3):
             try:
-                resp = opener.open(req, timeout=120)
+                resp = urllib.request.urlopen(req, timeout=120)
                 d = json.loads(resp.read())
                 return d['choices'][0]['message']['content']
             except Exception as e:

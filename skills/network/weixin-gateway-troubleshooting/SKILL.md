@@ -150,6 +150,43 @@ cronjob(action="create", name="发文件",
   schedule="1m")
 ```
 
+## 微信里每轮出现一段英文（状态气泡）—— 2026-09-22 用户反馈
+
+### 现象
+用户问"每次对话都给我一段英文，能不能去掉"。英文是**工具进度 / 忙碌确认 / 长任务心跳**这类运行状态气泡，不是回复正文。Hermes 的 i18n（`agent/i18n.py`）只覆盖审批提示等极少量字符串，**这些状态文案本身是硬编码英文**，改 `display.language` 只能让审批提示等变中文，删不掉气泡——删气泡要关掉发送开关。
+
+### 根因：全局 display 设置压过平台默认（关键）
+`gateway/display_config.py::resolve_display_setting` 解析顺序：
+`display.platforms.<平台>.<键>` > `display.<键>`（全局）> 内置平台默认 > 内置全局默认。
+
+`weixin` 在内置表里是 **TIER_LOW（安静档）**：`tool_progress=off`、`interim_assistant_messages/long_running_notifications/busy_ack_detail=false`。但只要用户全局写了 `display.tool_progress: all`（本机 config 就是），**全局值在第 2 步就命中，平台默认永远轮不到** → 微信被拉满，每轮都推英文气泡。
+
+### 修复（每平台显式覆盖，实测已验证）
+```bash
+export PATH=/opt/hermes/.venv/bin:$PATH
+hermes config set display.platforms.weixin.tool_progress off
+hermes config set display.platforms.weixin.interim_assistant_messages false
+hermes config set display.platforms.weixin.long_running_notifications false
+hermes config set display.platforms.weixin.busy_ack_detail false
+hermes config set display.language zh          # 审批提示等也转中文
+```
+> ⚠️ 不能用 patch/write_file 改 `/opt/data/config.yaml`（"Refusing to write to Hermes config file"），必须走 `hermes config set`。
+
+### 验证方法（不用重启就能确认解析结果）
+```bash
+bash -c 'cd /opt/hermes && export PATH=/opt/hermes/.venv/bin:$PATH && python3 -c "
+import yaml, sys; sys.path.insert(0,\"/opt/hermes\")
+from gateway.display_config import resolve_display_setting
+cfg = yaml.safe_load(open(\"/opt/data/config.yaml\"))
+for k in [\"tool_progress\",\"interim_assistant_messages\",\"long_running_notifications\",\"busy_ack_detail\"]:
+    print(\"weixin.\"+k, \"=\", repr(resolve_display_setting(cfg, \"weixin\", k)))
+"'
+# 期望：tool_progress='off'，其余 False
+```
+
+### 类比坑（同类问题自查顺序）
+用户抱怨"收到了不该收到的内容"时：① 先看 `display.platforms.<平台>` 有没有显式覆盖 → ② 再看全局 `display.*` 是否把安静平台拉满 → ③ 用上面解析器打印实际值，不要靠读 YAML 猜。日志里 `response ready ... response=NNN chars` 的字符数=**回复正文**，状态气泡不走这条日志，所以"日志干净"不代表没推气泡。
+
 ## cron 投递错峰策略
 
 当前 cron 分布：

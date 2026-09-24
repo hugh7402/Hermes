@@ -220,6 +220,24 @@ Step 4: PikPak下载...
 
 > ⚠️ **不要用 `selected_files` PATCH 方法！** PikPak 解析磁链极快（从 "not found" 直接跳到 "PHASE_TYPE_COMPLETE" 只需 4-6s），PATCH 来不及生效，返回 `file_nothing_updated`。**删除法是唯一可靠方案**。
 
+### 🚨 pikpakapi 方法签名坑（2026-09-22 实测）
+
+```python
+await client.file_batch_move(ids=[fid], to_parent_id=pid)   # ✅ 正确
+await client.file_batch_move(ids=[fid], parent_id=pid)      # ❌ TypeError: unexpected keyword 'parent_id'
+await client.file_rename(id=fid, new_file_name="X.mp4")     # ✅ 注意是 new_file_name
+```
+
+写脚本前先 `inspect.signature(llm.PikPakApi.file_batch_move)` 核对，别凭记忆。
+
+### 🚨 PikPak 子文件 phase 字符串比较别截断
+
+`phase` 值形如 `PHASE_TYPE_COMPLETE`。若打印时 `phase[:18]` 做展示，**判完成必须用未截断的原值** —— 截断成 `PHASE_TYPE_COMPLET` 后 `'COMPLETE' in p` 恒为 False，轮询循环会空转到上限（本次 MNGS-023 白等 450s）。正确写法：
+
+```python
+complete = all(str(k.get('phase','')).startswith('PHASE_TYPE_COMPLETE') for k in kids)
+```
+
 ### ⚠️ PikPak Inbox-JAV 文件夹 ID 可能变化
 
 PikPak 的 Inbox-JAV 文件夹 ID **不是永久固定的**。跨会话操作（重启代理、重新登录、Docker 容器重建）后 parent_id 可能改变。

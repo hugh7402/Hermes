@@ -276,7 +276,7 @@ display:
   turn_completion_explainer: true
   show_cost: false
   skin: default
-  language: en
+  language: zh
   tui_status_indicator: kaomoji
   cli_refresh_interval: 1.0
   user_message_preview:
@@ -292,6 +292,11 @@ display:
       streaming: true
     discord:
       streaming: false
+    weixin:
+      tool_progress: false
+      interim_assistant_messages: false
+      long_running_notifications: false
+      busy_ack_detail: false
   runtime_footer:
     enabled: false
     fields:
@@ -304,6 +309,7 @@ display:
   long_running_notifications: true
   busy_ack_detail: true
   background_process_notifications: concise
+  busy_ack_enabled: false
 dashboard:
   theme: default
   show_token_analytics: false

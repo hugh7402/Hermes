@@ -781,14 +781,39 @@ Token 文件结构：`/opt/data/.pikpak_token.json`
 | `offline_download(magnet, parent_id)` | 添加磁链下载到指定文件夹 |
 | `offline_list()` | 查看所有离线下载任务及进度 |
 | `get_download_url(file_id)` | 获取 CDN 直链（含 24h 有效期）→ **URL 在 `web_content_link` 字段**，`url` 字段可能为空 |
-| `file_rename(id, name)` | 重命名 |
-| `file_batch_move(ids, parent_id)` | 批量移动 |
+| `file_rename(id, new_file_name)` | 重命名。⚠️ 参数名是 **`new_file_name`**，不是 `name` |
+| `file_batch_move(ids, to_parent_id)` | 批量移动。🚨 参数名是 **`to_parent_id`**，不是 `parent_id`（传 `parent_id` 报 `TypeError: file_batch_move() got an unexpected keyword argument 'parent_id'`，2026-09-24 实测） |
 | `create_folder(name, parent_id)` | 创建文件夹 |
 | `path_to_id(path)` | 按路径查找文件夹 ID（比 `file_list` 可靠） |
 | `delete_to_trash(ids)` | 删除到回收站 |
 | `get_task_status(task_id)` | 查询离线下载任务状态 |
 
 **⚠️ `get_download_url()` 重要提示**：返回的 CDN 直链在 **`web_content_link`** 字段（约 835 字符）。`url` 字段永远为空。`links` 和 `medias` 也不包含有效下载链接。只用 `web_content_link`。
+
+### 🚨 云端 API 生效 ≠ WebDAV 可见（视图延迟 1-2 分钟）
+
+刚 `file_rename` / `file_batch_move` 成功返回后，立刻用 rclone 拉文件会报：
+
+```
+ERROR : webdav root 'Inbox-JAV/<新名>.mp4': error reading source root directory: directory not found
+ERROR : Attempt 1/3 failed ... (重试 3 次后)
+rc=3
+```
+
+**这不是文件丢失，也不是下载失败。** API 侧已生效，但 WebDAV 视图延迟 **1-2 分钟**。
+
+正确做法：改名/移出后先 `timeout 60 rclone lsf pikpak:/Inbox-JAV/` 确认新名可见，**再**启动下载。若已撞上 rc=3，**等 1-2 分钟重跑同一条命令即可**，不要去重新离线或怀疑文件。同理：`rclone delete` 对刚清空的目录也会报 `directory not found`（实际已删）。
+
+### 🔧 写脚本前先核方法签名
+
+本文档的方法表**曾经是错的**（`file_batch_move` 写成 `parent_id`），照着写会直接 TypeError。规则：不确定就先问解释器，不要凭记忆：
+
+```python
+import inspect
+from pikpakapi import PikPakApi
+print(inspect.signature(PikPakApi.file_batch_move))   # (self, ids, to_parent_id=None)
+print(inspect.signature(PikPakApi.file_rename))       # (self, id, new_file_name)
+```
 
 ### 直链缓存与时效
 

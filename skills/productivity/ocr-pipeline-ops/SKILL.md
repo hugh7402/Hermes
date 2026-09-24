@@ -23,6 +23,64 @@ metadata:
 | 云端（主力） | `/opt/data/re_ocr_cloud.py` / `pdf_ocr.py` | **常规全部** | PaddleOCR-VL（~10s/页） |
 | 本地（备用） | `/opt/data/re_ocr_shells.py` | 云端不可用时补跑 | RapidOCR（dpi=100，workers=2，4 workers 会 OOM） |
 
+## 引擎优先级：百炼为主（2026-09-24 用户拍板「不充了」）
+
+**当前 `pdf_ocr.py` 的 `_ENGINE_ORDER = ["bailian", "siliconflow"]`** —— 百炼 `qwen-vl-ocr-latest` 为主，硅基流动仅作备用（将来充值后自动可用）。原因是硅基流动账户余额耗尽（402），用户明确决定不充值。
+
+实现要点：模块级 `_ENGINE` 记住当前引擎，同批后续页直达，不再每页重试；遇 **402/网络/服务端错误** 切备用引擎；**429 限流不切换**，交上层重试。`re_ocr_cloud.py` 也已从硅基流动+代理改为**百炼直连**（国内 API 不要走代理）。
+
+### 🚨 目录名坑：`WebChat BackUp`（无空格）
+
+历史脚本里出现了两种拼法：
+- ✅ 真实目录：`/opt/data/WebChat BackUp/文档`
+- ❌ `patch_ocr_ingest.py` 曾写成 `/opt/data/WebChat Back Up/文档`（多了空格）→ `is_dir()=False`，worker 连 PDF 都找不到。**症状被前置的 402 探针掩盖**（探针先 return，根本没走到读文件那步）。
+
+修复：用容错探测，别硬编码单一拼法。
+```python
+def _pick_dir(*cands):
+    for c in cands:
+        if Path(c).is_dir():
+            return Path(c)
+    return Path(cands[0])
+DOC = _pick_dir("/opt/data/WebChat BackUp/文档", "/opt/data/WebChat Back Up/文档")
+```
+**教训**："一直入不了库"要同时查①配额/余额 ②路径存在性 ③探针返回值判定——三个都可能单独致命。
+
+## 引擎降级链（历史：SiliconFlow → 百炼）
+
+**`/opt/data/pdf_ocr.py` 已内置自动降级**：先走硅基流动 PaddleOCR-VL，遇 **402 余额不足** / 服务端错误 / 网络异常 → **自动切百炼 `qwen-vl-ocr-latest`**，并用模块级 `_ENGINE` 记住状态，同批后续页直达百炼（不再每页重试）。**429 限流不切换**，交上层重试。
+
+**为什么必须做这件事**：`ingest_docs.py` 的 `ocr_service_available()` 探测到 OCR 不可用就**整批延后扫描件**。硅基流动余额耗尽时，所有扫描件会被无限期跳过——症状是"PDF 一直入不了库"，而不是报错。
+
+### 🚨 探针必须打印上游错误体（本次最大教训）
+
+原探针只写 `DOWN`，日志里只有 "DOWN"。真实原因是 **HTTP 402 code 30001 `Sorry, your account balance is insufficient`（欠费）**，却先被误判成"服务故障/超时"，耽误很久。
+
+**规则**：任何外部 API 探针都要 `e.read()` 把响应体截断打进日志（≤160 字符）。**"DOWN" 永远不够**，要能看到 402/429/401 和 provider 错误码。同理适用于代理节点探测（javdb 的 403/522/地区限制页就是靠读 body 才区分的）。
+
+### 百炼 qwen-vl-ocr 要点
+
+| 项 | 值 |
+|---|---|
+| 端点 | `https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions`（OpenAI 兼容） |
+| 模型 | **`qwen-vl-ocr-latest`** |
+| 价格（华北2北京） | 输入 **0.3 元/百万 tok**，输出 **0.5 元/百万 tok** |
+| 实测速度 | ≈5-6.6s/页（dpi=200）；31 页 174s |
+| 实测成本 | 31 页 ≈ **0.039 元**（in 100,192 + out 17,865 tok） |
+| Key | `/opt/data/.env` 的 `BAILIAN_API_KEY` |
+
+- ⚠️ **别选旧快照**：`qwen-vl-ocr-2025-08-28` / `-2025-04-13` / `-1028` 是 **5 元/百万 tok（贵 16 倍）**。用 `qwen-vl-ocr-latest` 或 `qwen-vl-ocr`。
+- ⚠️ **有最小图片尺寸限制**：1×1 探针图会被拒（`InternalError.Algo.InvalidParameter: The image length and width do not meet the model restrictions`）→ 探针用 **200×100 白图**（PIL 生成，别硬编码 1×1）。
+- 限流宽松（北京 RPM 600 / TPM 6,000,000），逐页串行完全够用。
+
+### 探针判定同步改（极易漏）
+
+`ingest_docs.py` 原判定是 `r.stdout.strip() == "OK"`。探针改成双通道后返回 `"OK (百炼兜底)"` → **必须改成 `startswith("OK")`**，否则永远判 DOWN、扫描件永远被延后。
+
+### 超长扫描件：逐页缓存断点续传
+
+≥30 页用本 skill 自带的 **`scripts/bailian_ocr_ingest.py`**（可直接跑）：逐页结果落 `ocr_cache_<md5>.json`、每 5 页刷盘，中断重跑自动跳过已完成页；跑完组装 md（`[第 N/M 页]` 分隔）→ 调 `note_enhance.py` → 追加 md5 到 `.ingested` → 打印 token 与费用。204 页约 18-20 分钟。
+
 ## 快检逻辑（判定谁真正缺 OCR）
 
 > 可复用工具：`scripts/quick_check.py`（输出 SUSPECT/完整/真缺列表，规范化逻辑与脚本一致）

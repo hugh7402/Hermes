@@ -135,3 +135,13 @@ yt-dlp -f "bv*[height<=1080]+ba/b[height<=1080]/b" \
 参考实现：`/opt/data/.tmp_tests/milan_asr.py`、`/opt/data/.tmp_tests/milan_translate.py`
 
 **成本参考**：93.5 分钟音频，ASR 约 280 次调用 + 翻译 14 次调用，SiliconFlow/DeepSeek 合计**几毛到几块钱**。
+
+### ⚠️ ASR 计费纠正（2026-09-21 DSOD-037 实测）
+
+**SiliconFlow 的 Qwen3-ASR 按 `usage.type=duration` 计费（返回 `{"usage":{"type":"duration","seconds":5}}`），NOT 按 token**。且当前是**免费档**——DSOD-037 370 段转写费用 $0。
+
+**翻译才是花钱的地方**：DeepSeek `deepseek-flash` 按 token 计（prompt_tokens 输入 / completion_tokens 输出），从 API `usage` 字段读 token 数，按价目表算（空闲 in 0.02 元/M、out 1-4 元/M）。DSOD-037 实测记录见各次运行日志尾部「成本计量」。
+
+**multipart 字段名是 `file` 不是 `input`**（AC Milan 脚本验证 / DSOD-037 复测）——用 `input` 会 400。
+
+**翻译模型用 `deepseek-flash`**（当前 DeepSeek API 列出的模型），`deepseek-chat` 是旧别名可能空路由；`-- 实测 models 列表只有 `deepseek-flash` 和 `deepseek-v4-pro`。`
