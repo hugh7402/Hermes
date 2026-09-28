@@ -260,9 +260,33 @@ git rev-parse HEAD; git ls-remote origin -h refs/heads/main   # 两个 hash 必�
 
 **效果实测**：跟踪 3995→**540** 文件、274→**4.2MB**；`.git` 222MB→**11MB**；下次备份的增量 477→**5** 条。
 
+### 🚨 重写后必做：`git push -u` 重设 upstream（否则 cron 静默失败）
+
+`git filter-repo` 会移除 origin；重新用 `git remote add` 挂上后，**本地分支的 upstream 追踪配置已经丢了**。此时：
+- `git push` 报 `fatal: The current branch main has no upstream branch`（提示 push.autoSetupRemote）
+- `git push --force origin main` 能推上去，但**仍然不会建立 upstream**
+- ⚠️ **cron 里跑的就是裸 `git push`** → 从此每次备份都失败而且你未必立刻发现
+
+**必须用 `-u`**：
+```bash
+git push -u origin main        # 推送 + 建立 upstream，一次搞定
+git rev-parse --abbrev-ref main@{upstream}   # 应输出 origin/main
+git push --dry-run              # 应输出 Everything up-to-date（模拟 cron）
+```
+
+**通用规则**：任何“挪 remote / 重写历史”的操作后，第一件事就是验证 `main@{upstream}` 还在、并跑一次 `git push --dry-run`。
+
 **验证清单**（改完必查）：①`git check-ignore -v <路径>` 确认拦住了 ②`git add -A --dry-run | wc -l` 看增量降到个位数 ③`git status -sb` 无 ahead/behind ④磁盘上的 Obsidian Vault / skills / config.yaml 都还在（只摘索引不是删文件）。
 
 **排查“陈旧锁”误判**：输出里的 `已在运行 (PID xxx)` 来自 `proxy.sh`（sing-box 已在跑），不是 git 备份锁冲突，别被误导。
+
+### 无前缀 `scripts/` 会误伤技能辅助脚本（2026-09-24 发现）
+
+`.gitignore` 里写 `scripts/`（无前导斜杠）会匹配**任意层级**的 scripts 目录——连 `skills/git-backup/scripts/`、`skills/productivity/ocr-pipeline-ops/scripts/` 一起忽略掉，导致技能的辅助脚本（如 `bailian_ocr_ingest.py`）从未被备份。
+
+**教训**：写忽略规则优先用带锚点的形式（`/scripts/`），并定期 `git status --ignored=matching` 抽查被忽略项。
+
+同类坑：全局 `*.json` 会把 `cron/jobs.json`（任务定义）一并忽略——**否定规则必须写在 `*.json` 之后**（gitignore 后者优先），否则不生效。
 
 ## 恢复
 

@@ -53,6 +53,137 @@ trigger: 用户要求下载某部电影/剧集/纪录片，或提到"下载XX片
 - 单集 2-5GB，一季 10 集约 33.5GB；离线 + WebDAV 15 并发约 25 分钟拉完
 - 种子内含「封面以及截图」子目录（webp/jpg）——入库时可一并保留
 
+### 🎬 Apple TV+ 纪录片：悠悠MP4 是首选（2026-09-25 史前星球 S3 实战）
+
+Apple TV+ 独家的自然纪录片（《史前星球》系列等）**有完整中文压制版**，走悠悠MP4 一次命中：
+
+- `curl -sL --noproxy '*' -A "$UA" "https://www.uump4.cc/search.htm?keyword=<urlencode 中文名>"`
+- 结果标题格式：`[BT下载][史前星球：冰川时代][全5集][WEB-MKV/28.95G][简繁英字幕][4K-2160P][H265][流媒体][Apple][BlackTV]`
+- 取帖子页的 `.torrent` 直链 → `torrent_to_magnet.py` 得 btih
+- **BlackTV / ParkTV / DDHDTV** 是 Apple TV+ 源常见压制组，均带**简繁英内封字幕**
+
+**实测（史前星球 S3 4K 版）**：28.95GB / 5 集 / btih `aa5880c9d48b090d6637c094dcb45342c933e73d`；mkv 内**41 条字幕轨**（含 `chi,Simplified` + `chi,Traditional`）；视频 hevc 3840×2160 **10bit**（真 HDR 色深）+ eac3 5.1。
+- 种子含 3 个 `更多电视剧集请访问高清剧集网官网（www.DDHDTV/BTHDTV/BPHDTV）.png` 广告 → 离线后移出视频、删广告、删空文件夹
+- PikPak 离线 **~1 分钟就全完成**；WebDAV 5 并行实测 ~60MB/s，29GB 约 **7 分钟**
+
+**同期搜索实测**：磁力熊站内搜索 POST 返回 302（改了）；电影天堂搜“史前星球”无结果；6V 搜索 URL 404。**中文名搜悠悠MP4 命中率最高**，BTDigg 返回 429 限流。
+
+### 🎬 SeedHub —— 批量中字磁链的**最强来源**（2026-09-27 变形金刚全系列实战）
+
+**可用域名：`www.seedhub.cc`**（⚠️ `seedhub.icu` 已死，`seedhub.cc` 直连 200 无需代理）。
+每部片子有 **60~130 个版本**，且**每个版本都有中字/国英标注**，是找「国英多音轨+简繁中字」4K 版的首选。
+
+**两步工作流：**
+
+1. **搜索拿电影 id**：`https://www.seedhub.cc/s/<urlencode 关键词>` → 正则 `/movies/(\d+)/`
+   （⚠️ `/search?keyword=` 会 403；`/index/search` 404；**只有 `/s/<kw>` 能用**）
+2. **取版本列表**：`https://www.seedhub.cc/movies/<id>/`，每个版本一个 `<li>`：
+   ```
+   title="变形金刚5[国英多音轨+简繁英字幕].Transformers...2160p.x265.10bit.HDR.4Audio-MiniHD[36.64G]"
+     href="/link_start/?seed_id=493331&movie_title=..."
+   / <code class="size">36.64G</code> <code class="seed-feature">蓝光</code>...
+   ```
+3. **磁链就在 link_start 页面的 base64 里**（关键发现）：
+   `GET /link_start/?seed_id=<id>&movie_title=x`（带 `Referer: /movies/<id>/`）
+   → 页面 HTML 里搜 40+ 字符 base64 串 → `base64.b64decode()` → 得到 `magnet:?xt=urn:btih:<40位>`
+   （例：`bWFnbmV0Oj94dD11cm46YnRpaDo3YTgy...` → `magnet:?xt=urn:btih:7a826b0a97...`）
+   ⚠️ **磁链不在页面文本/属性里**，正则 `magnet:` 搜不到，必须做 base64 解码。
+
+**站点特征**：所有版本标 `蓝光`/`4K`/`杜比` 特征码；末尾 `[xx.xxG]` 就是体积；
+部分片只有网盘版（href 是 `?redirect_to=pan_id_xxx` 而非 `?seed_id=`）——那就是**无 BT 种子**，别硬找。
+
+**实战数据**：变形金刚 1-5+大黄蜂+超能（SeedHub 电影 id 272/788/607/759/2710/115450/110779），
+选 HDH 系压制组（SSDSSE / DreamHD / MiniHD）的「国英多音轨+简繁中字」4K 版，7 部共 **236.5GB**，
+PikPak 离线 **60 秒全部完成**，WebDAV 7 并行 **90 MiB/s / 52 分钟**拉完。
+
+### 🚨 跨文件系统 mv 的坑：`stat -f -c %d` 会返回 0！
+
+本机 **`/tmp` 在 overlay，`/opt/data` 在 zfsv3**，是两个文件系统。但用
+`[ "$(stat -f -c %d /tmp)" = "$(stat -f -c %d /opt/data)" ]` 判断时**两边都返回 `0`**（失败值，不是 device id）
+→ 误判为“同一文件系统” → 用 `mv` 实际触发 **236GB 跨盘拷贝**，被 terminal 超时打断，
+**留下一个名字对但字节数截断的目标文件**（`-rw-------` 权限，大小只有一半）。
+
+**正确做法**：
+- 不要用 `stat -f` 判文件系统；查挂载点用 `df /tmp /opt/data`（看 Mounted on 列）
+- 跨盘入库用 **`cp` + 字节比对 + 删源**，脚本**放后台跑**（`background=true, notify=true`）
+- 拷贝前先检查目标是否已存在且字节数一致（幂等），可避免重复拷
+- 截断判断依据只有一条：`源字节数 == 目标字节数`，不要相信文件名字或 `mv` 的返回值
+
+### 🎬 8ziyuan.com —— 磁链从搜索摘要直接拿（2026-09-27 变形金刚实战）
+
+**关键技巧**：`www.8ziyuan.com/forum.php?mod=viewthread&tid=<id>` 被 **Cloudflare 拦 curl（403）**，
+但 **`web_search` 的 `description` 里会直接带着明文 `magnet:?xt=urn:btih:<40位>`** —— 不必打开页面！
+搜 `"片名" 国英双音轨 特效双字 1080P 磁力` 常能一次命中。
+
+实测《变形金刚》2007 由此拿到 `magnet:?xt=urn:btih:47C9F0CF48A9C9995342C5E7D8CCCCD6D51D9362`，
+倒入 PikPak 后 **10 秒就离线完成**，文件为：
+`变形金刚1(蓝光国英双音轨特效双字幕).Transformers.2007.BD-1080p.X265.10bit.HDR10.2AUDIO.AAC.CHS.ENG-UUMp4.mp4`
+
+**UUMp4（悠悠MP4 自家压制组）命名解读**：`2AUDIO` = 国英双音轨，`CHS.ENG` = 中英双字幕，
+`BD-1080p.X265.10bit.HDR10` = HDR10 10bit。
+
+⚠️ **实测该组文件字幕是「烧录硬字幕」**：`ffprobe -select_streams s` 无输出（无字幕流），
+但抽帧 OCR（**必须补 `mp4` 后綴看到**）出了中英双语对白：900s `别担心 / No,no,no. No worries.`、
+3600s `比《世界末日》劲爆一百倍我对天发誓 / This is easily a hundred times cooler than Armageddon...` → **合格**。
+
+⚠️ **两件事一定告知用户**：
+1. **画面顶部有硬水印** `悠悠MP4 www.uump4.me`（该压制组所有文件都有）
+2. **体积/码率偏低**：1080p + 双音轨只有 3.48GB（视频码率 **2.99 Mbps**，144 分钟）—— 远低于“高清大版本”标准，
+   交付时要主动说明，别当高清版报上去
+
+### 🎬 高码率中字版常只有夸克网盘（BT 磁链根本不存在）
+
+实测《变形金刚》2007 的 4K 中字版只有网盘渠道，**别在这上面死磕**：
+
+| 版本 | 规格 | 体积 | 渠道 |
+|---|---|---|---|
+| FRDS | `Transformers.2007.BluRay.2160p.x265.10bit.HDR.4Audio.mUHD-FRDS` 国英音轨+特效字幕 | 34.43GB | 夸克网盘（melost.cn / haoke100.com）|
+| THDBST@HDSky | 欧版原盘 原生中字 DIY 次世代国语 简繁特效 | 89.17GB | bdshare.org（需登入）|
+| tvmkv | `[BD-MKV/34.43GB][国英多音轨/简繁英字幕][4K-2160P]` | 34.43GB | tvmkv.com 帖子**回复可见**（磁链不在 HTML 里）|
+
+**发現它们的方式**：`web_search "片名 4K 国英音轨 特效字幕 磁力"` → 搜到目录站（melost.cn / haoke100 / pd.qq.com）
+能看到 **文件清单**（确认规格）+ 网盘链接，但**磁链拿不到**。要如实告诉用户，并给 BT 可得的最优替代。
+
+### 🏆 SeedHub —— 内嵌中字影视资源的头号来源（2026-09-27 变形金刚全系列实战）
+
+**抖音/磁力熊/悠悠MP4全没中字版时，SeedHub 一次解决。** 本 skill 自带的 `scripts/seedhub_fetch.py` 已封装全部流程。
+
+**域名**：用 `www.seedhub.cc`（直连 200，**无需代理**）。⚠️ `seedhub.icu` 已死（直连/代理均 HTTP 000）。
+
+| 用途 | 正确写法 |
+|---|---|
+| 搜索 | `https://www.seedhub.cc/s/<urlencode 关键词>` ← **唯一可用**（`/search?keyword=` 一律 403）|
+| 影片页 | `https://www.seedhub.cc/movies/<id>/` |
+| 取磁链 | `https://www.seedhub.cc/link_start/?seed_id=<id>&movie_title=x`（**必须带 `-e <影片页URL>` Referer**）|
+
+**🚨 磁链是 base64 藏在 link_start 页面里的**——页面里搜不到 `magnet:` 字符串，但有一段裸 base64：
+```
+bWFnbmV0Oj94dD11cm46YnRpaDo3YTgyNmIwYTk3NzU1M2RiZDkwMWM2NDFhMDk1ZjM5ODU4NDlkMWVk
+解码 → magnet:?xt=urn:btih:7a826b0a977553dbd901c641a095f3985849d1ed
+```
+抓法：正则捞 `\b[A-Za-z0-9+/]{40,200}={0,2}\b` → 逐个 `base64.b64decode` → 取 `startswith('magnet:')` 的那个。
+
+**影片页版本表解析**（一次拿到全部版本，含中文标注、体积、特征）：
+```html
+<a title="变形金刚5：最后的骑士[国英多音轨+简繁英特效字幕].Transformers.….UHD.BluRay[36.86G]"
+   href="/link_start/?seed_id=493330&movie_title=…">…</a> / <code class="size">36.86G</code>
+   <code class="seed-feature">蓝光</code><code class="seed-feature">4K</code></li>
+```
+正则：`title="([^"]{10,400})"[^>]*href="/link_start/\?seed_id=(\d+)[^"]*"[^>]*>.*?</a>\s*/\s*<code class="size">([^<]*)</code>(.*?)</li>`
+
+**⚠️ `seed_id=` vs `redirect_to=pan_id_` —— 决定性的判据**：
+- `href="/link_start/?seed_id=NNN"` → **有 BT 种子**，能解析出磁链 ✅
+- `href="/link_start/?redirect_to=pan_id_NNN"` → **只有网盘链接（夸克/阿里/百度），没有磁链** ❌
+
+**先数 `seed_id=` 的个数再动手**。实测《变形金刚：起源》(2024) 整页 96 个 link_start **全是 `pan_id_`** → 该片在 SeedHub 拿不到 BT 磁链，要去别处（该片至今只有网盘渠道）。
+
+**实测命中率**：变形金刚系列 **7/8 部**一次拿到 `[国英多音轨+简繁中字]` 的 4K UHD 磁链（HDH 系压制组 **SSDSSE / DreamHD / MiniHD**），单部 25-39GB；每部影片页 56-133 个版本，其中带中文字样的 7-35 个。
+
+**版本挑选：按「规格匹配」，不要按「体积最大」**（本 skill 的"高清大版本"偏好在这里会翻车）：
+- ✅ 首选 `[HDR+杜比视界双版本][国英多音轨+简繁英特效字幕].<年份>.UHD.BluRay.2160p.x265.DV.HDR.TrueHD.Atmos-SSDSSE`
+- ❌ 同片的 `...UHD.BluRay.REMUX...-NukeHD` 会到 60-77GB。**本次按"体积最大"自动挑，差点选中 61.92G 的 REMUX**，应选同规格 25.42G 的 DreamHD 版。
+- 规则：**先锁定规格（2160p + 国英多音轨 + 简繁中字 + DV/HDR），再在同规格里挑体积大的**。
+
 ### ① 找磁链——站点可用性实测（2026-08-01）
 
 | 站点 | 状态 | 说明 |
@@ -78,7 +209,9 @@ trigger: 用户要求下载某部电影/剧集/纪录片，或提到"下载XX片
 - 结果标题自带规格，直接筛：`[国英多音轨+简繁英双语特效字幕]` / `[简繁英字幕]` / `[国语配音/中文字幕]` / `[无字片源]`，加 `1080P` / `4K-2160P` 与体积
 - 帖子页正文**没有磁链**，但页面里有 **`.torrent` 直链**（`https://bt.uump4.cc/btdown/YYYY/MM/DD/<hash>.torrent`）→ curl 下载后用 bencode 解析 info dict 得 btih 转磁链（`scripts/torrent_to_magnet.py`）
 - 常见优质压制组：**DreamHD**（`片名[国英多音轨+简繁英双语特效字幕].2025.2160p.iTunes.WEB-DL.DDP.5.1.Atmos.HDR10+.H.265-DreamHD`，**字幕内封在 mkv**，不是外挂文件）；PandaQT 也常见
-- 版本挑选：4K 2160p HDR10+ 30GB 级 / 1080p H.264 13GB 级（兼容性最好）。按用户“高清大版本”偏好默认 4K，但**主动说明 HDR/H.265 需要支持设备**并给 1080p 备选，别默认替用户降级
+**版本挑选**：4K 2160p HDR10+ 30GB 级 / 1080p H.264 13GB 级（兼容性最好）。
+⚠️ **但体积选择已被 2026-09-27 新规则覆盖：单片尽量≤1 0G，同档优先清晰度**（见上文规则段）。
+下文提到的 30GB 级版本只在用户明确要求大版本时才选，并**主动说明 HDR/H.265 需要支持设备**。
 
 **同日直连实测**：✅ 6V电影 66s6.cc、SeedHub seedhub.cc、飘花 piaohua.com、电影天堂 dytt8899.com、BT蚂蚁 btmayi.cc（导航站，`?s=` 只给其他搜索引擎入口，不给磁链）；❌ `1lou.me`/`btbuluo.net`/`grab4k.cn` 直连 HTTP 000（改用 `web_extract` 试）；⚠️ `hdchd.cc`/`space-empires.com` 等高清 Discuz 论坛（DreamHD/REMUX 首发，标题写明“国英多音轨+特效中文字幕”）**只剩 3-5KB 登录壳页，拿不到 magnet**——别在这耗时间，去悠悠MP4 找同版种子。
 
@@ -109,7 +242,15 @@ curl -sL --proxy http://127.0.0.1:10808 -A "Mozilla/5.0" \
 **剧集（多集）**：建子目录 `Movie/剧名第一季(年份)/`，集数文件保留原名（如 `Stranger.Things.S01E01.1080p.BluRay.x264-SHORTBREHD.mkv`），字幕同目录。
 **番号视频**（NMSL-011 等）：走 jav-auto-download 规则命名（`番号-女优名-描述.mp4`），存 `/opt/data/PikPak/Inbox-JAV/`。**两个规则不要混用**——用户明确纠正过：番号视频不能按电影规则命名入库。
 
-> ⚠️ **版本选择偏好（2026-08-04 用户明确）**：用户偏好**高清大版本**。同片多版本时选清晰度高的大版本（如怪奇物语 S1 选 26.69G BluRay x264 SHORTBREHD 而非 6.15G x265），不要默认选小体积。
+> ⚠️ **版本选择偏好——已变更（2026-09-27 用户明确，覆盖早前规则）**：
+> **单片尽量 10G 以内，同档优先清晰度高的**。原话：“以后下载不要下载 30 多GB 大小一个的影片，尽量下载 10G 以内，优先清晰度高的下载”。
+>
+> 实操含义：
+> - **先看体积，再看规格**——30-60G 的 REMUX / 4K 原盘不要选（即使带中字），除非用户特别要求
+> - 在 **≤ ~11G** 的候选中挑**清晰度最高**的：4K/2160p + HDR > 4K 无 HDR > 1080p BluRay > WEB-DL
+> - 实测最优档通常是 **`2160p.iTunes.WEB-DL.DD5.1.HDR.H.265-*`（BATWEB / PandaQT）**：约 9-11G，带 4K HDR + 国英多音轨 + 简繁英字幕，性价比最高
+> - 其次 `UHD.BluRay.2160p...x265.10bit.HDR-ALT` 约 12-13G（稍超但源更好，可酌情）
+> - 旧规则（2026-08-04“选最大版本”，如怪奇物语选 26.69G）**作废**，不要再按体积取最大
 
 - 移入用 cp 后台 + 校验大小一致（rsync 未安装，用 `cp` + 手动对比字节数；跨文件系统 mv 会超时被截断）
 - 移入后删 /tmp 源文件
@@ -145,6 +286,36 @@ uv pip install --python /opt/data/.venv/bin/python yt-dlp
 
 实战细节（含 47BT 与 B站两条路的分工、字幕模式）见 `references/streaming-exclusive-bilibili.md`。
 
+### 🚨 rclone 从云端拉回**必须加 `--include` 过滤**（2026-09-27 驯龙高手事故）
+
+云端 `/Movie` 里可能压着**历史遗留目录**（实测 `周星馳全集.Stephen.Chow.1988-2017.BluRay` **67.9GB / 25 个文件**）。
+若直接 `rclone copy pikpak:/Movie /tmp/xxx` 而不加过滤，**会把它们全部拉下来**（已误拉 4.1GB 才发现）。
+
+**正确写法**：
+```bash
+rclone copy pikpak:/Movie /tmp/dest \
+  --include "How.to.Train.Your.Dragon*" \   # ← 必写，按本次片名过滤
+  --transfers 3 --buffer-size 32M -v
+```
+- 多部不同名时堆多个 `--include`；片名有中文就用中文片名通配
+- 下载后**立刻 `ls` 目标目录确认只有本次内容**，别等跑完
+- 一旦误拉：`ps -eo pid,cmd | awk '/[r]clone copy/ {print $1}'` 取 PID（**不要用 `pgrep -f`，见下**），kill 后 `rm -rf` 误拉的目录
+
+### 🚨 `pgrep -f` 在 for 循环里也会自杀（2026-09-27 再次踩到）
+
+已知 `pkill -f '<模式>'` 会匹配到**自己的命令行**而自杀。
+**同样的问题也发生在 `for p in $(pgrep -f 'rclone'); do kill $p; done`** —— 你自己的
+`bash -c` 命令行里包含 `rclone` 字样，于是 `pgrep` 把当前 shell 也匹进去了，
+结果最后一条命令自己被 SIGTERM（表现为 `exit_code: -15`，后续命令未执行）。
+
+**安全写法**：
+```bash
+# ✅ 用 ps + [x] 技巧排除自身
+for pid in $(ps -eo pid,cmd | awk '/[r]clone copy/ {print $1}'); do kill "$pid"; done
+# ✅ 或先看再杀
+ps -eo pid,cmd | awk '/[r]clone copy/ {print}'
+```
+
 ## 踩坑记录
 
 - **🔑 PikPak token 失效（`invalidate refresh token token index 3 not found`）→ 重新登录刷新（2026-09-15 黑钱胜地）**：`.pikpak_token.json` 里存有 `username`/`password`/`device_id`，直接重新 login 即可，不要以为账号被封：
@@ -177,7 +348,21 @@ uv pip install --python /opt/data/.venv/bin/python yt-dlp
 - **"中文字幕"磁链标注不可靠**：NMSL-011 磁链名标"中文字幕"但 ffprobe 无字幕流、抽帧也无硬字幕（只有水印）。电影下载后同样要验证内嵌字幕：`ffprobe -select_streams s` 查字幕流；无流时**抽帧 + OCR 查硬字幕**（`ffmpeg -ss <秒> -i file -frames:v 1 -vf scale=480:-1 /tmp/f.jpg` + 本地 RapidOCR `/opt/data/ocr_venv`），多抽几帧（对白多的位置如 600/2400/4200s）。确认无字幕要如实告知用户，别当有中字版入库。
 - **🚨 无字幕流但有"烧录硬字幕" = 也算中字版合格（2026-09-07 知无涯者案例）**：WEB-DL 中字版常是**烧录硬字幕**（中文字幕烧进画面，无音轨字幕流）。`ffprobe -select_streams s` 返回空 ≠ 没中字。必须抽帧 OCR 分辨两态：抽帧出中文对白 = 硬字幕**合格**，可正常入库；抽帧无字/只有水印 = 真无中字，如实告知。知无涯者 PARKHD 版即无字幕流但 OCR 在 1800s/3000s 抽出"起来国王要来了"等中文对白 → 中字确认入库。
 - **假种子/截断种子（2026-08-02 野兽女孩事故）**：磁链标注 720P 完整版，下载后 ffprobe 发现时长只有 **4分45秒**（6840帧）——种子本身是截断/假货，PikPak 离线 + aria2 拉回全程无异常，只有 ffprobe 时长能识破。**每部电影下完必须核对时长是否符合预期**（野兽女孩 108 分钟 vs 实际 4分45秒 → 换另一个磁链 `6115DA56` 拿到 1.31GB 完整版）。不要只看文件大小/有无字幕流就入库。同类坑：小文件（<500MB 的"完整电影"）尤其要怀疑。
-- **🚨 WebDAV 对新移出文件同步延迟（2026-08-27 知无涯者实战）**：pikpakapi `file_batch_move` 把视频移出到 `Movie/` 根后，**rclone/WebDAV 可能数分钟看不到该文件**——`rclone lsf` 返回空、`--dir-cache-time 0s` 仍不可见，但 pikpakapi `file_list` 已确认文件在根目录。这是 **PikPak WebDAV 服务的索引同步延迟**（非 rclone bug）。**对策**：移出后不要立即下载，用后台脚本每 30-60s 探测 `timeout 50 /tmp/rclone lsf --dir-cache-time 0s pikpak:/Movie | grep 文件名` 直到可见再启动 WebDAV 拉回（上限 ~30 分钟轮询）。批量移出多文件后通常等几分钟即可见（5 部电影场景），**单文件移出后立即探测常遇延迟**——别以为移出失败，继续等。
+- **🚨 WebDAV 对新移出文件同步延迟（2026-08-27 知无涯者实战）**：pikpakapi `file_batch_move` 把视频移出到 `Movie/` 根后，**rclone/WebDAV 可能数分钟看不到该文件**——`rclone lsf` 返回空、`--dir-cache-time 0s` 仍不可见，但 pikpakapi `file_list` 已确认文件在根目录。这是 **PikPak WebDAV 服务的索引同步延迟**（非 rclone bug）。**对策**：移出后不要立即下载，用后台脚本每 30-60s 探测 `timeout 50 /tmp/rclone lsf pikpak:/Movie | grep 文件名` 直到可见再启动 WebDAV 拉回（上限 ~30 分钟轮询）。
+
+> 🚨 **写完这条后自己踩的坑（2026-09-25 史前星球 S3）**：不要给 `rclone lsf` / `lsl` 加 `--dir-cache-time 0s`！那是 **VFS 专用 flag**，`lsf`/`lsl` 会直接报 `Error: unknown flag: --dir-cache-time` 并**输出 0 条**。轮询脚本里 `grep -c` 永远得 0 → 看起来像“同步一直不到位”，实际文件早就在了（白等 6 分钟）。
+> **判据**：轮询计数恒为 0 **且** `rclone lsf` 的 stderr 里有 `unknown flag`。**验证命令能否用**：先手动跑一次 `timeout 60 rclone lsf pikpak:/Movie`，确认能列出内容再写进循环。真延迟与命令写错都会表现为“看不到”，先排除后者。批量移出多文件后通常等几分钟即可见（5 部电影场景），**单文件移出后立即探测常遇延迟**——别以为移出失败，继续等。
+- **🎨 HDR 片源抽帧 OCR 必须先色调映射（2026-09-27 变形金刚实战）**：4K UHD 片源（`color_transfer=smpte2084`、primaries `bt2020`）直接抽帧会得到**发灰的低对比画面**，OCR 识别率极差甚至完全识别不到字幕，容易误判成"无中字"。**必须先 tonemap 再 OCR**：
+  ```bash
+  ffmpeg -ss 3600 -i in.mkv -frames:v 1 -vf "zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p,scale=1280:-1" -y /tmp/f.jpg
+  ```
+  实测色调映射后中英双语硬字幕正常识别（900s → `别担心 / No,no,no. No worries.`；3600s → `比《世界末日》劲爆一百倍我对天发誓 / This is easily a hundred times cooler than Armageddon...`）。① ffmpeg 按内容探测格式，**扩展名异常也不用先改名**；② HDR 片还要注意水印——UUMp4 组画面顶部固定有 `悠悠MP4 www.uump4.me`。
+- **⛔ 别把 python 脚本输出接 `| head -N`（2026-09-27 静默丢产物）**：`python3 x.py | head -80` 在 head 读满 80 行后关闭管道 → python 收到 **SIGPIPE 被杀**，**脚本末尾的 `json.dump(...)` 等副作用根本没执行**。症状极具误导性：**stdout 看着完全正常**，但产物文件不存在或是旧版本（本次白跑一轮抓取，报 `FileNotFoundError` 才发现）。**正确做法**：
+  ```bash
+  python3 x.py > /tmp/out.log 2>&1; echo "exit=$?"; tail -40 /tmp/out.log
+  ```
+  长输出脚本一律重定向到文件再读，不要用 head/tail 截管道。
+- **批量离线/拉回性能基准（2026-09-27 变形金刚 7 部 236GB）**：7 个磁链**同时** `offline_download`（间隔 2s）→ **60 秒全部离线完成**；`rclone copy` **7 文件并行 + `--buffer-size 32M`**（7×32M≈224MB，本机 15.7G 内存扛得住）实测 **85-91 MiB/s**，236GB ETA 约 40 分钟。**注意 rclone 会预分配**，`du -sh` 立刻显示满体积、`df` 立刻扣减 —— 别把预分配当"已下完"，判据是 `.partial` 归零 + 进程退出。
 - **无字幕版入库标注**：用户允许"入库但标注清楚无字幕"（2026-08-02 野兽女孩：韩语无字版按用户要求入库，文件名加"韩语无字幕"标注，用户自己想办法补字幕）——入库前问用户或按用户要求标注，不要擅自拒绝入库。
 - **avgood.com 站点结构（2026-08-04 水管工/野兽女孩）**：avgood 是中文成人影视资源站，分两种页面：`/c/` = **在线区**（仅播放，无磁链）、`/t/` 或下载二区 = **下载区**（有 `magnet:?xt=urn:btih:` 明文，`web_extract` 可提取）。同片可能有多个条目（不同大小/时长/清晰度），逐个检查。搜不到时用 `web_search site:avgood.com 片名`。菲律宾/韩国三级等资源该站覆盖面好，是 BT 之家之外的重要补充源。
 - **flash2u 神魂颠倒论坛（2026-08-04）**：帖子会标注 `Subtitles Internal: Chinese`（内嵌中字），但下载链接常是第三方网盘（xunniufxp 等），**这些网盘链接容易失效/无法直接磁链**。处理：把网盘链接当作"存在中字版"的线索，去 avgood 或 BT 之家搜同片磁链版。
@@ -202,3 +387,5 @@ uv pip install --python /opt/data/.venv/bin/python yt-dlp
 - `references/streaming-exclusive-bilibili.md` — 流媒体独家纪录片（DAZN 案例）无 BT 源时走 B站 + yt-dlp 的完整实战：无源判定、BV 探测、下载参数、画质现实、字幕模式
 - `references/zh-movie-sites-direct-20260916.md` — 国内影视站**直连 vs 代理**探测结果、悠悠MP4→.torrent→磁链工作流、DreamHD 命名解读、碟中谍8 版本挑选与 PikPak 判定细节
 - `scripts/torrent_to_magnet.py` — .torrent → btih → magnet（含 tracker 拼装 + 文件清单 + 外挂字幕文件检测），比 `btih_from_torrent.py` 多输出文件结构和字幕明细
+- `scripts/seedhub_fetch.py` — **SeedHub 抓取器（内嵌中字首选源）**：搜索 / 列版本 / 解析 base64 磁链 / 自动挑 4K 国英多音轨+简繁中字最优版。`search` `versions` `magnet` `best` 四个子命令
+- `references/seedhub-scraping.md` — SeedHub 站点结构详解、版本命名解读、`seed_id` vs `pan_id` 判据、变形金刚全系列实战数据（含各片 movie_id 与已解析磁链）
