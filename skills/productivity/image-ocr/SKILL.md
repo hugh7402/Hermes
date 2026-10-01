@@ -1,7 +1,7 @@
 ---
 name: image-ocr
-description: Extract Chinese text from photos/screenshots in resource-constrained environments. Covers free API-based OCR (OCR.space), lightweight local OCR (ddddocr), and preprocessing techniques. No root, no heavy dependencies, no API keys required for the primary approach.
-tags: [OCR, image, text-extraction, Chinese, photo, screenshot]
+description: Use when 要从图片/截图/视频画面里提取文字（中文为主）。百炼 qwen-vl-ocr（prompt 关键字坑）/ SiliconFlow PaddleOCR-VL / OCR.space / ddddocr；含视频逐帧 OCR 还原口播稿。
+tags: [OCR, image, text-extraction, Chinese, photo, screenshot, 视频, 短视频, 抖音, 口播稿, 逐帧, 字幕提取, qwen-vl-ocr, 百炼]
 author: agent
 created_by: agent
 ---
@@ -138,7 +138,67 @@ When OCR'ing a captcha shown in a browser page:
 | Quick test / no API key available | OCR.space (engine=1, 25/day limit) |
 | Single short text snippet, no internet | ddddocr |
 | Scanned PDF with complex layout | See `ocr-and-documents` skill |
-| Heavy official document OCR | Use 百炼 qwen-vl-ocr or marker-pdf |
+| Heavy official document OCR | **百炼 `qwen-vl-ocr-latest`**（见上节，prompt 必须用裸 `Text Recognition:`）or marker-pdf |
+| 视频画面里的烧录字幕 → 文本 | 抽帧 `fps=1` + 百炼 `qwen-vl-ocr-latest`（见上节） |
+
+## 百炼 `qwen-vl-ocr-latest` —— prompt 关键字决定输出形态
+
+```
+POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
+Authorization: Bearer ${BAILIAN_API_KEY}
+model: qwen-vl-ocr-latest
+messages: [{"role":"user","content":[
+  {"type":"image_url","image_url":{"url":"data:image/jpeg;base64,..."}},
+  {"type":"text","text":"Text Recognition:"}]}]
+```
+
+**🚨 这个模型有官方任务关键字，prompt 写法直接决定返回「文字」还是「坐标」：**
+
+| prompt | 返回 |
+|---|---|
+| `Text Recognition:` | ✅ **识别出的文字** |
+| `Text Detection:` | ❌ 只有 `x1,y1,x2,y2,angle` 坐标框，**没有任何文字** |
+| `Document Parsing:` / `Table Recognition:` / `Formula Recognition:` | 对应任务的专用输出 |
+| **自定义啰嗦 prompt**（如 `OCR this image. Output only the text you see, line by line, nothing else. If no text, output NONE.`）| ⚠️ **可能翻成坐标模式**——实测 553 帧**全部**返回坐标，白跑一轮（242s / 25 万 token）|
+
+**只用裸 `Text Recognition:`，不要加任何修饰、不要加「没有文字就输出 NONE」之类的兜底指令。**
+
+**症状识别**：返回内容长这样 → `498,878,55,305,90` 或 `206,158,121,267,90\n502,878,63,651,90`
+（**逗号分隔的数字串、最后一个数常是 90**）= 坐标模式，改 prompt 重跑。
+
+**计费**：按 token，约 **0.3 元/M**（实测 553 帧 ≈ 25.06 万 token ≈ **¥0.0752**）。
+从 `usage.total_tokens` 读出来算给用户。
+
+## 视频逐帧 OCR：把画面里的（烧录）字幕提取成文本
+
+短视频/无字幕轨视频的内容提取走这条（**不是生成字幕，是读出已在画面里的字**）。
+
+```bash
+ffmpeg -v error -i v.mp4 -vf fps=1 -q:v 2 frames/f%04d.jpg -y   # fps=1 → 第 N 帧 = 第 N 秒
+```
+然后并发 6 路调 `qwen-vl-ocr-latest` + `Text Recognition:`。
+
+**实测基线（抖音 9 分 13 秒竖屏，553 帧）**：并发 6 路 → **199–242 秒**；
+**250,554 tokens ≈ ¥0.0752**；必须**断点续传**（每 20 帧落盘，失败重试 3 次）。
+
+竖屏短视频字幕固定在画面底部 **85%–91%** 高度（实测 `y=652-700 / 768`）——
+**全帧 OCR 就能抓到，不必裁切/降采样**（OCR 很便宜，别为省 token 牺牲召回）。
+
+**时间轴重建**：相邻帧文字相同 → 合并成 `[起-止 s]` 一段。553 帧 → 约 467 段带时间戳口播稿。
+
+### 三条纪律
+
+1. ⛔ **别把批处理脚本输出接 `| head -N`**：`python3 x.py | head -130` 在 head 读满后关管道，
+   python 收到 **SIGPIPE 被杀**，**脚本末尾的 `json.dump(...)` 根本不执行**。
+   症状极具误导性：**stdout 看着完全正常**，但产物文件是旧版/不存在。
+   正确：`python3 x.py > out.log 2>&1; echo "exit=$?"; wc -l <产物>`
+2. ⛔ **别用 `tail *.log` 判断后台作业状态**：日志是上一轮残留时会把旧报错显示给你，误判成「又失败了」。
+   用 `process(action='poll', session_id='proc_xxx')` 看真实状态。
+3. ⚠️ **形近字误识别在品牌/型号/人名上是致命的**，必须交叉验证后在交付里明确纠正：
+   `北禾禅` → 实际 **北禾蝉**；`柳荫` → 实际 **YGC 柳莺**；`杯子` → 实际 **杆子**（高频）。
+   纠正依据：拿 OCR 文本去淘宝/京东搜商品名核对，**交付时写「视频里显示 X，实际型号是 Y」**，不静默替换。
+
+细节（含抖音视频直链获取的完整访问链）见 `references/video-frame-ocr-transcript.md`。
 
 ## Pitfalls
 
@@ -149,3 +209,6 @@ When OCR'ing a captcha shown in a browser page:
 4. **Photo quality matters** — blurry/angled/shadows drastically reduce accuracy even with VL models. Prefer well-lit, straight-on shots.
 5. **Don't quote OCR text verbatim** in final output — there will be errors. Re-phrase with your understanding.
 6. **Save raw OCR output** for reference even when text is garbled — it's better than nothing and the user can correct key parts.
+7. **`qwen-vl-ocr` 返回坐标而不是文字 = prompt 用了修饰语** → 改成裸 `Text Recognition:` 重跑（别去调参/换模型）。
+8. **批量 OCR 脚本要增量落盘**（每 20 项写一次 JSON）。产物落盘若只在脚本末尾，任何中断（SIGPIPE / 超时）都会静默丢掉全部结果。
+9. **OCR 结果里的专有名词不要直接采信** — 品牌/型号/人名必须先拿候选词去电商或搜索引擎核对，再告诉用户。
