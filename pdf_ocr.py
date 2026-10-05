@@ -5,7 +5,7 @@
 - end_page: 结束页码（不包含，默认全部）
 示例: python3 pdf_ocr.py report.pdf 0 50   → OCR 第0~49页
 """
-import sys, os, json, base64, urllib.request, time
+import sys, os, json, base64, urllib.request, time, re
 from pathlib import Path
 
 API_URL = "https://api.siliconflow.cn/v1/chat/completions"
@@ -47,7 +47,24 @@ def _post(url, model, prompt, image_b64, key, max_tokens=4000, timeout=120):
     req.add_header("Content-Type", "application/json")
     resp = urllib.request.urlopen(req, timeout=timeout)
     data = json.loads(resp.read())
-    return data["choices"][0]["message"]["content"]
+    text = data["choices"][0]["message"]["content"] or ""
+    return _sanitize_ocr(text)
+
+
+# 🚨 PaddleOCR-VL（硅基流动兜底引擎）会在正文里吐布局标记 `<|LOC_471|>`，
+#    实测 2026-08 那次重跑把 102 篇笔记的正文污染成 ~80% 噪声。
+#    百炼 qwen-vl-ocr 实测三种 prompt 均 0 噪声，但兜底引擎仍可能命中 → 统一清理。
+_LOC_RE = re.compile(r'<\|LOC_\d+\|>')
+
+def _sanitize_ocr(text):
+    """剥掉 OCR 模型的位置/布局特殊 token，避免污染入库正文"""
+    if not text:
+        return text
+    n = len(_LOC_RE.findall(text))
+    clean = _LOC_RE.sub('', text)
+    if n:
+        print(f"    🧹 清理 {n} 处 <|LOC_n|> 布局噪声", flush=True)
+    return clean
 
 def ocr_page_bailian(image_b64):
     key = _env_key("BAILIAN_API_KEY")

@@ -30,6 +30,15 @@ metadata:
 uv run --with pyyaml python3 /opt/data/lint_vault.py
 ```
 
+🚨 **lint 只印前 5 条**（`weak_tags` 前 10 条），`*...还有 N 篇*` 是截断——**要完整清单必须导**：
+
+```bash
+cd /opt/data && uv run --with pyyaml python3 \
+  skills/productivity/knowledge-base-maintenance/scripts/vault_lint_dump.py
+# 输出 /opt/data/.tmp_tests/vault_issues.json，含每个问题的 slug/title/path/正文体量/标签数
+```
+批量修复前**必须先导全量**，否则只能看到 5 篇、会漏修。
+
 检查维度：
 - **断链**：`[[wikilink]]` 指向不存在的页面（🔴 高优先级）
 - **Frontmatter 缺失**：无 YAML frontmatter（🔴 高优先级）
@@ -149,7 +158,7 @@ c.download('/项目资料/方案.docx', '/opt/data/cache/documents/方案.docx')
 |--------|------|----------|----------|------|------|
 | c3e92b82c93a | 文档入库（WebChat） | `WebChat BackUp/文档/` | `concepts/` | 每天 8:00 | Agent（每批7个） |
 | 5652f5032fe5 | 思源笔记同步入库 | NAS `INBOX_FILES/` | `00-INBOX/` | 每天 17:00 | **Agent** |
-| f1e56e8511d3 | 知识库巡检 | — | — | 每月 1 号 9:00 | no_agent |
+| f1e56e8511d3 | 知识库巡检 | — | — | **每月 1 号 20:00**（cron `0 20 1 * *`） | no_agent |
 | 4abd713f8db6 | 数据资产文件合集入库 | `WebChat BackUp/文档/数据资产文件合集/` | `concepts/` | 每天 7/9/11/15/17 点 | Agent（每批7个） |
 
 > **数据资产文件合集**：2026-07-01 新增 cron，每次处理 7 个文件（扫描件为主，每文件最长 10 分钟 OCR），5 个时间槽（7/9/11/15/17 点）均匀分配。每个 cron slot 都跑 agent 模式（不用 no_agent，因 120s 硬超时限制），脚本自带 600s subprocess timeout。每天合计 35 个文件，目标 2026-07-11 前清完。详见 `references/ocr-heavy-batch-ingest.md`。
@@ -228,9 +237,225 @@ for f in unprocessed[:MAX_PER_RUN]:
 3. 扫描件分批处理（每批 3~5 个，较长超时）
 4. 超大扫描件自动跳过（hash 写入 `.ingested`）
 
-**OCR 引擎选型（2026-08-09 用户拍板：全部走云端）**：统一用**云端 PaddleOCR-VL**（`/opt/data/pdf_ocr.py`，SiliconFlow API，≈0.8s/页，免费，一次 20 页批量）。入库 `ingest_docs.py` 自动判扫描件后调 pdf_ocr.py；`re_ocr_shells.py`（本地 RapidOCR）仅作批量补跑的备用引擎。空壳判定用**相对阈值**（md <3000B 或 每页<150B），不要用绝对阈值漏判大文档。详见 `references/rapidocr-local-batch.md`。
+**OCR 引擎选型（2026-10-01 修正）**：`pdf_ocr.py` 的 `_ENGINE_ORDER = ["bailian", "siliconflow"]`——**百炼 `qwen-vl-ocr-latest` 为主，硅基流动 PaddleOCR-VL 仅兜底**。
+
+> 🚨 **旧脚本写的是"统一用云端 PaddleOCR-VL（SiliconFlow API，≈0.8s/页，免费）"，那是错的、且已经造成事故**：
+> PaddleOCR-VL 的输出会带 `<|LOC_471|>` 布局特殊 token，2026-08-01~03 那次照旧指引全量重跑，
+> 把 **102 篇笔记的正文污染成 ~80% 噪声**（详见下文「102 篇笔记正文被 OCR 布局噪声污染」节）。
+> **不要再按老指引选 PaddleOCR-VL。** 引擎以 `_ENGINE_ORDER[0]` 为准，不要靠记忆断言。
+
+`ingest_docs.py` 自动判扫描件后调 pdf_ocr.py；`re_ocr_shells.py`（本地 RapidOCR）仅作批量补跑备用。空壳判定用**相对阈值**（md <3000B 或 每页<150B），不要用绝对阈值漏判大文档。详见 `references/rapidocr-local-batch.md`。
 
 详见 `references/ocr-heavy-batch-ingest.md`、`references/large-batch-ingest-pattern.md`。
+
+### 🚨 巡检 27 篇无标签 / 24 篇无摘要的根因：DeepSeek 推理模式吃空 content（2026-10-01 修复）
+
+**症状**：月度巡检报「无标签 27 篇、无摘要 24 篇」，这些文件**都已有 frontmatter**（不是没增强过），
+手动跑 `note_enhance.py <文件>` 显示 `✅ 已保存`，但结果仍是 `❌ 摘要: 0条要点 / ❌ 标签: 0个`。
+**再跑一次会覆盖**——脚本用空元数据重写 frontmatter，把已有的标签/摘要**清空**。
+
+**根因（两层）**：
+1. `call_llm()` 的默认模型被改成 `deepseek-v4-flash`。实测 2026-10-01：`deepseek-flash` /
+   `deepseek-v4-flash` 走的是**推理模式**，返回体里 `reasoning_content` 有内容而 `content` 是**空字符串**
+   （token 全被推理过程吃掉，`max_tokens=800` 远不够）。脚本只读 `content` → 拿到空串 → 生成 0 条。
+   **解法：模型名用 `deepseek-chat`**（同一底层模型、**关掉推理**的别名，实测 `reasoning_content` 长度 = 0、
+   content 正常返回；3 秒/篇）
+2. `enhance_note()` **没有空结果保护**——`summary` 和 `tags` 都为空时照样写盘，破坏性覆盖原元数据。
+
+**已做的三处修复（`/opt/data/note_enhance.py`）**：
+- `call_llm(prompt, max_tokens=2000, retries=3, model="deepseek-chat")`（原 `max_tokens=800, model="deepseek-v4-flash"`）
+- `call_llm` 内加兜底：`content` 为空时抛异常触发重试，**绝不把空串当成功结果返回**
+- `enhance_note` 保存前加**安全闸**：`if not summary and not tags: return False`（跳过保存，保护原文件）
+
+**验证方法**（改完必须先验再批量跑）：
+```bash
+cd /opt/data && python3 note_enhance.py "<任一待修文件>.md"
+# 期望看到：✅ 摘要: 5条要点 / ✅ 标签: 10个 / 💾 已保存
+# 看到 ❌ 0条 + 🛑 就是模型/解析还有问题，别往下批量跑
+```
+
+**修复范围与批量跑法**：
+`lint_vault.py` 只印前 5 条，需先导全量清单——用 `sys.path.insert(0,'/opt/data')` import `lint_vault`
+调 `scan_all_notes()/check_orphans()/check_broken_links()/check_frontmatter()` 导出 JSON，
+再取 **no_fm ∪ no_tags ∪ no_summary ∪ weak_tags** 的并集（正文 ≥1000B，<1KB 的短表格文档属边缘态放过）。
+批量必须用 Python `subprocess.run([sys.executable, '/opt/data/note_enhance.py', path])` **逐文件传参**
+（文件名含空格/中文括号，走 shell 会分词截断），每 8 个 `sleep 5` 退避。实测 59 篇约 5 分钟。
+
+> 💡 `enhance_note()` 内部会先 `detect_existing_fm()` **剥离旧 frontmatter 再重建**，
+> 所以对**已有 fm 的文件重跑是安全的**（不是"只处理无 fm 的文件"）——前提是 API 正常 + 安全闸生效。
+
+> ⚠️ **摘要条目末尾的 `×` 不要当成 bug 去掉**：`SUMMARY` prompt 明确要求每条以 `×` 结尾，
+> `build_frontmatter()` 按行切分时保留它。全库 **4520/4522 条摘要都带 `×`**（100%），
+> 是既有约定——单独去掉会造成全库格式不一致。
+
+> ⚠️ **知识库不在 git 备份内**：`/opt/data/.gitignore` 第 26 行是 `Obsidian Vault/`，
+> vault 完全未跟踪 → **元数据被清空后没有版本可回滚**。任何批量改 frontmatter 的脚本
+> 跑之前必须先小样本验证 + 自带安全闸，别指望 git 兜底。
+
+### 🚨 lint 断链误报第三处：只索引 concepts/，跨目录链接全误报（2026-10-01 修复）
+
+**症状**：`note_enhance` 生成的 `related` 指向 `01-WeiXin/` 或 `00-INBOX/` 里的笔记，
+lint 报断链，但**在 Obsidian 里点得开**。
+
+**根因**：Obsidian 解析 `[[X]]` 是**整个 vault 按文件名匹配**，而 `lint_vault.py` 的
+`check_broken_links` 只用 `set(notes.keys())`（＝ `scan_all_notes()` 只扫 `concepts/*.md`）当目标索引。
+`note_enhance.get_all_notes()` 却是跨目录的（concepts + 01-WeiXin + 00-INBOX，共 952 篇），
+所以它写出的链接完全可能落在其他目录。
+
+**修复**：新增 `_all_vault_slugs()` 收集全 vault（concepts/01-WeiXin/00-INBOX/raw）的 stem，
+`check_broken_links(notes, extra_slugs=...)` 用它扩展**链接目标索引**——
+注意只扩展索引，**笔记各项统计仍以 concepts/ 为准**（否则总数从 940 变 952，报告口径就乱了）。
+`main()` 里的调用已改为 `check_broken_links(notes, extra_slugs=_all_vault_slugs())`。
+
+> ⚠️ 路径坑：`VAULT = "/opt/data/Obsidian Vault/Obsidian Vault"` **本身就是 vault 根**，
+> 子目录是 `VAULT/concepts`，不要写成 `Path(VAULT).parent / 'concepts'`（那是不存在的路径，
+> 会静默返回空集合 → 误报依旧）。验证：打印 `len(_all_vault_slugs())` 应 ≈ 952 而非 0。
+
+### 🚨 102 篇笔记正文被 OCR 布局噪声污染（2026-10-01 发现）
+
+**现象**：正文里满是 `<|LOC_471|>` 这类标记，最重的文件（如
+`19.《数据安全技术-数据安全风险评估方法》`）149479 字里 11572 处、去掉后才 19256 字，
+**且剩余的也是多语言乱码** → 由它生成的 tags 变成「小时代/护理/Fred M」这类垃圾。
+
+**根因**：`<|LOC_n|>` 是 **PaddleOCR-VL（硅基流动）的布局特殊 token**。
+2026-08-01~03 那次 `re_ocr_cloud.py` 全量重跑用的是 PaddleOCR-VL（61 篇正文带
+`> **云端OCR(PaddleOCR-VL)重跑**：` 标记），把大批笔记写坏了。
+**现行百炼 `qwen-vl-ocr-latest` 实测干净**（用自由 prompt / `Text Recognition:` /
+`Document Parsing:` 三种都 0 处噪声）——所以**不要再把污染归咎于当前 prompt**。
+
+**分档统计**（`/opt/data/.tmp_tests/ocr_noise.json`）：
+含 `<|LOC_` 的 102 篇 → 🔴 有效文本 <30% 的 **73 篇**、🟡 30-60% 的 27 篇、🟢 >60% 的 2 篇。
+
+**已做**：
+- `pdf_ocr.py` 新增 `_sanitize_ocr()`，**所有** OCR 输出统一剥掉 `<|LOC_\d+|>`
+  （百炼干净，但 `_ENGINE_ORDER` 里的硅基流动兜底仍可能命中；防御性清理 + 打印清理条数）
+- 需要 `import re`（原来没导，加了）
+
+**待办**：73 篇严重污染的需要**用百炼引擎重 OCR**（源 PDF 在 `WebChat BackUp/文档/`），
+重 OCR 后**必须再跑一遍 `note_enhance`**（否则 tags/摘要 还是从垃圾正文生成的）。
+
+**恢复管线（2026-10-01 已实跑，脚本已归档到本 skill）**：
+
+1. **清点**：`scripts/vault_lint_dump.py` 导出全量问题清单 + 单独扫 `<|LOC_` 噪声占比
+   （含 `<|LOC_` 的 102 篇，按 `有效文本占比 = 去LOC后长度 / 正文长度` 分档：<30% 严重）
+2. **映射源 PDF**：从 md 头部的 `> **原始文件**：xxx.pdf` 行取文件名，去 `WebChat BackUp/文档/` 下
+   `glob('**/*.pdf')` 建索引匹配 → 得到「md → 源 PDF → 页数」。
+   ⚠️ **不要用严匹配**：首版只认 `.pdf` 结尾 → 误判 **37 篇「源已不在」**；
+   改用宽松匹配（三候选 + 归一化 + 模糊兑底，`scripts/match_loose.py`）后 **37/37 全部找到**。
+   **结论：102 篇全部有源，没有一篇是救不回来的。** 详见下方「坑 1」。
+3. **重 OCR**：百炼 `qwen-vl-ocr-latest`，**并发 8**（实测 1.36 页/s；并发 16 无收益），120dpi~150dpi 渲染，
+   `max_tokens=6000`，429 指数退避重试 5 次，**每文件写完就落盘 done.json（断点续传）**，不可整库重跑
+4. **阶段 A**：源 PDF 缺失的，只剥 `<|LOC_\d+|>` 标记 + 压连续空行，并写入
+   `> **已剥离OCR布局标记**：<时间>（源 PDF 缺失，内容未恢复）` 行留痕
+5. **阶段 B**：所有重 OCR 过的文件重跑 `note_enhance`（正文换了，旧元数据全部过期）
+6. **阶段 C**：复检 lint，与巡检报告做前后对比表
+
+> ⚠️ **吞吐实测差异大，别按首篇估算**：首个文件因连接/冷启动只跑到 0.14 页/s，
+> 稳定后 0.85–1.36 页/s。10463 页 → 约 2–4 小时。**先跑 1 个文件量吞吐再报 ETA 给用户**。
+
+详见 `references/ocr-loc-noise-recovery.md`。
+
+### ⚠️ note_enhance 的 `related` 必须写 **slug（文件名）**，不能写标题（2026-10-01 修复）
+
+Obsidian 按**文件名**解析 wikilink，而笔记 H1 标题常与文件名不同
+（如标题 `元景DS+MaaS软件包产品介绍` 但文件是 `元景DS+MaaS-增强版操作手册-2.5.5.md`）。
+写标题会产生"看着对、点不开"的断链。实测库里既有 `related` **全部是 slug**。
+
+`discover_related()` 已改为：建 `title2slug`（标题 + 文件名 → slug）映射，
+LLM 返回的候选先查 `slug_only`（已是文件名）再查 `title2slug`，**输出 slug**；
+两路都命中不了就丢弃并打印 `⚠️ 丢弃幽灵关联`（LLM 会凭空编造像真名的标题），最后 `[:3]` 截断。
+
+### 🚨 `note_enhance` 会剥离旧 frontmatter 再重建 —— 对已有 fm 的文件重跑是**危险**的
+
+`enhance_note()` 调 `detect_existing_fm()` 把旧 frontmatter 剥掉，然后用**新生成**的
+summary/tags/related 重建。所以：
+- ✅ 想刷新元数据时直接重跑即可（幂等）
+- 🔴 **一旦 API 返回空，就会用空元数据覆盖掉原有标签**（2026-10-01 实测踩到）
+  → 已在 `enhance_note()` 保存前加安全闸 `if not summary and not tags: return False`
+
+### 🚨 源文档营销水印/广告会污染正文 + 元数据（2026-10-01 清理）
+
+**现象**：知识库 334 个文件的正文里满是同一句硬广告，是数据资产类 PDF 的**页眉页脚**，
+被 OCR 逐页吸进来：
+```
+数据资产入表咨询、课程培训:陈阳17301209296          (12978 处)
+数据资产入表项目咨询、首席数据官课程培训：陈阳 17301209296（同微信）  (2745 处)
+……共 12+ 种变体，全库 ≈3 万处
+```
+也有 `公众号·数据资产管理大讲堂`（267 处）、`阅览更多报告请关注"XX研究院"微信公众号`。
+
+**危害不止于正文噪声**：
+- 生成出垃圾标签（`- 课程培训`、`- 陈阳`）—— 实测 **14 篇标签被污染**
+- 生成出垃圾摘要（`"联系电话陈阳17301209296 ×"`）—— 实测 **16 篇摘要被污染**
+- `note_enhance` 把广告文本当笔记名，造出幽灵关联 `[[数据资产入表咨询、课程培训:陈阳17301209296]]`
+
+**清理必须分三遍**（脚本 `scripts/strip_ads.py` / `strip_ads2.py` / `strip_ads3.py`）：
+
+| 遍 | 策略 | 实测命中 |
+|---|---|---|
+| 1 | 整行匹配（广告独立成行） | **26623 行 / 334 文件** |
+| 2 | **子串**剥离（OCR 把页脚与正文粘在一行）+ 公众号水印 | 469 处 / 48 文件 |
+| 3 | 兑底：以广告开头词为锚的行内非贪婪剥离 | 77 处 / 22 文件 |
+
+**硬规则**：
+- 广告通常是**行尾**追加（`…正文… 174 数据资产入表咨询、课程培训:陈阳17301209296`），
+  → **只能做行内子串替换，不能整行删除**，否则会连正文一起删
+- 改前必须 **dry-run**（脚本默认 dry，加 `--apply` 才写），并抽几行对比**改前/改后行尾**确认只动了广告
+- **跳过 frontmatter 区**（先定位 fm 结束的 `---`，只改它下面的行）
+- 剥离后 **必须重跑 `note_enhance`**：正文换了，且被污染的标签/摘要需要重生
+- 收工标准：不要追求 100%。实测剩 7 处/5 文件的 OCR 错读碎片（`陈阳`→`东阳`、
+  `数据资产入表`→`衣`/`表现目咨询`），继续追性价比太低
+- **例外先看原文**：有 1 篇摘要里"正确"提到联系人与大讲堂——它的**源文档本身就是招生广告**，
+  摘要在忠实概括，**不算污染、不要改**
+
+### 🚨 重 OCR 实战流程 + 三个新坑（2026-10-01 全量重跑 102 篇）
+
+**实测数据**（百炼 qwen-vl-ocr，150dpi，并发 8）：
+- 吞吐 **≈ 1 页/秒**（并发 8 最优；试过并发 16 **无提升**，0 报错）
+- 单页中位延迟 2.6s、最快 0.5s、最慢 8.4s
+- 渲染很便宜：0.13s/页
+- 成本实测 **≈ 2900 token/页**（先前按 1500 估的会**少一半**）——
+  102 篇 10463 页实际 **2977 万 token ≈ ¥14.88**，耗时 **170 分钟**
+- 质量：22 页扫描件重 OCR 后从"满篇噪声"变成 **0 噪声的可读中文**
+
+**流程**（脚本已归档在本 skill 的 `scripts/`，直接用这些，别再手写）：
+| 脚本 | 作用 |
+|---|---|
+| `scripts/reocr_estimate.py` | 建计划：md → 源 PDF + 页数（只严匹配 .pdf，会漏；漏了改用下面那个） |
+| `scripts/match_loose.py` | **宽松匹配**源 PDF（三候选 + 归一化 + 模糊兑底），实测 37/37 找回 |
+| `scripts/reocr_run.py` | 重 OCR 主脚本（并发 8 + 断点续传 + 429 退避 + token 统计） |
+| `scripts/fix_strip_marker.py` | 修「标记行被插到文件头」的 fm 损伤 |
+| `scripts/vault_lint_dump.py` | 导出全量巡检清单 JSON（lint 只印前 5 条） |
+| `scripts/strip_ads.py` / `2` / `3` | 营销水印广告三遍剥离（见下节） |
+
+1. 建计划：md → 源 PDF + 页数（`reocr_estimate.py`，**配 `match_loose.py` 兑底**）
+2. 逐文件：渲染全部页 → 并发 8 OCR → 组装 → **覆写 md**（去旧 frontmatter，
+   header 写 `> **云端OCR(qwen-vl-ocr)重跑**：日期（正文 N 页）`），交给 note_enhance 重建元数据
+3. 断点续传：`reocr_done.json` 按文件名记录，重跑自动跳过
+4. **重 OCR 后必须再跑一遍 note_enhance**（否则 tags/摘要还是从垃圾正文生成的）
+
+#### 坑 1：源 PDF 匹配不能只认 `.pdf` 后缀
+笔记头部 `> **原始文件**：xxx.md` 里的名字**常常是 `.md`**（原始上传是 md），
+按 `.pdf` 结尾过滤 → 误判为"无源 PDF"。实测 102 篇里 **37 篇被误归为无源**，
+放开匹配后 **37/37 全部找到**。
+
+正确写法：拿三个候选（md 文件名 stem / 原始文件行去掉任意扩展名 / frontmatter title）
+做**归一化**（去空格、连字符、全角括号、书名号）后与 PDF 索引比对，
+再加一层"归一化后互相包含且长度差 ≤8"的模糊兑底。
+注意源文件名常有空格/连字符差异：`19.《数据安全技术 数据安全风险评估方法》.pdf`
+vs md 名 `19.《数据安全技术-数据安全风险评估方法》`。
+
+#### 坑 2：往 frontmatter 前插标记行会把 frontmatter "顶掉"
+用 `raw.replace('---\n', marker + '---\n', 1)` 给文件打标记时，
+**第一个 `---\n` 就是 frontmatter 的开头**——结果标记行被插到了文件最前面，
+文件不再以 `---` 开头 → **lint 立刻报 37 篇"无 Frontmatter"**（自己造出来的缺陷）。
+正确做法：找到 frontmatter 的**结束 `---`**，把标记行插到它后面。
+修复脚本：`fix_strip_marker.py`（把误插到头部的标记行挪回 fm 之后，实测修 37/37）。
+
+#### 坑 3：`python3 x.py | head -N` 会 SIGPIPE 杀掉脚本，**产物不写盘**
+第二次踩到（`match_loose.py | head -60` → `reocr_plan2.json` 不存在）。
+症状：stdout 看着完全正常，但 `json.dump` 没执行。
+**一律 `python3 x.py > /tmp/x.log 2>&1; echo exit=$?; tail -40 /tmp/x.log`**。
 
 ## 常见陷阱
 

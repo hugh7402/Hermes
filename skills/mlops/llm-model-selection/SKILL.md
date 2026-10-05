@@ -72,7 +72,7 @@ Full benchmark data: `references/cross-platform-benchmark-20260618.md`, `referen
 | Hermes daily chat | 智谱官方 | `glm-5.2` | Current (user preference). ⚠️ 2026-06-19 benchmark shows deepseek-chat 5× faster (4.5s vs 24.5s) at same cost — pending user decision. Full data: `references/daily-chat-benchmark-20260619.md` |
 | Proposal writing | 硅基流动 | `deepseek-ai/DeepSeek-V4-Pro` | 2.5折 promotion, 56pts, accuracy 8.0/10 |
 | Note enhancement | DeepSeek official | `deepseek-chat` | 98.7pts, 0.43s, ¥0.005/note — 20× faster & 25× cheaper than qwen-max (2026-06-19 benchmark + switched) |
-| OCR (standard) | 硅基流动 | `PaddleOCR-VL-1.5` | Free, 0.8s/page, 90%+ coverage |
+| OCR (standard) | **百炼 (DashScope)** | `qwen-vl-ocr-latest` | ⚠️ **2026-10-01 修正：主引擎已改为百炼**。硅基流动 PaddleOCR-VL-1.5 会吐 `<|LOC_n|>` 布局 token，曾污染 102 篇笔记 |
 | OCR (photo fallback) | 硅基流动 | `Qwen/Qwen3-VL-8B-Instruct` | 8s/page, ¥0.002/page, high Chinese quality |
 | Text-to-Image | 硅基流动 | `Z-Image-Turbo` | 4.7s |
 
@@ -184,14 +184,45 @@ Full data: `references/proposal-benchmark-20260619.md`
 **Key finding**: deepseek-chat dominates — fastest among quality models with strongest reasoning (explicit "because/compared to/rather than" chains). deepseek-reasoner surprisingly weak (score=1 reasoning — uses "should/suggest" not causal chains). 3.7-gen (qwen3.7, glm-5.2) dead last.
 
 ### OCR
-- **Default**: SiliconFlow `PaddleOCR-VL-1.5` — **0.8s, FREE**, dedicated OCR. Works for 90%+ of standard scanned PDFs.
+- **默认（2026-10-01 起）**：百炼 `qwen-vl-ocr-latest` —— **≈4.6s/页，并发 8 可达 1 页/s，¥0.3-0.5/M token**。
+  🚨 **prompt 必须用官方任务关键字**：`Text Recognition:`（识别）/ `Text Detection:`（只出框）/ `Document Parsing:`（出 JSON/HTML）。
+  用自由文本 prompt（如"请提取图片中所有文字…"）时，模型**可能全部返回 `498,878,55,305,90` 这种 x1,y1,x2,y2 坐标元组**
+  而不是文字——实测 553 帧全量白跑一轮。判据：输出形如`数字,数字,数字,数字,数字`就是被当成检测任务了。
+- ⚠️ **备用（不再做默认）**：硅基流动 `PaddleOCR-VL-1.5` —— 免费但**输出带 `<|LOC_471|>` 布局 token**，
+  入库前必须剥（`pdf_ocr.py` 的 `_sanitize_ocr()` 已统一处理）
 - **Page limit**: `pdf_ocr.py` caps at `MAX_OCR_PAGES=30` to prevent cron timeouts. An 83-page training-photo PDF took >600s and crashed the daily cron. Pages beyond the cap are skipped with a note. For full OCR of large files, run `pdf_ocr.py` manually outside cron.
 - **⚠️ Degradation on photo-based PDFs**: PaddleOCR produces complete garbage (Korean text, random topics) on presentation-photo/training-slide PDFs. When output is garbled (Chinese ratio <30% or Korean characters detected), auto-fallback to Qwen3-VL-8B-Instruct.
 - **Photo fallback**: SiliconFlow `Qwen/Qwen3-VL-8B-Instruct` — 8-9s/page, ~¥0.002/page, high Chinese quality on complex layouts. Use when PaddleOCR output fails quality check.
 - **Not recommended for OCR**: Bailian `qwen3-vl-flash` (tested, inferior), DeepSeek-OCR (garbled on photos, same as PaddleOCR)
 
-### Text-to-Image
-- **Best**: SiliconFlow `Tongyi-MAI/Z-Image-Turbo` — 4.7s
+- **读 `content` 必须判空，否则推理模型会“静默返回空串”** 🔴（2026-10-01 实测）
+  推理模型（`deepseek-flash`/`deepseek-v4-flash`/`glm-5.2`/`v4-pro`）把 `max_tokens` 先花在
+  `reasoning_content` 上，`content` 很可能是**空字符串**——而 **HTTP 200 + 无报错**。
+  只读 `content` 的脚本会拿到空串当成"模型返回了空"，**最危险的是"接着把空结果写盘"**：
+  实测 `note_enhance.py` 用空摘要/空标签覆盖了知识库几十篇笔记的原元数据，而日志显示"✅ 已保存"。
+  ```python
+  msg = data['choices'][0]['message']
+  content = (msg.get('content') or '').strip()
+  if not content:
+      reason = msg.get('reasoning_content') or ''
+      raise RuntimeError(f"空 content（reasoning={len(reason)}字，疑似推理模式吃掉 token）")
+  # 重试；重试仍空就不要落盘
+  ```
+  **通用铁律：“API 没报错” ≠ “拿到了有效结果”——凡是“调 LLM 生成结果再解析/落盘”的脚本，
+  必须先校验 content 非空再写，并给写盘加空结果安全闸。**
+
+  > 注意与上面那条“max_tokens<2048 返回 EMPTY”的关系：那个说的是推理模型，
+  > 而这里说的是**即使 max_tokens 给够，也可能空**（实测 max_tokens=800 全给推理用掉）。
+  > 两条的共同结论一样：**结构化输出/落盘任务别用推理模型。**
+- **OCR 默认引擎已改为百炼 `qwen-vl-ocr-latest`** 🔴（2026-10-01 修正）
+  早前矩阵把"默认 OCR"写成硅基流动 `PaddleOCR-VL-1.5`（免费）——**它会在正文里吐
+  `<|LOC_471|>` 布局特殊 token**，2026-08 一次全量重跑把知识库 **102 篇笔记的正文
+  污染成 ~80% 噪声**（最重的一篇 149479 字里 11572 处，去掉后只剩乱码）。
+  **现状**：`pdf_ocr.py` 的 `_ENGINE_ORDER = ["bailian", "siliconflow"]`——百炼
+  `qwen-vl-ocr-latest` 为主，PaddleOCR-VL 仅兜底；且已在 `_post()` 里加 `_sanitize_ocr()`
+  统一剥 `<|LOC_\d+|>`。
+  百炼 qwen-vl-ocr 实测成本约 **0.3–0.5 元/M token**、**≈4.6s/页**（并发 8 可达 1 页/s）。
+  **选引擎前先看代码里的 `_ENGINE_ORDER`，不要靠记忆或旧文档断言。**
 - Bailian image APIs currently return 403 (endpoint/auth mismatch)
 
 ## Supported Tools Configuration
@@ -229,5 +260,19 @@ Most tools supporting OpenAI-compatible API can use any of the above endpoints.
 - **Reasoning models multiply latency in Agent tool-call loops** ⚠️: In Hermes Agent, a single task may trigger 5+ model calls (tool selection → execution → interpretation → next action). Reasoning models "think" before EACH call: 5×glm-5.2(9.5s)=47.5s vs 5×ds-chat(1.1s)=5.5s. The user perceives this as the agent being "slow" or "hung". **Never use reasoning models as the Agent main model.** Use deepseek-v4-flash (non-reasoning, 2.0s/call, ¥0.0019/4calls). Route deep-analysis tasks to reasoning models via skills or auxiliary slots instead.
 - **Bailian model name hyphen gotcha** ⚠️: Alibaba DashScope API uses different model name formats depending on the model. `qwen-3.7-max` (with hyphen) → **HTTP 404**. `qwen3.7-max` (without hyphen) → ✅ **Works**. Always verify the exact model ID string before benchmarking. The same applies: `qwen-max` (works), `qwen-plus` (works), `qwen3.7-max` (no hyphen), but `qwen-3.7-max` fails.
 - **Function-calling test methodology**: When evaluating models for Agent use, test with OpenAI-style `tools` parameter (not just text prompts). Measure: (1) tool selection accuracy (correct function chosen?), (2) argument correctness (right params extracted?), (3) per-call latency (not just first-token), (4) reasoning token waste. Simple tool calls ("搜索X") are easy for all models; contextual judgment ("新建笔记" → should call create_note, not search) separates good from great. See `references/agent-function-calling-benchmark-20260619.md` for the test script pattern.
-- **deepseek-chat alias will be deprecated 2026/07/24** 🔴: On DeepSeek official API (api.deepseek.com), `deepseek-chat` routes to **deepseek-v4-flash** (non-thinking mode), and `deepseek-reasoner` routes to **deepseek-v4-pro** (thinking mode). Both aliases will be permanently removed on **2026-07-24 23:59 Beijing time**. After that date, configs using `deepseek-chat` will break. In all config files, cron scripts, and Python code, ALWAYS use the explicit name `deepseek-v4-flash` (not `deepseek-chat`) and `deepseek-v4-pro` (not `deepseek-reasoner`). If you're ever uncertain about a model's canonical name, check https://api-docs.deepseek.com/zh-cn/ for the up-to-date model list table.
+- **`deepseek-chat` 别名仍然可用，而且它是「关推理」的那一个（2026-10-01 实测定案，覆盖早前"已于 2026-07-24 弃用"的说法）** 🔴
+  官方 docs 曾预告 2026-07-24 删掉 `deepseek-chat`/`deepseek-reasoner` 别名；**实际至 2026-10-01 仍可用**，
+  且 `curl /v1/models` 只列 `deepseek-flash` + `deepseek-v4-pro`（**列表里没有 deepseek-chat，但它照样能调**）。
+
+  | 传入 model | 实际路由到 | reasoning_content | content | 结论 |
+  |---|---|---|---|---|
+  | `deepseek-chat` | deepseek-flash | **0 字** | ✅ 正常 | **脚本调用的默认选择** |
+  | `deepseek-flash` | deepseek-flash | 80–136 字 | **可能空串** | ❌ 推理模式吞掉输出 |
+  | `deepseek-v4-flash` | deepseek-flash | 有 | **可能空串** | ❌ 同上 |
+  | `deepseek-v4-pro` | deepseek-v4-pro | 有 | — | 只在需要强推理时用 |
+
+  **所以早前那条"一律改用 `deepseek-v4-flash`"的指引是错的、且已造成事故**——
+  它把脚本从「非推理」推到了「推理」，而推理模型在 `max_tokens` 不够时 `content` 返回**空字符串**。
+  **调用脚本（翻译/摘要/打标签/抽 JSON）用 `deepseek-chat`，不要用 `deepseek-v4-flash`。**
+  任何时点不确定时，跑一次实测（看返回体的 `model` 字段 + `reasoning_content` 长度），不要靠 docs 或记忆断言。
 - OCR has a free dedicated model: PaddleOCR-VL-1.5 on SiliconFlow is free and 3x faster than general VL models.
