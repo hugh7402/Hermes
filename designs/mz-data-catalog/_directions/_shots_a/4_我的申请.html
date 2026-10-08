@@ -1,0 +1,702 @@
+<!doctype html>
+<html lang="zh"><head>
+<meta charset="utf-8">
+<title>数据资源目录台账 · 共享管理</title>
+<!--
+  省级数据资源目录 · 共享管理台账
+  方向 A · 台账（Ledger）—— 见 direction-approved.md
+
+  设计主张（后续所有屏都必须守住）：
+    1. 把数据资源当"档案台账"编，读起来像省级年鉴/统计公报内页，不是 SaaS 后台
+    2. 秩序由 1px 细线与字重承担 —— 零圆角、零阴影、零渐变、零图标、零 emoji
+    3. 全册只有一种彩色：朱红，且只用于需要被看见的例外
+    4. 逐行读的信息节奏 —— 一屏一表，信息密度高，不靠卡片堆叠
+    5. display 用宋体系；禁用 Inter/Roboto/Arial
+
+  五册结构：目录总账 / 目录详情 / 共享申请 / 我的申请 / 待办审批
+
+  ⚠️ 渲染兼容约束（静态渲染器 10 类静默陷阱，详见 ui-prototype skill）：
+    · 所有 <button> 一律 display:inline（width:auto 会被解析成"占满可用宽度"）
+    · 不用 flex + margin-left:auto 做左右分栏，用 float:right
+    · 表单控件样式必须用 class 选择器（出图时 input/select/textarea 会被换成 span/div）
+    · 不用 grid 的显式列放置 / grid-auto-flow
+    · 不用 inset / min() / display:contents；阴影不用带 alpha 的 oklch
+    · 不用原生 checkbox（会被渲染成黑实心块），改用自绘 role=checkbox
+-->
+<style>
+:root{
+  --ink:#1c1b19; --ink-2:#4a4742; --ink-3:#8c877e;
+  --rule:#d8d3c8; --rule-2:#b9b2a4;
+  --paper:#fbfaf6; --band:#f2efe6; --band-2:#e9e5d8;
+  --cinnabar:#a8342a; --seal:#7a2b22;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:var(--paper); color:var(--ink);
+  font-family:"Songti SC","Noto Serif SC","Source Han Serif SC",Georgia,serif;
+  font-size:13px; line-height:1.85; text-wrap:pretty;
+  /* 密度即设计：压低到 1440×940 视口内 —— 否则页脚控件会掉到折叠线以下 */
+  padding:26px 40px 14px;
+}
+.sheet{max-width:1180px;margin:0 auto}
+
+/* ===== 抬头 ===== */
+.masthead{display:table;width:100%;border-bottom:2.5px solid var(--ink);padding-bottom:10px}
+.masthead .l{display:table-cell;vertical-align:bottom}
+.masthead .r{display:table-cell;vertical-align:bottom;text-align:right;width:1%;white-space:nowrap}
+.masthead h1{font-size:25px;font-weight:700;letter-spacing:3px;line-height:1.3}
+.masthead .org{font-size:12.5px;letter-spacing:2px;color:var(--ink-2)}
+.masthead .meta{font-size:12px;color:var(--ink-3);letter-spacing:1px;line-height:1.7}
+.rule-2{border-bottom:1px solid var(--rule-2);margin-top:2px}
+
+/* ===== 册签（索引标签）===== */
+.spine{border-bottom:1.5px solid var(--ink);padding-top:15px;white-space:nowrap;font-size:0}
+.spine button{
+  display:inline;position:relative;top:1.5px;
+  border:1px solid var(--rule-2);border-bottom:none;background:none;
+  font-family:inherit;font-size:12.5px;letter-spacing:1.5px;color:var(--ink-2);
+  padding:7px 16px 6px;margin-right:5px;cursor:pointer;
+}
+.spine button:hover{color:var(--ink);border-color:var(--rule-2)}
+.spine button[aria-selected="true"]{
+  background:var(--paper);border-color:var(--ink);border-top-width:3px;
+  border-bottom:1.5px solid var(--paper);color:var(--ink);font-weight:700;
+}
+.screen{display:none}
+.screen[data-on="true"]{display:block}
+
+/* ===== 通用区块 ===== */
+h2.sec{
+  font-size:15px;letter-spacing:2px;font-weight:700;
+  padding-bottom:5px;border-bottom:1.5px solid var(--ink);margin-top:22px;
+}
+h2.sec .note{float:right;font-size:11.5px;font-weight:400;color:var(--ink-3);letter-spacing:1px}
+.lede{font-size:12.5px;color:var(--ink-2);padding:5px 0 0;max-width:900px}
+
+/* 提要行 */
+.synopsis{
+  display:table;width:100%;padding:12px 0 13px;border-bottom:1px solid var(--rule);
+}
+.synopsis .cell{display:table-cell;font-size:13px;white-space:nowrap}
+.synopsis .cell em{font-style:normal;color:var(--ink-3);font-size:12px;letter-spacing:1px}
+.synopsis .cell b{font-weight:700;font-feature-settings:"tnum";letter-spacing:.5px}
+.synopsis .cell b i{font-style:normal;font-weight:400;font-size:11.5px;color:var(--ink-2);margin-left:2px}
+.synopsis .cell b.hot{color:var(--cinnabar)}
+
+/* 工具行：inline-block 排一行 + 计数绝对定位贴右 */
+.toolbar{position:relative;padding:11px 0 9px;white-space:nowrap}
+.q{
+  display:inline-block;width:280px;vertical-align:baseline;
+  border:none;border-bottom:1px solid var(--rule-2);background:none;
+  padding:4px 2px;font-family:inherit;font-size:13.5px;color:var(--ink);
+}
+.q::placeholder{color:var(--ink-3);font-size:12.5px;letter-spacing:.5px}
+.filters{display:inline;margin-left:24px}
+.filters button{
+  display:inline;border:none;background:none;font-family:inherit;font-size:12.5px;
+  color:var(--ink-3);padding:2px 0;margin-right:20px;letter-spacing:1px;
+  border-bottom:1.5px solid transparent;cursor:pointer;
+}
+.filters button:hover{color:var(--ink-2)}
+.filters button[aria-pressed="true"]{color:var(--ink);border-bottom-color:var(--ink);font-weight:700}
+.toolbar .count{position:absolute;right:0;bottom:14px;white-space:nowrap;
+  font-size:12px;color:var(--ink-3);letter-spacing:1px}
+
+/* ===== 台账表 ===== */
+table.book{width:100%;border-collapse:collapse;font-size:13px}
+table.book caption{caption-side:top;text-align:left;font-size:12px;color:var(--ink-3);
+  letter-spacing:2px;padding:0 0 7px}
+table.book thead th{
+  background:var(--band);text-align:left;font-weight:700;font-size:12px;letter-spacing:1.5px;
+  color:var(--ink-2);padding:8px 12px;border-top:1.5px solid var(--ink);
+  border-bottom:1px solid var(--rule-2);white-space:nowrap;
+}
+table.book thead th + th{border-left:1px solid var(--rule)}
+table.book tbody td{padding:5px 12px;border-bottom:1px solid var(--rule);
+  vertical-align:top;line-height:1.55}
+table.book tbody td + td{border-left:1px solid var(--rule)}
+table.book tbody tr:nth-child(even) td{background:#f7f5ee}
+table.book tbody tr{cursor:pointer}
+table.book tbody tr:hover td{background:#efece1}
+table.book tbody tr[aria-selected="true"] td{background:#ece7d8}
+table.book tbody tr[aria-selected="true"] td:first-child{box-shadow:inset 3px 0 0 var(--seal)}
+td.nm{font-weight:700;letter-spacing:.3px}
+td.nm .idx{color:var(--ink-3);font-weight:400;font-size:11.5px;margin-right:7px;
+  font-feature-settings:"tnum"}
+td.nm .code{display:block;font-family:ui-monospace,"SF Mono",Menlo,monospace;
+  font-size:10.5px;color:var(--ink-3);letter-spacing:0;margin-top:1px}
+td.num{text-align:right;font-feature-settings:"tnum";font-size:12.5px}
+td.dim{color:var(--ink-2);font-size:12.5px}
+td.time{font-feature-settings:"tnum";font-size:12.5px;color:var(--ink-2)}
+.ex{color:var(--cinnabar)}
+.ok{color:#3f6b57}
+table.book tfoot td{padding:9px 12px;border-top:1.5px solid var(--ink);font-weight:700;
+  font-size:12.5px;letter-spacing:1px}
+table.book tfoot td.num{text-align:right;font-feature-settings:"tnum"}
+.link{color:var(--seal);text-decoration:none;border-bottom:1px solid var(--rule-2)}
+.link:hover{border-bottom-color:var(--seal)}
+
+/* 页脚：分页用 float:right */
+.colophon{margin-top:12px;font-size:11.5px;color:var(--ink-3);letter-spacing:1px;
+  border-top:1px solid var(--rule);padding-top:9px}
+.colophon .pager{float:right;white-space:nowrap;font-size:0;margin-left:24px}
+.colophon .note{display:block;overflow:hidden}
+.colophon .pg{display:inline;border:none;background:none;font-family:inherit;font-size:12px;
+  color:var(--ink-2);cursor:pointer;padding:0;letter-spacing:1px;margin-left:16px}
+.colophon .pg[aria-current="true"]{color:var(--ink);font-weight:700;text-decoration:underline}
+.colophon .pg:disabled{color:#c3bdb1;cursor:default}
+
+/* ===== 详情：对开页 ===== */
+.spread{width:100%;border-collapse:separate;border-spacing:26px 0;margin-top:14px}
+.spread > tbody > tr > td{vertical-align:top;width:50%}
+.spread > tbody > tr > td:first-child{border-right:1px solid var(--rule)}
+h3.sub{font-size:12px;letter-spacing:1.5px;font-weight:700;color:var(--ink-2);
+  padding-bottom:4px;border-bottom:1px solid var(--rule-2);margin:12px 0 0}
+.spread h3.sub:first-child{margin-top:0}
+.rec{width:100%;border-collapse:collapse;font-size:13px;line-height:1.6}
+.rec th{text-align:left;font-weight:400;font-size:12px;color:var(--ink-3);letter-spacing:.5px;
+  padding:4px 0;border-bottom:1px solid var(--rule);width:82px;vertical-align:top}
+.rec td{padding:4px 0;border-bottom:1px solid var(--rule);vertical-align:top}
+.rec td.hot{color:var(--cinnabar);font-weight:700}
+.rec .desc{line-height:1.8}
+.flds{width:100%;border-collapse:collapse;font-size:12.5px}
+.flds th{text-align:left;font-weight:700;font-size:11.5px;letter-spacing:1px;color:var(--ink-2);
+  padding:5px 8px 5px 0;border-bottom:1px solid var(--rule-2);white-space:nowrap}
+.flds td{padding:5px 8px 5px 0;border-bottom:1px solid var(--rule);vertical-align:top}
+.flds td.mono,.mono{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:11.5px}
+
+/* 小台账（变更沿革 / 申请记录） */
+table.mini{width:100%;border-collapse:collapse;font-size:12.5px}
+table.mini th{text-align:left;font-weight:700;font-size:11.5px;letter-spacing:1px;
+  color:var(--ink-2);padding:4px 10px;background:var(--band);
+  border-top:1.5px solid var(--ink);border-bottom:1px solid var(--rule-2);white-space:nowrap}
+table.mini td{padding:4px 10px;border-bottom:1px solid var(--rule);vertical-align:top}
+table.mini tbody tr:nth-child(even) td{background:#f7f5ee}
+.stamp{font-weight:700;letter-spacing:.5px}
+.stamp.wait{color:var(--cinnabar)}
+.stamp.pass{color:#3f6b57}
+.stamp.deny{color:var(--ink-3)}
+
+/* ===== 申请单 ===== */
+.slip{width:100%;border-collapse:collapse;margin-top:14px;border-top:2.5px solid var(--ink)}
+.slip tr{border-bottom:1px solid var(--rule)}
+.slip .lb{width:118px;text-align:right;padding:9px 14px 9px 0;font-size:12.5px;
+  color:var(--ink-2);letter-spacing:1px;vertical-align:top;white-space:nowrap}
+.slip .lb em{font-style:normal;color:var(--cinnabar);margin-left:3px}
+.slip .fd{padding:7px 0 7px 14px;vertical-align:top}
+.slip .fd .full{display:block;width:100%;padding:4px 2px}
+/* 填空线用虚线 —— 既提升"这里要填"的可发现性（实线细到看不见时
+   视觉上会被当成标签），也贴合纸质申请单的书写习惯 */
+.fin,.fsel,.fta{
+  display:inline-block;border:none;border-bottom:1px dotted var(--ink-3);background:none;
+  font-family:inherit;font-size:13px;color:var(--ink);padding:4px 2px;
+}
+.fin{width:260px}
+.fsel{width:180px}
+.fta{
+  display:block;width:100%;min-height:74px;border:1px solid var(--rule-2);
+  padding:8px 10px;line-height:1.8;white-space:pre-wrap;
+}
+.fin::placeholder,.fta::placeholder{color:var(--ink-3);font-size:12.5px}
+.fin[data-err="true"],.fta[data-err="true"]{border-bottom:1px solid var(--cinnabar);
+  border-color:var(--cinnabar)}
+.err{color:var(--cinnabar);font-size:11.5px;letter-spacing:.5px;padding-left:6px}
+.hint-inline{font-size:11.5px;color:var(--ink-3);padding-left:8px;letter-spacing:.5px}
+.cbrow{padding:12px 0 4px;font-size:12.5px;color:var(--ink-2);line-height:1.9}
+.cbrow .lead{width:118px;text-align:right;padding-right:14px;display:inline-block;
+  letter-spacing:1px;vertical-align:top}
+.cb{display:inline-block;width:13px;height:13px;border:1px solid var(--ink-2);background:var(--paper);
+  text-align:center;line-height:11px;font-size:11px;color:var(--paper);cursor:pointer;
+  vertical-align:-2px;margin-right:7px}
+.cb[aria-checked="true"]{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.cb[aria-checked="true"]::after{content:"✓"}
+.acts{padding:6px 0 0;white-space:nowrap}
+.btn{
+  display:inline;border:1px solid var(--rule-2);background:var(--paper);color:var(--ink-2);
+  font-family:inherit;font-size:12.5px;letter-spacing:1.5px;padding:7px 20px;
+  margin-right:10px;cursor:pointer;
+}
+.btn:hover{border-color:var(--ink);color:var(--ink)}
+.btn-p{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.btn-p:hover{background:#0f0e0d;color:#fff}
+.btn:disabled{color:#c3bdb1;border-color:var(--rule);cursor:not-allowed}
+
+/* 展开行（审批意见 / 申请详情）*/
+tr.open td{background:#f4f1e8 !important}
+.detail-cell{padding:0 !important;border-bottom:1px solid var(--rule) !important}
+.exp{display:none;padding:12px 14px 16px}
+tr.exp-row[data-on="true"] + tr .exp{display:block}
+.exp dl{display:table;width:100%;font-size:12.5px}
+.exp dl .r{display:table-row}
+.exp dl dt{display:table-cell;width:84px;color:var(--ink-3);font-size:11.5px;
+  letter-spacing:.5px;padding:4px 0;vertical-align:top}
+.exp dl dd{display:table-cell;padding:4px 0;vertical-align:top}
+.exp .quote{border-left:2px solid var(--cinnabar);padding:6px 0 6px 12px;
+  font-size:12.5px;color:var(--ink-2);line-height:1.8;margin:8px 0 0;max-width:820px}
+.exp .quote.neutral{border-left-color:var(--rule-2);color:var(--ink-2)}
+.exp .fin,.exp .fta{margin-top:6px}
+.op-acts{padding-top:10px;white-space:nowrap}
+
+/* 提示条 */
+.notice{
+  border-left:2px solid var(--cinnabar);background:#faf6f4;
+  font-size:12.5px;color:var(--ink-2);padding:9px 12px;margin-top:14px;
+}
+.notice.plain{border-left-color:var(--rule-2);background:#f7f5ee}
+.notice b{color:var(--seal)}
+</style>
+<style>
+    @page{size:1440px 940px;margin:0}
+    *,*::before,*::after{transition:none !important;animation:none !important}
+    html,body{height:940px !important;overflow:hidden !important}
+    .snap-ctl{display:inline-block}
+    div.snap-ctl{display:block;white-space:pre-wrap}
+  </style></head>
+<body>
+<div class="sheet">
+
+  <div class="masthead">
+    <div class="l">
+      <div class="org">省民政厅 · 数据管理组</div>
+      <h1 id="page-title">申请流转台账</h1>
+    </div>
+    <div class="r">
+      <div class="meta">
+        第 <span id="issue">7</span> 期 · 截至 2026 年 10 月 6 日<br>编制单位：数据管理组
+      </div>
+    </div>
+  </div>
+  <div class="rule-2"></div>
+
+  <nav class="spine" id="spine" role="tablist">
+    <button data-screen="catalog" role="tab" aria-selected="false">目录总账</button>
+    <button data-screen="detail" role="tab" aria-selected="false">目录档案</button>
+    <button data-screen="apply" role="tab" aria-selected="false">共享申请</button>
+    <button data-screen="mine" role="tab" aria-selected="true">我的申请</button>
+    <button data-screen="review" role="tab" aria-selected="false">待办审批</button>
+  </nav>
+
+  <!-- ══════════ 一 · 目录总账 ══════════ -->
+  <section class="screen" data-screen="catalog" data-on="false">
+    <div class="synopsis">
+      <div class="cell"><em>在编目录</em> <b id="k-total">14<i>项</i></b></div>
+      <div class="cell"><em>已发布</em> <b>12<i>项</i></b></div>
+      <div class="cell"><em>待审</em> <b class="hot">1<i>项</i></b></div>
+      <div class="cell"><em>已下架</em> <b>1<i>项</i></b></div>
+      <div class="cell"><em>累计申请</em> <b id="k-apps">5<i>件</i></b></div>
+    </div>
+
+    <div class="toolbar">
+      <span class="q snap-ctl" style="color:#8c877e">按目录名称、编码或提供单位检索…</span>
+      <span class="filters" role="group" aria-label="共享类型">
+        <button data-v="全部" aria-pressed="true">全部</button>
+        <button data-v="无条件共享" aria-pressed="false">无条件共享</button>
+        <button data-v="有条件共享" aria-pressed="false">有条件共享</button>
+        <button data-v="不予共享" aria-pressed="false">不予共享</button>
+      </span>
+      <span class="count" id="count">共 14 项</span>
+    </div>
+
+    <table class="book">
+      <caption>表一 · 数据资源目录明细　（点任一行查看完整档案）</caption>
+      <thead>
+        <tr>
+          <th style="width:30%">目录名称 / 编码</th>
+          <th style="width:18%">提供单位</th>
+          <th style="width:11%">共享类型</th>
+          <th style="width:11%;text-align:right">数据量</th>
+          <th style="width:9%">更新周期</th>
+          <th style="width:11%">更新时间</th>
+          <th style="width:10%">状态</th>
+        </tr>
+      </thead>
+      <tbody id="tb">
+    <tr data-id="1">
+      <td class="nm"><span class="idx">01</span>低保对象基础信息
+        <span class="code">MZ-SH-0001</span></td>
+      <td class="dim">省民政厅社会救助处</td>
+      <td class="">无条件共享</td>
+      <td class="num">12.6 万</td>
+      <td class="dim">每月</td>
+      <td class="time">2026-10-06</td>
+      <td class="">已发布</td>
+    </tr>
+    <tr data-id="2">
+      <td class="nm"><span class="idx">02</span>特困人员供养信息
+        <span class="code">MZ-SH-0002</span></td>
+      <td class="dim">省民政厅社会救助处</td>
+      <td class="">无条件共享</td>
+      <td class="num">3.4 万</td>
+      <td class="dim">每月</td>
+      <td class="time">2026-10-06</td>
+      <td class="">已发布</td>
+    </tr>
+    <tr data-id="3">
+      <td class="nm"><span class="idx">03</span>养老服务设施台账
+        <span class="code">MZ-YL-0007</span></td>
+      <td class="dim">省民政厅养老服务处</td>
+      <td class="">有条件共享</td>
+      <td class="num">8,120</td>
+      <td class="dim">每季度</td>
+      <td class="time">2026-10-05</td>
+      <td class="">已发布</td>
+    </tr>
+    <tr data-id="4">
+      <td class="nm"><span class="idx">04</span>社会组织登记信息
+        <span class="code">MZ-ZZ-0021</span></td>
+      <td class="dim">省民政厅社会组织管理局</td>
+      <td class="">有条件共享</td>
+      <td class="num">5.7 万</td>
+      <td class="dim">每月</td>
+      <td class="time">2026-10-05</td>
+      <td class="ex">待审核</td>
+    </tr>
+    <tr data-id="5">
+      <td class="nm"><span class="idx">05</span>婚姻登记信息（脱敏）
+        <span class="code">MZ-SW-0003</span></td>
+      <td class="dim">省民政厅社会事务处</td>
+      <td class="">有条件共享</td>
+      <td class="num">286.0 万</td>
+      <td class="dim">每日</td>
+      <td class="time">2026-10-04</td>
+      <td class="">已发布</td>
+    </tr>
+    <tr data-id="6">
+      <td class="nm"><span class="idx">06</span>殡葬服务单位信息
+        <span class="code">MZ-SW-0011</span></td>
+      <td class="dim">省民政厅社会事务处</td>
+      <td class="">无条件共享</td>
+      <td class="num">1,036</td>
+      <td class="dim">每季度</td>
+      <td class="time">2026-10-03</td>
+      <td class="">已发布</td>
+    </tr>
+    <tr data-id="7">
+      <td class="nm"><span class="idx">07</span>残疾人两项补贴发放信息
+        <span class="code">MZ-CJ-0005</span></td>
+      <td class="dim">省民政厅残疾人福利处</td>
+      <td class="">无条件共享</td>
+      <td class="num">24.8 万</td>
+      <td class="dim">每月</td>
+      <td class="time">2026-10-03</td>
+      <td class="">已发布</td>
+    </tr>
+    <tr data-id="8">
+      <td class="nm"><span class="idx">08</span>行政区划与地名数据
+        <span class="code">MZ-QH-0001</span></td>
+      <td class="dim">省民政厅区划地名处</td>
+      <td class="">无条件共享</td>
+      <td class="num">4.2 万</td>
+      <td class="dim">每半年</td>
+      <td class="time">2026-10-02</td>
+      <td class="">已发布</td>
+    </tr>
+    <tr data-id="9">
+      <td class="nm"><span class="idx">09</span>儿童福利机构信息
+        <span class="code">MZ-ET-0002</span></td>
+      <td class="dim">省民政厅儿童福利处</td>
+      <td class="">有条件共享</td>
+      <td class="num">418</td>
+      <td class="dim">每季度</td>
+      <td class="time">2026-10-01</td>
+      <td class="">已发布</td>
+    </tr></tbody>
+      <tfoot>
+        <tr>
+          <td colspan="3">合计</td>
+          <td class="num" id="sum">390.9 万 条</td>
+          <td colspan="3" id="sum-note">共 14 项；其中需另行审批 3 项。</td>
+        </tr>
+      </tfoot>
+    </table>
+
+    <div class="colophon">
+      <span class="pager">
+        <button class="pg" id="prev" disabled="">‹ 上一页</button>
+        <button class="pg" data-p="1" aria-current="true">1</button>
+        <button class="pg" data-p="2" aria-current="false">2</button>
+        <button class="pg" id="next">下一页 ›</button>
+      </span>
+      <span class="note">说明：共享类型标注「不予共享」者仅供内部监管；标注朱色者为需另行审批项。</span>
+    </div>
+  </section>
+
+  <!-- ══════════ 二 · 目录档案（对开页）══════════ -->
+  <section class="screen" data-screen="detail" data-on="false">
+    <h2 class="sec">目录档案<span class="note" id="d-head">MZ-SW-0003 · 已发布</span></h2>
+    <div class="lede" id="d-lede">本页为该数据资源的完整档案。左页为登记信息，右页为字段清单与安全要求。</div>
+
+    <table class="spread"><tbody><tr>
+      <td>
+        <table class="rec"><tbody id="d-rec"><tr><th>目录名称</th><td>婚姻登记信息（脱敏）</td></tr><tr><th>目录编码</th><td><span class="mono">MZ-SW-0003</span></td></tr><tr><th>提供单位</th><td>省民政厅社会事务处</td></tr><tr><th>共享类型</th><td><span class="">有条件共享</span></td></tr><tr><th>数据量</th><td>286.0 万 条</td></tr><tr><th>更新周期</th><td>每日</td></tr><tr><th>更新时间</th><td>2026-10-04</td></tr><tr><th>敏感级别</th><td><span class="hot">高 级</span></td></tr><tr><th>脱敏情况</th><td>是（身份证号、住址等）</td></tr><tr><th>资源摘要</th><td><span class="desc">婚姻登记记录。身份证号、住址等敏感字段已按分类分级要求脱敏。</span></td></tr></tbody></table>
+      </td>
+      <td>
+        <table class="flds">
+          <thead><tr><th>字段名</th><th>类型</th><th>说明</th></tr></thead>
+          <tbody id="d-flds"><tr><td class="mono">jhdjsj</td><td>date</td><td>结婚登记时间</td></tr><tr><td class="mono">sfzh</td><td>string</td><td>身份证号（脱敏）</td></tr><tr><td class="mono">djjg</td><td>string</td><td>登记机关</td></tr></tbody>
+        </table>
+        <div class="notice plain" id="d-warn">使用方须落实分类分级保护，敏感字段不得还原，不得向第三方转供。</div>
+      </td>
+    </tr></tbody></table>
+
+    <table class="spread"><tbody><tr>
+      <td>
+        <h3 class="sub">共享属性</h3>
+        <table class="mini">
+          <thead><tr><th style="width:30%">开放属性</th><th style="width:34%">共享方式</th>
+            <th>最长共享期限</th></tr></thead>
+          <tbody id="d-share"><tr>
+      <td>依申请开放</td>
+      <td>接口 / 库表 / 文件</td>
+      <td>最长 12 个月</td></tr></tbody>
+        </table>
+        <table class="mini" style="margin-top:16px">
+          <thead><tr><th style="width:22%">收费情况</th><th>申请材料</th></tr></thead>
+          <tbody id="d-share2"><tr>
+      <td>不收费</td>
+      <td>数据资源共享申请单（系统内在线提交）</td></tr></tbody>
+        </table>
+        <h3 class="sub">变更沿革</h3>
+        <table class="mini">
+          <thead><tr><th style="width:20%">日期</th><th style="width:22%">变更类型</th>
+            <th>变更内容</th></tr></thead>
+          <tbody id="d-trail"><tr><td class="time">2026-10-04</td><td>数据更新</td><td>本期数据更新，累计 286.0 万 条</td></tr><tr><td class="time">2026-06-18</td><td>共享属性核定</td><td>共享类型核定为「有条件共享」，敏感级别 高 级</td></tr><tr><td class="time">2026-03-02</td><td>目录发布</td><td>首次发布并纳入在编目录</td></tr></tbody>
+        </table>
+      </td>
+      <td>
+        <h3 class="sub">本目录申请记录<span class="note" id="d-appnote" style="float:right;font-size:11.5px;font-weight:400;color:var(--ink-3);letter-spacing:1px">共 1 件</span></h3>
+        <table class="mini">
+          <thead><tr><th style="width:30%">申请编号</th><th style="width:26%">申请单位</th>
+            <th style="width:16%">期限</th><th>状态</th></tr></thead>
+          <tbody id="d-apps"><tr><td class="mono">SQ-2026-0402</td><td>省人力资源和社会保障厅</td>
+        <td>3 个月</td>
+        <td><span class="stamp deny">已驳回</span></td></tr></tbody>
+        </table>
+      </td>
+    </tr></tbody></table>
+
+    <div class="acts">
+      <button class="btn" data-go="catalog">‹ 返回总账</button>
+      <button class="btn btn-p" id="d-apply">申请共享</button>
+    </div>
+  </section>
+
+  <!-- ══════════ 三 · 共享申请 ══════════ -->
+  <section class="screen" data-screen="apply" data-on="false">
+    <h2 class="sec">数据资源共享申请单<span class="note" id="a-no">编号 SQ-2026-0418</span></h2>
+    <div class="lede">按《政务数据共享条例》及省级数据资源共享管理规定填写。带 <em style="font-style:normal;color:var(--cinnabar)">*</em> 项为必填。</div>
+
+    <table class="slip"><tbody>
+      <tr>
+        <td class="lb">申请目录<em>*</em></td>
+        <td class="fd">
+          <span class="full" id="a-cat-wrap">
+            <span class="fsel snap-ctl">婚姻登记信息（脱敏）　（MZ-SW-0003）</span>
+          </span>
+          <span class="hint-inline" id="a-cat-hint">提供单位 省民政厅社会事务处 · 共享类型 有条件共享 · 敏感级别 高 级 · 数据量 286.0 万 条</span>
+        </td>
+      </tr>
+      <tr>
+        <td class="lb">申请单位<em>*</em></td>
+        <td class="fd"><span class="fin snap-ctl" style="color:#8c877e">填写申请单位全称</span>
+          <span class="err" id="a-org-err"></span></td>
+      </tr>
+      <tr>
+        <td class="lb">申请人 / 联系电话<em>*</em></td>
+        <td class="fd"><span class="fin snap-ctl" style="color:#8c877e">姓名</span>
+          <span class="fin snap-ctl" style="color:#8c877e">手机号，11 位</span>
+          <span class="err" id="a-who-err"></span></td>
+      </tr>
+      <tr>
+        <td class="lb">使用期限<em>*</em></td>
+        <td class="fd">
+          <span class="full"><span class="fsel snap-ctl">3 个月</span></span>
+        </td>
+      </tr>
+      <tr>
+        <td class="lb">申请用途<em>*</em></td>
+        <td class="fd">
+          <div class="fta snap-ctl" style="color:#8c877e">说明具体业务场景、所需字段范围及其必要性（不少于 15 字）</div>
+          <span class="err" id="a-use-err"></span>
+          <span class="hint-inline" id="a-use-count">已输入 0 字</span>
+        </td>
+      </tr>
+      <tr>
+        <td class="lb">数据用途类别</td>
+        <td class="fd">
+          <span class="full"><span class="fsel snap-ctl">业务协同办理</span></span>
+        </td>
+      </tr>
+    </tbody></table>
+
+    <div class="cbrow">
+      <span class="lead">申请单位承诺<em style="font-style:normal;color:var(--cinnabar)">*</em></span>
+      <span class="cb" id="a-promise" role="checkbox" aria-checked="false" tabindex="0" aria-label="已阅知并承诺"></span>已阅知并承诺：仅在申请用途范围内使用数据，落实分类分级保护，
+      敏感字段不还原、不转供，接受共享全流程审计。
+      <div class="err" id="a-promise-err"></div>
+    </div>
+
+    <div class="acts">
+      <button class="btn btn-p" id="a-submit">提交申请</button>
+      <button class="btn" id="a-reset">重置</button>
+      <span class="hint-inline" id="a-msg"></span>
+    </div>
+  </section>
+
+  <!-- ══════════ 四 · 我的申请 ══════════ -->
+  <section class="screen" data-screen="mine" data-on="true">
+    <h2 class="sec">申请流转台账<span class="note" id="m-note">共 5 件</span></h2>
+    <div class="toolbar">
+      <span class="filters" role="group" aria-label="状态筛选" style="margin-left:0">
+        <button data-mv="全部" aria-pressed="true">全部</button>
+        <button data-mv="待审批" aria-pressed="false">待审批</button>
+        <button data-mv="已通过" aria-pressed="false">已通过</button>
+        <button data-mv="已驳回" aria-pressed="false">已驳回</button>
+      </span>
+      <span class="count" id="m-count">共 5 件</span>
+    </div>
+    <table class="book">
+      <caption>表二 · 我提交的共享申请　（点任一行查看审批意见）</caption>
+      <thead><tr>
+        <th style="width:15%">申请编号</th>
+        <th style="width:26%">申请目录</th>
+        <th style="width:14%">提交时间</th>
+        <th style="width:9%">期限</th>
+        <th style="width:11%">状态</th>
+        <th>审批意见</th>
+      </tr></thead>
+      <tbody id="mtb"><tr class="exp-row" data-no="SQ-2026-0417" data-on="false">
+        <td class="mono">SQ-2026-0417</td>
+        <td class="nm">养老服务设施台账<span class="code">MZ-YL-0007</span></td>
+        <td class="time">2026-10-05 14:22</td>
+        <td>6 个月</td>
+        <td><span class="stamp wait">待审批</span></td>
+        <td class="dim">审批中</td>
+      </tr>
+      <tr><td class="detail-cell" colspan="6"><div class="exp">
+        <dl>
+          <div class="r"><dt>申请单位</dt><dd>省卫生健康委</dd></div>
+          <div class="r"><dt>申请人</dt><dd>李维</dd></div>
+          <div class="r"><dt>使用期限</dt><dd>6 个月</dd></div>
+          <div class="r"><dt>申请用途</dt><dd>开展全省养老服务设施布点与医疗资源匹配分析，需机构名称、等级、床位数字段。</dd></div>
+        </dl>
+        <div class="quote neutral">审批中，尚无审批意见。</div>
+      </div></td></tr><tr class="exp-row" data-no="SQ-2026-0416" data-on="false">
+        <td class="mono">SQ-2026-0416</td>
+        <td class="nm">低保对象基础信息<span class="code">MZ-SH-0001</span></td>
+        <td class="time">2026-10-04 09:10</td>
+        <td>12 个月</td>
+        <td><span class="stamp pass">已通过</span></td>
+        <td class="dim">同意共享。使用时须保留数据来源标注，脱敏字段…</td>
+      </tr>
+      <tr><td class="detail-cell" colspan="6"><div class="exp">
+        <dl>
+          <div class="r"><dt>申请单位</dt><dd>省教育厅</dd></div>
+          <div class="r"><dt>申请人</dt><dd>张明</dd></div>
+          <div class="r"><dt>使用期限</dt><dd>12 个月</dd></div>
+          <div class="r"><dt>申请用途</dt><dd>核对困难学生家庭经济状况，用于助学资助精准认定，需家庭成员构成与救助金额字段。</dd></div>
+        </dl>
+        <div class="quote ">同意共享。使用时须保留数据来源标注，脱敏字段不得还原。</div>
+      </div></td></tr><tr class="exp-row" data-no="SQ-2026-0411" data-on="false">
+        <td class="mono">SQ-2026-0411</td>
+        <td class="nm">行政区划与地名数据<span class="code">MZ-QH-0001</span></td>
+        <td class="time">2026-09-28 16:40</td>
+        <td>长期</td>
+        <td><span class="stamp pass">已通过</span></td>
+        <td class="dim">同意共享。</td>
+      </tr>
+      <tr><td class="detail-cell" colspan="6"><div class="exp">
+        <dl>
+          <div class="r"><dt>申请单位</dt><dd>省自然资源厅</dd></div>
+          <div class="r"><dt>申请人</dt><dd>王成</dd></div>
+          <div class="r"><dt>使用期限</dt><dd>长期</dd></div>
+          <div class="r"><dt>申请用途</dt><dd>用于国土空间规划底图校核，需行政区划代码与层级字段。</dd></div>
+        </dl>
+        <div class="quote ">同意共享。</div>
+      </div></td></tr><tr class="exp-row" data-no="SQ-2026-0402" data-on="true" aria-selected="true">
+        <td class="mono">SQ-2026-0402</td>
+        <td class="nm">婚姻登记信息（脱敏）<span class="code">MZ-SW-0003</span></td>
+        <td class="time">2026-09-20 11:05</td>
+        <td>3 个月</td>
+        <td><span class="stamp deny">已驳回</span></td>
+        <td class="dim">申请用途未说明所需字段的具体范围，与「最小必…</td>
+      </tr>
+      <tr><td class="detail-cell" colspan="6"><div class="exp">
+        <dl>
+          <div class="r"><dt>申请单位</dt><dd>省人力资源和社会保障厅</dd></div>
+          <div class="r"><dt>申请人</dt><dd>刘岚</dd></div>
+          <div class="r"><dt>使用期限</dt><dd>3 个月</dd></div>
+          <div class="r"><dt>申请用途</dt><dd>社保待遇领取资格比对。</dd></div>
+        </dl>
+        <div class="quote ">申请用途未说明所需字段的具体范围，与「最小必要」原则不符。请细化到字段级并说明必要性后重新提交。</div>
+      </div></td></tr><tr class="exp-row" data-no="SQ-2026-0398" data-on="false">
+        <td class="mono">SQ-2026-0398</td>
+        <td class="nm">残疾人两项补贴发放信息<span class="code">MZ-CJ-0005</span></td>
+        <td class="time">2026-09-15 10:30</td>
+        <td>12 个月</td>
+        <td><span class="stamp pass">已通过</span></td>
+        <td class="dim">同意共享。</td>
+      </tr>
+      <tr><td class="detail-cell" colspan="6"><div class="exp">
+        <dl>
+          <div class="r"><dt>申请单位</dt><dd>省财政厅</dd></div>
+          <div class="r"><dt>申请人</dt><dd>陈曦</dd></div>
+          <div class="r"><dt>使用期限</dt><dd>12 个月</dd></div>
+          <div class="r"><dt>申请用途</dt><dd>残疾人两项补贴资金拨付审核，需发放对象与金额字段。</dd></div>
+        </dl>
+        <div class="quote ">同意共享。</div>
+      </div></td></tr></tbody>
+    </table>
+    <div class="colophon">
+      <span class="note">说明：「已驳回」的申请可按审批意见修改申请用途后重新提交，原编号保留。</span>
+    </div>
+  </section>
+
+  <!-- ══════════ 五 · 待办审批 ══════════ -->
+  <section class="screen" data-screen="review" data-on="false">
+    <h2 class="sec">共享申请审批台账<span class="note" id="r-note">待办 1 件</span></h2>
+    <div class="lede">按「最小必要」原则审核申请用途与所需字段范围。同意后系统按共享属性自动开通并计入审计日志。</div>
+    <table class="book">
+      <caption>表三 · 待办申请　（点任一行展开审批）</caption>
+      <thead><tr>
+        <th style="width:14%">申请编号</th>
+        <th style="width:15%">申请单位</th>
+        <th style="width:22%">申请目录</th>
+        <th style="width:22%">申请用途</th>
+        <th style="width:9%">期限</th>
+        <th style="width:11%">提交时间</th>
+      </tr></thead>
+      <tbody id="rtb"><tr class="exp-row" data-no="SQ-2026-0417" data-on="false">
+        <td class="mono">SQ-2026-0417</td>
+        <td>省卫生健康委</td>
+        <td class="nm">养老服务设施台账<span class="code">MZ-YL-0007</span></td>
+        <td class="dim">开展全省养老服务设施布点与医疗资源匹配分析，需机构名…</td>
+        <td>6 个月</td>
+        <td class="time">2026-10-05 14:22</td>
+      </tr>
+      <tr><td class="detail-cell" colspan="6"><div class="exp">
+        <dl>
+          <div class="r"><dt>申请人 / 单位</dt><dd>李维 · 省卫生健康委</dd></div>
+          <div class="r"><dt>申请目录</dt><dd>养老服务设施台账（MZ-YL-0007）· 共享类型 有条件共享</dd></div>
+          <div class="r"><dt>申请用途</dt><dd>开展全省养老服务设施布点与医疗资源匹配分析，需机构名称、等级、床位数字段。</dd></div>
+          <div class="r"><dt>使用期限</dt><dd>6 个月</dd></div>
+        </dl>
+        <div class="quote neutral">按「最小必要」审核：用途是否具体、所需字段是否在申请目录范围内、期限是否与业务周期匹配。</div>
+        <div class="op-acts">
+          <span class="fin snap-ctl" style="color:#8c877e">审批意见（驳回必填具体理由）</span>
+          <button class="btn btn-p" data-op="pass" data-no="SQ-2026-0417">同意共享</button>
+          <button class="btn" data-op="deny" data-no="SQ-2026-0417">驳回</button>
+        </div>
+      </div></td></tr></tbody>
+    </table>
+    <div class="colophon">
+      <span class="note">说明：审批意见将同步至申请人；驳回须写明具体理由，不得只填「不同意」。</span>
+    </div>
+  </section>
+
+</div>
+
+
+
+
+</body></html>

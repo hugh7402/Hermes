@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>方向乙 · 一网通办服务化 · 数据资源共享服务</title>
+<!--
+  方向 乙 · 一体化政务服务平台（一网通办服务化）
+  ------------------------------------------------------------------
+  场景定位：**对外服务与办事入口**。面向各省级部门的办事人员，任务是
+            "我要用某个数据" —— 先找服务、再申请。不是日常台账管理。
+  对标：各省"一网通办"/政务服务网门户的服务化形态。
+
+  与方向甲的差异（是场景差异，不是换色）：
+    甲 = 经办人天天用的管理后台，开门就是表格，信息密度优先
+    乙 = 办事人的服务入口，开门是"服务分类 + 搜索"，发现性优先
+
+  配色依据：陕西省政府门户实测主蓝 #11559b / 亮蓝 #4e8fde；
+            中国红 #c40311（国家政务服务平台实测）仅作"热门/收藏"点缀。
+
+  ⚠️ 关于 banner 渐变 —— huashu 反 slop 清单禁"所有背景都渐变"。这里是有意的
+     破例：政务服务平台 banner 渐变是既有行业规范（各省一网通办普遍如此），
+     属于"品牌本身用"这条合法破例理由。全页只有这一处渐变，它不是装饰，
+     是"服务入口"这一视觉层级的标记。
+-->
+<style>
+:root{
+  --p:#11559b;        /* 主蓝（陕西省政府门户实测） */
+  --p-d:#0d4479;
+  --p-l:#e8f0fa;
+  --p-l2:#f5f9fe;
+  --blue-l:#4e8fde;   /* 亮蓝（实测） */
+  --red:#c40311;      /* 中国红（国家政务服务平台实测） */
+  --ink:#333;
+  --ink-2:#666;
+  --ink-3:#999;
+  --line:#e4e9f0;
+  --line-2:#cfd9e6;
+  --bg:#f5f7fa;
+  --white:#fff;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:var(--bg);color:var(--ink);
+  font-family:"PingFang SC","Microsoft YaHei","Source Han Sans SC","Noto Sans SC",sans-serif;
+  font-size:13px;line-height:1.65;text-wrap:pretty;
+}
+.wrap{max-width:1420px;margin:0 auto;background:var(--white);min-height:940px}
+
+/* ══ 顶栏 ══ */
+.topbar{background:var(--p);color:#fff;height:54px;padding:0 22px;white-space:nowrap}
+.topbar .emblem{display:inline-block;width:32px;height:32px;border-radius:50%;
+  background:var(--red);text-align:center;line-height:32px;font-size:15px;font-weight:700;
+  vertical-align:middle;margin-right:10px}
+.topbar .sysname{display:inline-block;font-size:17.5px;font-weight:700;letter-spacing:1.5px;
+  vertical-align:middle}
+.topbar .org{display:inline-block;font-size:13px;vertical-align:middle;padding-left:12px;
+  margin-left:12px;border-left:1px solid rgba(255,255,255,.35);color:#cfe0f2}
+.topbar .tools{float:right;padding-top:16px;font-size:12px}
+.topbar .tools span{display:inline;margin-left:16px;color:#cfe0f2;cursor:pointer}
+.topbar .tools .u{color:#fff}
+
+/* ══ Banner（全页唯一一处渐变，服务入口的层级标记）══ */
+.banner{
+  background-image:linear-gradient(120deg,#0d4479 0%,#11559b 45%,#2b7cc9 100%);
+  color:#fff;padding:30px 34px 28px;
+}
+.banner h2{font-size:27px;font-weight:700;letter-spacing:3px;
+  font-family:"Source Han Serif SC","Songti SC",serif}
+.banner .sub{font-size:13.5px;color:#c9dcf0;letter-spacing:5px;padding:8px 0 20px}
+.banner .sbox{background:var(--white);border-radius:4px;padding:8px;white-space:nowrap;
+  max-width:760px}
+.banner .sbox .kw{display:inline-block;border:none;background:none;outline:none;
+  font-family:inherit;font-size:15px;color:var(--ink);width:540px;padding:0 10px;
+  line-height:34px;vertical-align:middle}
+.banner .sbox .sf{display:inline-block;font-size:13px;color:var(--ink-3);
+  border-left:1px solid var(--line);padding-left:14px;margin-right:12px;
+  vertical-align:middle;cursor:pointer}
+.banner .sbox .go{display:inline-block;background:var(--p);color:#fff;font-size:14.5px;
+  padding:9px 30px;border-radius:3px;cursor:pointer;vertical-align:middle;
+  letter-spacing:2px;font-weight:700}
+.banner .hotwords{font-size:12.5px;color:#c9dcf0;padding-top:12px}
+.banner .hotwords a{color:#e8f2ff;text-decoration:none;margin-right:16px;cursor:pointer;
+  border-bottom:1px solid rgba(255,255,255,.4)}
+
+/* ══ 区块标题 ══ */
+.sec{padding:22px 34px 0}
+.sec-hd{padding-bottom:11px;border-bottom:2px solid var(--p);white-space:nowrap}
+.sec-hd .t{display:inline-block;font-size:17px;font-weight:700;color:#1a1a1a;
+  letter-spacing:1px;vertical-align:middle}
+.sec-hd .t i{display:inline-block;width:4px;height:16px;background:var(--p);
+  margin-right:9px;vertical-align:-2px;border-radius:2px}
+.sec-hd .r{float:right;font-size:12.5px;color:var(--ink-3);padding-top:5px}
+
+/* ══ 服务分类卡片（4 列）══ */
+table.cards{width:100%;border-collapse:separate;border-spacing:12px 0;
+  margin:16px 0 0;table-layout:fixed}
+table.cards td{width:25%;vertical-align:top}
+.card{
+  background:var(--white);border:1px solid var(--line);border-radius:6px;
+  padding:15px 16px 14px;cursor:pointer;
+}
+.card:hover{border-color:var(--blue-l);background:var(--p-l2)}
+.card .row{white-space:nowrap}
+.card .ic{display:inline-block;width:34px;height:34px;border-radius:6px;
+  background:var(--p-l);color:var(--p);text-align:center;line-height:34px;
+  font-size:14px;font-weight:700;vertical-align:middle;margin-right:11px;
+  letter-spacing:0}
+.card .nm{display:inline-block;font-size:14.5px;font-weight:700;color:#1a1a1a;
+  vertical-align:middle;letter-spacing:.5px}
+.card .nm em{display:block;font-style:normal;font-size:11.5px;font-weight:400;
+  color:var(--ink-3);letter-spacing:0;padding-top:3px}
+.card .meta{font-size:12px;color:var(--ink-2);padding-top:10px;
+  border-top:1px dashed var(--line);margin-top:12px;white-space:nowrap}
+.card .meta b{color:var(--p);font-size:14px;font-feature-settings:"tnum"}
+
+/* ══ 热门资源表 ══ */
+.panel{background:var(--white);border:1px solid var(--line);border-radius:6px;
+  margin:16px 0 0;overflow:hidden}
+table.list{width:100%;border-collapse:collapse;font-size:13px}
+table.list thead th{background:var(--p-l);color:#0c4278;text-align:left;font-weight:700;
+  padding:12px 16px;font-size:12.5px;letter-spacing:.8px;white-space:nowrap;
+  border-bottom:1px solid var(--line-2)}
+table.list thead th:first-child{padding-left:20px}
+table.list tbody td{padding:13px 16px;border-bottom:1px solid var(--line);
+  vertical-align:middle}
+table.list tbody td:first-child{padding-left:20px}
+table.list tbody tr:hover td{background:var(--p-l2)}
+td.nm{font-weight:700;color:#1a1a1a;font-size:13.5px}
+td.nm .code{display:block;font-size:11.5px;color:var(--ink-3);font-weight:400;
+  font-family:ui-monospace,"SF Mono",Menlo,monospace;margin-top:2px}
+td.num{text-align:right;font-feature-settings:"tnum";font-weight:700;color:var(--p)}
+td.dim{color:var(--ink-2)}
+.hot{display:inline-block;font-size:11px;color:#fff;background:var(--red);
+  padding:0 6px;border-radius:3px;line-height:16px;margin-left:7px;
+  vertical-align:1px;font-weight:400}
+.tag{display:inline-block;font-size:11.5px;padding:1px 9px;border-radius:3px;
+  line-height:18px;border:1px solid var(--line-2);color:var(--ink-2);background:#fafbfc}
+.tag.free{border-color:#a9d5bb;color:#1f7a44;background:#f2fbf6}
+.tag.cond{border-color:#f2c9a8;color:#a5611a;background:#fef8f2}
+.tag.no{border-color:#eab6ba;color:var(--red);background:#fdf4f5}
+.btn{display:inline-block;height:30px;line-height:28px;padding:0 16px;font-size:13px;
+  border:1px solid var(--line-2);border-radius:3px;background:var(--white);
+  color:var(--ink);cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--p);color:var(--p)}
+.btn-p{background:var(--p);border-color:var(--p);color:#fff}
+.btn-p:hover{background:var(--p-d);border-color:var(--p-d);color:#fff}
+.btn-sm{height:26px;line-height:24px;padding:0 12px;font-size:12.5px}
+.empty{padding:40px;text-align:center;color:var(--ink-3);font-size:13.5px}
+
+/* ══ 底部功能区 ══ */
+.foot{background:#eef2f7;border-top:1px solid var(--line-2);
+  padding:16px 34px;font-size:12px;color:var(--ink-2);line-height:1.9;margin-top:22px}
+.foot .row1{white-space:nowrap;padding-bottom:8px;
+  border-bottom:1px solid #dde5ee;margin-bottom:8px}
+.foot .row1 span{display:inline-block;margin-right:22px}
+.foot .idcard{display:inline-block;border:1px solid var(--line-2);background:var(--white);
+  padding:1px 8px;font-size:11.5px;border-radius:2px}
+.foot .row2 span{display:inline-block;margin-right:20px}
+.foot .row2 .rt{float:right;margin-right:0}
+.foot a{color:var(--ink-2);text-decoration:none;cursor:pointer}
+.foot a:hover{color:var(--p)}
+.more{padding:12px 20px;border-top:1px solid var(--line);font-size:12.5px;
+  color:var(--ink-2);white-space:nowrap;background:#fbfcfe}
+.more[data-shown="false"]{display:none}
+.more b{color:var(--p);font-feature-settings:"tnum"}
+.more a{float:right;color:var(--p);text-decoration:none;cursor:pointer}
+
+/* ── 密度收口（政务形态纵向占用大，统一收紧以适配 1440×940）── */
+.banner{padding:22px 34px 20px}
+.banner h2{font-size:24px}
+.banner .sub{padding:7px 0 15px}
+.banner .hotwords{padding-top:9px}
+.sec{padding:17px 34px 0}
+.card{padding:12px 16px 11px}
+.card .meta{padding-top:8px;margin-top:9px}
+table.list tbody td{padding:10px 16px}
+table.list thead th{padding:10px 16px}
+.foot{padding:12px 34px;margin-top:16px}
+
+/* 第二轮收口：乙还差约 96px，从 banner / 卡片 / 列表行里省 */
+.banner{padding:16px 34px 14px}
+.banner h2{font-size:22px}
+.banner .sub{padding:5px 0 10px}
+.banner .hotwords{padding-top:7px}
+.banner .sbox{padding:6px}
+.sec{padding:13px 34px 0}
+.card{padding:10px 16px 9px}
+.card .meta{padding-top:6px;margin-top:7px}
+table.list tbody td{padding:6px 16px}
+table.list thead th{padding:8px 16px}
+.more{padding:10px 20px}
+.foot{padding:10px 34px;margin-top:12px}
+/* 页脚改为流转文本行：7 个 inline-block 会折成 3 行（199px 高），
+   而政府网站底部功能区通行的就是"一行密集排" */
+.foot .row1,.foot .row2{white-space:normal;line-height:2}
+.foot{font-size:11.5px}
+.foot .row1{padding-bottom:5px;margin-bottom:5px}
+
+/* 第三轮收口：乙还差约 63pt，从 banner / 卡片 / 区块间距里省 */
+.banner{padding:12px 34px 10px}
+.banner h2{font-size:20px}
+.banner .sub{padding:4px 0 8px}
+.banner .sbox{padding:4px}
+.banner .hotwords{padding-top:5px}
+.sec{padding:10px 34px 0}
+table.cards{border-spacing:8px 0}
+.card{padding:8px 16px 7px}
+.card .ic{width:26px;height:26px;line-height:26px;font-size:12.5px}
+.card .meta{padding-top:4px;margin-top:5px}
+.more{padding:8px 20px}
+
+/* 第四轮：隔离实验显示只差约 28px（去掉 banner 的"热门搜索"一行即可变 1 页），
+   所以不动内容，从这几处内边距里省 30px */
+table.list tbody td{padding:4px 16px}
+.foot{padding:7px 34px;margin-top:8px}
+.banner{padding:10px 34px 8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <span class="emblem">政</span>
+    <span class="sysname">数据资源共享服务</span>
+    <span class="org">省民政厅 · 数据管理组</span>
+    <span class="tools">
+      <span>无障碍浏览</span><span>长者版</span><span>繁體</span><span>使用帮助</span>
+      <span class="u">张明（省民政厅）</span><span>退出</span>
+    </span>
+  </div>
+
+  <div class="banner">
+    <h2>数据资源共享服务</h2>
+    <div class="sub">一次申请 · 全网共享 · 全程留痕</div>
+    <div class="sbox">
+      <input class="kw" id="kw" type="text" placeholder="请输入目录名称、编码或提供单位，如：养老服务" aria-label="检索数据资源">
+      <span class="sf" id="sf">全部类型</span>
+      <span class="go" id="go" role="button" tabindex="0">搜索</span>
+    </div>
+    <div class="hotwords">
+      热门搜索：<a data-hot="养老">养老服务</a><a data-hot="救助">社会救助</a>
+      <a data-hot="婚姻">婚姻登记</a><a data-hot="残疾人">残疾人补贴</a>
+      <a data-hot="MZ-QH">行政区划</a>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-hd">
+      <span class="t"><i></i>按提供单位选择数据资源</span>
+      <span class="r" id="cat-note">共 8 个处室 · 14 项目录</span>
+    </div>
+    <table class="cards" id="cards"><tbody></tbody></table>
+  </div>
+
+  <div class="sec">
+    <div class="sec-hd">
+      <span class="t"><i></i>数据资源目录</span>
+      <span class="r" id="list-note">共 14 项</span>
+    </div>
+    <div class="panel">
+      <table class="list">
+        <thead><tr>
+          <th style="width:30%">目录名称</th>
+          <th style="width:18%">提供单位</th>
+          <th style="width:15%">共享类型</th>
+          <th style="width:14%;text-align:right">数据量（条）</th>
+          <th style="width:11%">更新周期</th>
+          <th style="width:12%">操作</th>
+        </tr></thead>
+        <tbody id="tb"></tbody>
+      </table>
+      <div class="more" id="more">
+        共 <b id="more-n">14</b> 项，本页展示前 4 项　
+        <a>查看全部数据资源 ›</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div class="row1">
+      <span class="idcard">党政机关网站标识</span>
+      政府网站标识码：XXXXXXXXXX　|　备案号：X ICP 备 00000000 号　|　公安备案号：X 公网安备 00000000000000 号
+    </div>
+    <div class="row2">
+      主办单位：省民政厅　|　承办单位：省民政厅数据管理组　|　联系电话：0000-00000000　|　
+      <a>站点地图</a>　|　<a>无障碍浏览</a>　|　<a>长者版</a>　|　技术支持：省数据管理中心
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ⚠️ 以下 innerHTML 仅渲染本文件内硬编码的常量数据，无网络请求、无外部输入进入模板。 */
+const DATA = [
+  [1,'低保对象基础信息','MZ-SH-0001','社会救助处',126000,'无条件共享','每月','已发布',false],
+  [2,'特困人员供养信息','MZ-SH-0002','社会救助处',34000,'无条件共享','每月','已发布',false],
+  [3,'养老服务设施台账','MZ-YL-0007','养老服务处',8120,'有条件共享','每季度','已发布',false],
+  [4,'社会组织登记信息','MZ-ZZ-0021','社会组织管理局',57000,'有条件共享','每月','待审核',false],
+  [5,'婚姻登记信息（脱敏）','MZ-SW-0003','社会事务处',2860000,'有条件共享','每日','已发布',true],
+  [6,'殡葬服务单位信息','MZ-SW-0011','社会事务处',1036,'无条件共享','每季度','已发布',false],
+  [7,'残疾人两项补贴发放信息','MZ-CJ-0005','残疾人福利处',248000,'无条件共享','每月','已发布',true],
+  [8,'行政区划与地名数据','MZ-QH-0001','区划地名处',42000,'无条件共享','每半年','已发布',false],
+  [9,'儿童福利机构信息','MZ-ET-0002','儿童福利处',418,'有条件共享','每季度','已发布',false],
+  [10,'慈善组织公开募捐信息','MZ-CS-0003','慈善事业促进处',21000,'无条件共享','每月','已发布',false],
+  [11,'高龄津贴发放信息','MZ-YL-0019','养老服务处',382000,'无条件共享','每月','已发布',true],
+  [12,'社会组织年检结果','MZ-ZZ-0044','社会组织管理局',18000,'不予共享','每年','已下架',true],
+  [13,'社会救助家庭经济状况核对','MZ-SH-0009','社会救助处',96000,'有条件共享','每月','已发布',true],
+  [14,'志愿服务组织与项目','MZ-CS-0017','慈善事业促进处',15400,'无条件共享','每季度','已发布',false],
+];
+const TYPES = ['全部类型','无条件共享','有条件共享','不予共享'];
+const SHORT = { '社会救助处':'社会救助', '养老服务处':'养老服务', '社会组织管理局':'社会组织',
+  '社会事务处':'社会事务', '残疾人福利处':'残疾人福利', '区划地名处':'区划地名',
+  '儿童福利处':'儿童福利', '慈善事业促进处':'慈善事业' };
+const HOT = new Set([5, 11, 7, 1]);   // 演示"热门"标记
+const fmt = n => n.toLocaleString('zh-CN');
+
+let kw = '', type = '全部类型', unit = null;
+const CARDS = 4;
+
+function orgs(){
+  const m = new Map();
+  DATA.forEach(d => { m.set(d[3], (m.get(d[3]) || 0) + 1); });
+  return [...m.entries()];
+}
+/* 办事人的检索要比业务后台更宽容：名称 + 编码 + 提供单位 都查
+   （乙没有独立的「提供单位」下拉，只有一个关键词框，太苛刻会让办事人搜不到）*/
+function hit(d){
+  const q = kw.trim().toLowerCase();
+  return (!q || (d[1] + d[2] + d[3]).toLowerCase().includes(q))
+      && (type === '全部类型' || d[5] === type)
+      && (!unit || d[3] === unit);
+}
+function renderCards(){
+  const os = orgs();
+  document.getElementById('cat-note').textContent =
+    `共 ${os.length} 个处室 · ${DATA.length} 项目录`;
+  const cells = os.map(([name, n]) => {
+    const vol = DATA.filter(d => d[3] === name).reduce((a,b) => a + b[4], 0);
+    const on = unit === name;
+    return `<td>
+      <div class="card" data-unit="${name}"
+           style="${on ? 'border-color:var(--p);background:var(--p-l2)' : ''}">
+        <div class="row"><span class="ic">${SHORT[name] ? SHORT[name].slice(0,1) : name.slice(0,1)}</span>
+          <span class="nm">${SHORT[name] || name}<em>${name}</em></span></div>
+        <div class="meta">目录 <b>${n}</b> 项　累计 <b>${fmt(vol)}</b> 条</div>
+      </div></td>`;
+  });
+  // 补齐到 CARDS 的整数倍，保证表格每行 4 个
+  while (cells.length % CARDS) cells.push('<td></td>');
+  let html = '';
+  for (let i = 0; i < cells.length; i += CARDS)
+    html += '<tr>' + cells.slice(i, i + CARDS).join('') + '</tr>';
+  /* ⚠️ 必须写进稳定的 tbody 元素。早先写成 getElementById('card-row').parentNode.innerHTML，
+     把 #card-row 自身也替换掉了 —— 第二次调用时该 id 已不存在，直接抛 null 异常，
+     表现为"筛选后列表不更新"。 */
+  document.querySelector('#cards tbody').innerHTML = html;
+}
+function typeTag(t){
+  const cls = t === '无条件共享' ? 'free' : t === '有条件共享' ? 'cond' : 'no';
+  return `<span class="tag ${cls}">${t}</span>`;
+}
+/* 服务化页面不是台账：一屏只展示前 6 项，其余交给「查看全部」——
+   既符合"服务入口"的信息节奏，也让整页能落在 1440×940 视口内 */
+const SHOW = 4;
+function renderList(){
+  const all = DATA.filter(hit);
+  const rs = all.slice(0, SHOW);
+  document.getElementById('list-note').textContent =
+    `共 ${all.length} 项` + (unit ? `　已按「${SHORT[unit] || unit}」筛选` : '')
+    + (type !== '全部类型' ? `　类型：${type}` : '');
+  document.getElementById('more-n').textContent = all.length;
+  document.getElementById('more').setAttribute('data-shown',
+    String(all.length > SHOW));
+  document.getElementById('tb').innerHTML = all.length ? rs.map(d => `
+    <tr data-id="${d[0]}">
+      <td class="nm">${d[1]}${HOT.has(d[0]) ? '<span class="hot">热门</span>' : ''}
+        <span class="code">${d[2]}</span></td>
+      <td class="dim">${SHORT[d[3]] || d[3]}</td>
+      <td>${typeTag(d[5])}</td>
+      <td class="num">${fmt(d[4])}</td>
+      <td class="dim">${d[6]}</td>
+      <td><span class="btn btn-p btn-sm" data-act="apply" data-id="${d[0]}"
+        role="button" tabindex="0">申请共享</span></td>
+    </tr>`).join('')
+    : `<tr><td colspan="6" class="empty">没有找到匹配的数据资源，请更换关键词或清除筛选条件</td></tr>`;
+}
+function render(){ renderCards(); renderList(); }
+
+document.getElementById('kw').addEventListener('input', e => { kw = e.target.value; renderList(); });
+document.getElementById('sf').addEventListener('click', () => {
+  type = TYPES[(TYPES.indexOf(type) + 1) % TYPES.length];
+  document.getElementById('sf').textContent = type; renderList();
+});
+document.getElementById('go').addEventListener('click', renderList);
+document.querySelectorAll('[data-hot]').forEach(a => a.addEventListener('click', () => {
+  document.getElementById('kw').value = a.dataset.hot; kw = a.dataset.hot; renderList();
+}));
+/* ⚠️ 卡片点击必须挂在表格上，不能挂在 <tr id="card-row"> 上 ——
+   renderCards() 每次都用 parentNode.innerHTML 重建 tbody，原来的 tr 会被移除，
+   挂在它上面的监听器就落到脱离文档的节点上，事件永不触发。 */
+document.querySelector('table.cards').addEventListener('click', e => {
+  const c = e.target.closest('.card'); if (!c) return;
+  unit = (unit === c.dataset.unit) ? null : c.dataset.unit;
+  render();
+});
+document.getElementById('tb').addEventListener('click', e => {
+  if (e.target.closest('[data-act]')) return;   // 原型：申请入口不实现跳转
+});
+document.addEventListener('keydown', e => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.getAttribute
+      && e.target.getAttribute('role') === 'button'){ e.preventDefault(); e.target.click(); }
+});
+render();
+
+window.__yi = {
+  cardCount: () => orgs().length,
+  cards: () => document.querySelectorAll('.card').length,
+  rows: () => document.querySelectorAll('#tb tr[data-id]').length,
+  note: () => document.getElementById('list-note').textContent,
+  catNote: () => document.getElementById('cat-note').textContent,
+  type: () => type, unit: () => unit,
+  setKw: v => { const i = document.getElementById('kw'); i.value = v;
+    i.dispatchEvent(new Event('input', { bubbles: true })); },
+  clickCard: n => document.querySelector(`.card[data-unit="${n}"]`).click(),
+  clickType: () => document.getElementById('sf').click(),
+  clickHot: k => document.querySelector(`[data-hot="${k}"]`).click(),
+  footItems: () => [document.querySelector('.foot').textContent],
+};
+</script>
+</body>
+</html>

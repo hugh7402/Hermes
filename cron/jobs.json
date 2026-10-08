@@ -20,15 +20,15 @@
       "schedule_display": "0 8 * * *",
       "repeat": {
         "times": null,
-        "completed": 121
+        "completed": 124
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-16T21:38:59.096552+08:00",
-      "next_run_at": "2026-10-06T08:00:00+08:00",
-      "last_run_at": "2026-10-05T08:07:39.360745+08:00",
+      "next_run_at": "2026-10-09T08:00:00+08:00",
+      "last_run_at": "2026-10-08T08:02:50.947370+08:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -115,18 +115,18 @@
       "schedule_display": "5 12 * * *",
       "repeat": {
         "times": null,
-        "completed": 111
+        "completed": 114
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T22:31:48.412387+08:00",
-      "next_run_at": "2026-10-06T12:05:00+08:00",
-      "last_run_at": "2026-10-05T12:06:22.437842+08:00",
+      "next_run_at": "2026-10-09T12:05:00+08:00",
+      "last_run_at": "2026-10-08T12:05:40.647898+08:00",
       "last_status": "ok",
       "last_error": null,
-      "last_delivery_error": "live adapter send failed: iLink sendmessage rate limited; cooldown active for 15.0s; live adapter delivery to weixin:o9cq807-R1vQ2rE1tVqRjIack5QA@im.wechat failed: iLink sendmessage rate limited; cooldown active for 15.0s; delivery error: Weixin send failed: iLink sendmessage rate limited; cooldown active for 15.0s (target weixin:o9cq807-R1vQ2rE1tVqRjIack5QA@im.wechat)",
+      "last_delivery_error": null,
       "deliver": "origin",
       "origin": {
         "platform": "weixin",
@@ -165,18 +165,18 @@
       "schedule_display": "5 18 * * 1,4",
       "repeat": {
         "times": null,
-        "completed": 23
+        "completed": 24
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-07-29T11:24:16.842788+08:00",
-      "next_run_at": "2026-10-08T18:05:00+08:00",
-      "last_run_at": "2026-10-01T18:05:10.765941+08:00",
+      "next_run_at": "2026-10-12T18:05:00+08:00",
+      "last_run_at": "2026-10-05T18:06:15.250721+08:00",
       "last_status": "ok",
       "last_error": null,
-      "last_delivery_error": null,
+      "last_delivery_error": "live adapter send failed: iLink sendmessage rate limited; cooldown active for 15.0s; live adapter delivery to weixin:o9cq807-R1vQ2rE1tVqRjIack5QA@im.wechat failed: iLink sendmessage rate limited; cooldown active for 15.0s; delivery error: Weixin send failed: iLink sendmessage rate limited; cooldown active for 15.0s (target weixin:o9cq807-R1vQ2rE1tVqRjIack5QA@im.wechat)",
       "deliver": "origin",
       "origin": {
         "platform": "weixin",
@@ -190,8 +190,8 @@
       ],
       "workdir": "/opt/data",
       "fire_claim": {
-        "at": "2026-10-05T18:05:32.217674+08:00",
-        "by": "hermes:94711:f9e382abc2504d988380b707c479e0ab"
+        "at": "2026-10-08T18:05:38.786558+08:00",
+        "by": "hermes:174798:0b15ccae31f14679838da680e7659cd4"
       },
       "failure_streak": 0
     },
@@ -220,15 +220,15 @@
       "schedule_display": "*/30 * * * *",
       "repeat": {
         "times": null,
-        "completed": 598
+        "completed": 742
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-09-23T08:19:40.068078+08:00",
-      "next_run_at": "2026-10-05T18:30:00+08:00",
-      "last_run_at": "2026-10-05T18:00:33.439828+08:00",
+      "next_run_at": "2026-10-08T18:30:00+08:00",
+      "last_run_at": "2026-10-08T18:00:39.948851+08:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -238,7 +238,62 @@
       "enabled_toolsets": null,
       "workdir": null,
       "fire_claim": null
+    },
+    {
+      "id": "055609583e65",
+      "name": "Hindsight重启后验证（一次性）",
+      "prompt": "这是一次性验证任务：Hermes gateway 刚重启过，目的是让 Hindsight 记忆插件的 LLM 配置从硅基流动（欠费 402）切到 DeepSeek 官方。请验证并报告。\n\n步骤：\n1. 用 terminal 执行：grep -aE \"HINDSIGHT_API_LLM\" /opt/data/.hindsight/profiles/hermes.env\n   期望看到 HINDSIGHT_API_LLM_MODEL=deepseek-chat 且 HINDSIGHT_API_LLM_BASE_URL=https://api.deepseek.com/v1。\n   如果还是 deepseek-ai/DeepSeek-V4-Flash + api.siliconflow.cn，说明插件没重读配置，如实报告失败。\n2. 用 terminal 执行：tail -20 /opt/data/.hindsight/profiles/hermes.log\n   找是否出现 \"Verifying connection: openai/deepseek-chat\" 和 \"Connection verified\"。有 HTTP 402 就是失败。\n3. 调用 hindsight_retain 存一条测试记忆，内容：「Hindsight LLM 已于 2026-10-07 从硅基流动切换到 DeepSeek 官方（deepseek-chat），验证通过」，context 写 \"系统验证\"。\n   注意：如果这一步超时（超过 300 秒），就是链路仍不通，停止后续步骤并报告失败。\n4. 调用 hindsight_recall，query 用 \"Hindsight LLM 切换 DeepSeek\"，确认能检索到刚存的记忆。\n5. 用中文输出简短报告（不超过 300 字）：格式为「✅ Hindsight 已修复」或「❌ Hindsight 仍未修复」，后面列出：env 配置、日志验证结果、retain 结果、recall 结果。不要展开成长篇。",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "provider_snapshot": "deepseek",
+      "model_snapshot": "deepseek-v4-flash",
+      "base_url": null,
+      "script": null,
+      "no_agent": false,
+      "monitor_script": null,
+      "monitor_url": null,
+      "monitor_state": null,
+      "context_from": null,
+      "schedule": {
+        "kind": "once",
+        "run_at": "2026-10-07T17:40:52.040516+08:00",
+        "display": "once in 5m"
+      },
+      "schedule_display": "once in 5m",
+      "repeat": {
+        "times": 1,
+        "completed": 1
+      },
+      "enabled": false,
+      "state": "completed",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-10-07T17:35:52.040679+08:00",
+      "next_run_at": null,
+      "last_run_at": "2026-10-07T17:49:50.092410+08:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "failure_streak": 0,
+      "deliver": "origin",
+      "origin": {
+        "platform": "weixin",
+        "chat_id": "o9cq807-R1vQ2rE1tVqRjIack5QA@im.wechat",
+        "chat_name": null,
+        "thread_id": null,
+        "user_id": "o9cq807-R1vQ2rE1tVqRjIack5QA@im.wechat",
+        "scope_id": null
+      },
+      "enabled_toolsets": [
+        "terminal",
+        "memory"
+      ],
+      "workdir": null,
+      "run_claim": null,
+      "fire_claim": null
     }
   ],
-  "updated_at": "2026-10-05T18:05:32.218282+08:00"
+  "updated_at": "2026-10-08T18:05:38.787095+08:00"
 }

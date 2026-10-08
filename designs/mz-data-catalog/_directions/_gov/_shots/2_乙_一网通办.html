@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="zh"><head>
+<meta charset="utf-8">
+<title>方向乙 · 一网通办服务化 · 数据资源共享服务</title>
+<!--
+  方向 乙 · 一体化政务服务平台（一网通办服务化）
+  ------------------------------------------------------------------
+  场景定位：**对外服务与办事入口**。面向各省级部门的办事人员，任务是
+            "我要用某个数据" —— 先找服务、再申请。不是日常台账管理。
+  对标：各省"一网通办"/政务服务网门户的服务化形态。
+
+  与方向甲的差异（是场景差异，不是换色）：
+    甲 = 经办人天天用的管理后台，开门就是表格，信息密度优先
+    乙 = 办事人的服务入口，开门是"服务分类 + 搜索"，发现性优先
+
+  配色依据：陕西省政府门户实测主蓝 #11559b / 亮蓝 #4e8fde；
+            中国红 #c40311（国家政务服务平台实测）仅作"热门/收藏"点缀。
+
+  ⚠️ 关于 banner 渐变 —— huashu 反 slop 清单禁"所有背景都渐变"。这里是有意的
+     破例：政务服务平台 banner 渐变是既有行业规范（各省一网通办普遍如此），
+     属于"品牌本身用"这条合法破例理由。全页只有这一处渐变，它不是装饰，
+     是"服务入口"这一视觉层级的标记。
+-->
+<style>
+:root{
+  --p:#11559b;        /* 主蓝（陕西省政府门户实测） */
+  --p-d:#0d4479;
+  --p-l:#e8f0fa;
+  --p-l2:#f5f9fe;
+  --blue-l:#4e8fde;   /* 亮蓝（实测） */
+  --red:#c40311;      /* 中国红（国家政务服务平台实测） */
+  --ink:#333;
+  --ink-2:#666;
+  --ink-3:#999;
+  --line:#e4e9f0;
+  --line-2:#cfd9e6;
+  --bg:#f5f7fa;
+  --white:#fff;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:var(--bg);color:var(--ink);
+  font-family:"PingFang SC","Microsoft YaHei","Source Han Sans SC","Noto Sans SC",sans-serif;
+  font-size:13px;line-height:1.65;text-wrap:pretty;
+}
+.wrap{max-width:1420px;margin:0 auto;background:var(--white);min-height:940px}
+
+/* ══ 顶栏 ══ */
+.topbar{background:var(--p);color:#fff;height:54px;padding:0 22px;white-space:nowrap}
+.topbar .emblem{display:inline-block;width:32px;height:32px;border-radius:50%;
+  background:var(--red);text-align:center;line-height:32px;font-size:15px;font-weight:700;
+  vertical-align:middle;margin-right:10px}
+.topbar .sysname{display:inline-block;font-size:17.5px;font-weight:700;letter-spacing:1.5px;
+  vertical-align:middle}
+.topbar .org{display:inline-block;font-size:13px;vertical-align:middle;padding-left:12px;
+  margin-left:12px;border-left:1px solid rgba(255,255,255,.35);color:#cfe0f2}
+.topbar .tools{float:right;padding-top:16px;font-size:12px}
+.topbar .tools span{display:inline;margin-left:16px;color:#cfe0f2;cursor:pointer}
+.topbar .tools .u{color:#fff}
+
+/* ══ Banner（全页唯一一处渐变，服务入口的层级标记）══ */
+.banner{
+  background-image:linear-gradient(120deg,#0d4479 0%,#11559b 45%,#2b7cc9 100%);
+  color:#fff;padding:30px 34px 28px;
+}
+.banner h2{font-size:27px;font-weight:700;letter-spacing:3px;
+  font-family:"Source Han Serif SC","Songti SC",serif}
+.banner .sub{font-size:13.5px;color:#c9dcf0;letter-spacing:5px;padding:8px 0 20px}
+.banner .sbox{background:var(--white);border-radius:4px;padding:8px;white-space:nowrap;
+  max-width:760px}
+.banner .sbox .kw{display:inline-block;border:none;background:none;outline:none;
+  font-family:inherit;font-size:15px;color:var(--ink);width:540px;padding:0 10px;
+  line-height:34px;vertical-align:middle}
+.banner .sbox .sf{display:inline-block;font-size:13px;color:var(--ink-3);
+  border-left:1px solid var(--line);padding-left:14px;margin-right:12px;
+  vertical-align:middle;cursor:pointer}
+.banner .sbox .go{display:inline-block;background:var(--p);color:#fff;font-size:14.5px;
+  padding:9px 30px;border-radius:3px;cursor:pointer;vertical-align:middle;
+  letter-spacing:2px;font-weight:700}
+.banner .hotwords{font-size:12.5px;color:#c9dcf0;padding-top:12px}
+.banner .hotwords a{color:#e8f2ff;text-decoration:none;margin-right:16px;cursor:pointer;
+  border-bottom:1px solid rgba(255,255,255,.4)}
+
+/* ══ 区块标题 ══ */
+.sec{padding:22px 34px 0}
+.sec-hd{padding-bottom:11px;border-bottom:2px solid var(--p);white-space:nowrap}
+.sec-hd .t{display:inline-block;font-size:17px;font-weight:700;color:#1a1a1a;
+  letter-spacing:1px;vertical-align:middle}
+.sec-hd .t i{display:inline-block;width:4px;height:16px;background:var(--p);
+  margin-right:9px;vertical-align:-2px;border-radius:2px}
+.sec-hd .r{float:right;font-size:12.5px;color:var(--ink-3);padding-top:5px}
+
+/* ══ 服务分类卡片（4 列）══ */
+table.cards{width:100%;border-collapse:separate;border-spacing:12px 0;
+  margin:16px 0 0;table-layout:fixed}
+table.cards td{width:25%;vertical-align:top}
+.card{
+  background:var(--white);border:1px solid var(--line);border-radius:6px;
+  padding:15px 16px 14px;cursor:pointer;
+}
+.card:hover{border-color:var(--blue-l);background:var(--p-l2)}
+.card .row{white-space:nowrap}
+.card .ic{display:inline-block;width:34px;height:34px;border-radius:6px;
+  background:var(--p-l);color:var(--p);text-align:center;line-height:34px;
+  font-size:14px;font-weight:700;vertical-align:middle;margin-right:11px;
+  letter-spacing:0}
+.card .nm{display:inline-block;font-size:14.5px;font-weight:700;color:#1a1a1a;
+  vertical-align:middle;letter-spacing:.5px}
+.card .nm em{display:block;font-style:normal;font-size:11.5px;font-weight:400;
+  color:var(--ink-3);letter-spacing:0;padding-top:3px}
+.card .meta{font-size:12px;color:var(--ink-2);padding-top:10px;
+  border-top:1px dashed var(--line);margin-top:12px;white-space:nowrap}
+.card .meta b{color:var(--p);font-size:14px;font-feature-settings:"tnum"}
+
+/* ══ 热门资源表 ══ */
+.panel{background:var(--white);border:1px solid var(--line);border-radius:6px;
+  margin:16px 0 0;overflow:hidden}
+table.list{width:100%;border-collapse:collapse;font-size:13px}
+table.list thead th{background:var(--p-l);color:#0c4278;text-align:left;font-weight:700;
+  padding:12px 16px;font-size:12.5px;letter-spacing:.8px;white-space:nowrap;
+  border-bottom:1px solid var(--line-2)}
+table.list thead th:first-child{padding-left:20px}
+table.list tbody td{padding:13px 16px;border-bottom:1px solid var(--line);
+  vertical-align:middle}
+table.list tbody td:first-child{padding-left:20px}
+table.list tbody tr:hover td{background:var(--p-l2)}
+td.nm{font-weight:700;color:#1a1a1a;font-size:13.5px}
+td.nm .code{display:block;font-size:11.5px;color:var(--ink-3);font-weight:400;
+  font-family:ui-monospace,"SF Mono",Menlo,monospace;margin-top:2px}
+td.num{text-align:right;font-feature-settings:"tnum";font-weight:700;color:var(--p)}
+td.dim{color:var(--ink-2)}
+.hot{display:inline-block;font-size:11px;color:#fff;background:var(--red);
+  padding:0 6px;border-radius:3px;line-height:16px;margin-left:7px;
+  vertical-align:1px;font-weight:400}
+.tag{display:inline-block;font-size:11.5px;padding:1px 9px;border-radius:3px;
+  line-height:18px;border:1px solid var(--line-2);color:var(--ink-2);background:#fafbfc}
+.tag.free{border-color:#a9d5bb;color:#1f7a44;background:#f2fbf6}
+.tag.cond{border-color:#f2c9a8;color:#a5611a;background:#fef8f2}
+.tag.no{border-color:#eab6ba;color:var(--red);background:#fdf4f5}
+.btn{display:inline-block;height:30px;line-height:28px;padding:0 16px;font-size:13px;
+  border:1px solid var(--line-2);border-radius:3px;background:var(--white);
+  color:var(--ink);cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--p);color:var(--p)}
+.btn-p{background:var(--p);border-color:var(--p);color:#fff}
+.btn-p:hover{background:var(--p-d);border-color:var(--p-d);color:#fff}
+.btn-sm{height:26px;line-height:24px;padding:0 12px;font-size:12.5px}
+.empty{padding:40px;text-align:center;color:var(--ink-3);font-size:13.5px}
+
+/* ══ 底部功能区 ══ */
+.foot{background:#eef2f7;border-top:1px solid var(--line-2);
+  padding:16px 34px;font-size:12px;color:var(--ink-2);line-height:1.9;margin-top:22px}
+.foot .row1{white-space:nowrap;padding-bottom:8px;
+  border-bottom:1px solid #dde5ee;margin-bottom:8px}
+.foot .row1 span{display:inline-block;margin-right:22px}
+.foot .idcard{display:inline-block;border:1px solid var(--line-2);background:var(--white);
+  padding:1px 8px;font-size:11.5px;border-radius:2px}
+.foot .row2 span{display:inline-block;margin-right:20px}
+.foot .row2 .rt{float:right;margin-right:0}
+.foot a{color:var(--ink-2);text-decoration:none;cursor:pointer}
+.foot a:hover{color:var(--p)}
+.more{padding:12px 20px;border-top:1px solid var(--line);font-size:12.5px;
+  color:var(--ink-2);white-space:nowrap;background:#fbfcfe}
+.more[data-shown="false"]{display:none}
+.more b{color:var(--p);font-feature-settings:"tnum"}
+.more a{float:right;color:var(--p);text-decoration:none;cursor:pointer}
+
+/* ── 密度收口（政务形态纵向占用大，统一收紧以适配 1440×940）── */
+.banner{padding:22px 34px 20px}
+.banner h2{font-size:24px}
+.banner .sub{padding:7px 0 15px}
+.banner .hotwords{padding-top:9px}
+.sec{padding:17px 34px 0}
+.card{padding:12px 16px 11px}
+.card .meta{padding-top:8px;margin-top:9px}
+table.list tbody td{padding:10px 16px}
+table.list thead th{padding:10px 16px}
+.foot{padding:12px 34px;margin-top:16px}
+
+/* 第二轮收口：乙还差约 96px，从 banner / 卡片 / 列表行里省 */
+.banner{padding:16px 34px 14px}
+.banner h2{font-size:22px}
+.banner .sub{padding:5px 0 10px}
+.banner .hotwords{padding-top:7px}
+.banner .sbox{padding:6px}
+.sec{padding:13px 34px 0}
+.card{padding:10px 16px 9px}
+.card .meta{padding-top:6px;margin-top:7px}
+table.list tbody td{padding:6px 16px}
+table.list thead th{padding:8px 16px}
+.more{padding:10px 20px}
+.foot{padding:10px 34px;margin-top:12px}
+/* 页脚改为流转文本行：7 个 inline-block 会折成 3 行（199px 高），
+   而政府网站底部功能区通行的就是"一行密集排" */
+.foot .row1,.foot .row2{white-space:normal;line-height:2}
+.foot{font-size:11.5px}
+.foot .row1{padding-bottom:5px;margin-bottom:5px}
+
+/* 第三轮收口：乙还差约 63pt，从 banner / 卡片 / 区块间距里省 */
+.banner{padding:12px 34px 10px}
+.banner h2{font-size:20px}
+.banner .sub{padding:4px 0 8px}
+.banner .sbox{padding:4px}
+.banner .hotwords{padding-top:5px}
+.sec{padding:10px 34px 0}
+table.cards{border-spacing:8px 0}
+.card{padding:8px 16px 7px}
+.card .ic{width:26px;height:26px;line-height:26px;font-size:12.5px}
+.card .meta{padding-top:4px;margin-top:5px}
+.more{padding:8px 20px}
+
+/* 第四轮：隔离实验显示只差约 28px（去掉 banner 的"热门搜索"一行即可变 1 页），
+   所以不动内容，从这几处内边距里省 30px */
+table.list tbody td{padding:4px 16px}
+.foot{padding:7px 34px;margin-top:8px}
+.banner{padding:10px 34px 8px}
+</style>
+<style>
+    @page{size:1440px 940px;margin:0}
+    *,*::before,*::after{transition:none !important;animation:none !important}
+    html,body{height:940px !important;overflow:hidden !important}
+    .snap-ctl{display:inline-block}
+  </style></head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <span class="emblem">政</span>
+    <span class="sysname">数据资源共享服务</span>
+    <span class="org">省民政厅 · 数据管理组</span>
+    <span class="tools">
+      <span>无障碍浏览</span><span>长者版</span><span>繁體</span><span>使用帮助</span>
+      <span class="u">张明（省民政厅）</span><span>退出</span>
+    </span>
+  </div>
+
+  <div class="banner">
+    <h2>数据资源共享服务</h2>
+    <div class="sub">一次申请 · 全网共享 · 全程留痕</div>
+    <div class="sbox">
+      <span class="kw snap-ctl" style="color:#9aa6b2">请输入目录名称、编码或提供单位，如：养老服务</span>
+      <span class="sf" id="sf">全部类型</span>
+      <span class="go" id="go" role="button" tabindex="0">搜索</span>
+    </div>
+    <div class="hotwords">
+      热门搜索：<a data-hot="养老">养老服务</a><a data-hot="救助">社会救助</a>
+      <a data-hot="婚姻">婚姻登记</a><a data-hot="残疾人">残疾人补贴</a>
+      <a data-hot="MZ-QH">行政区划</a>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-hd">
+      <span class="t"><i></i>按提供单位选择数据资源</span>
+      <span class="r" id="cat-note">共 8 个处室 · 14 项目录</span>
+    </div>
+    <table class="cards" id="cards"><tbody><tr><td>
+      <div class="card" data-unit="社会救助处" style="">
+        <div class="row"><span class="ic">社</span>
+          <span class="nm">社会救助<em>社会救助处</em></span></div>
+        <div class="meta">目录 <b>3</b> 项　累计 <b>256,000</b> 条</div>
+      </div></td><td>
+      <div class="card" data-unit="养老服务处" style="">
+        <div class="row"><span class="ic">养</span>
+          <span class="nm">养老服务<em>养老服务处</em></span></div>
+        <div class="meta">目录 <b>2</b> 项　累计 <b>390,120</b> 条</div>
+      </div></td><td>
+      <div class="card" data-unit="社会组织管理局" style="">
+        <div class="row"><span class="ic">社</span>
+          <span class="nm">社会组织<em>社会组织管理局</em></span></div>
+        <div class="meta">目录 <b>2</b> 项　累计 <b>75,000</b> 条</div>
+      </div></td><td>
+      <div class="card" data-unit="社会事务处" style="">
+        <div class="row"><span class="ic">社</span>
+          <span class="nm">社会事务<em>社会事务处</em></span></div>
+        <div class="meta">目录 <b>2</b> 项　累计 <b>2,861,036</b> 条</div>
+      </div></td></tr><tr><td>
+      <div class="card" data-unit="残疾人福利处" style="">
+        <div class="row"><span class="ic">残</span>
+          <span class="nm">残疾人福利<em>残疾人福利处</em></span></div>
+        <div class="meta">目录 <b>1</b> 项　累计 <b>248,000</b> 条</div>
+      </div></td><td>
+      <div class="card" data-unit="区划地名处" style="">
+        <div class="row"><span class="ic">区</span>
+          <span class="nm">区划地名<em>区划地名处</em></span></div>
+        <div class="meta">目录 <b>1</b> 项　累计 <b>42,000</b> 条</div>
+      </div></td><td>
+      <div class="card" data-unit="儿童福利处" style="">
+        <div class="row"><span class="ic">儿</span>
+          <span class="nm">儿童福利<em>儿童福利处</em></span></div>
+        <div class="meta">目录 <b>1</b> 项　累计 <b>418</b> 条</div>
+      </div></td><td>
+      <div class="card" data-unit="慈善事业促进处" style="">
+        <div class="row"><span class="ic">慈</span>
+          <span class="nm">慈善事业<em>慈善事业促进处</em></span></div>
+        <div class="meta">目录 <b>2</b> 项　累计 <b>36,400</b> 条</div>
+      </div></td></tr></tbody></table>
+  </div>
+
+  <div class="sec">
+    <div class="sec-hd">
+      <span class="t"><i></i>数据资源目录</span>
+      <span class="r" id="list-note">共 14 项</span>
+    </div>
+    <div class="panel">
+      <table class="list">
+        <thead><tr>
+          <th style="width:30%">目录名称</th>
+          <th style="width:18%">提供单位</th>
+          <th style="width:15%">共享类型</th>
+          <th style="width:14%;text-align:right">数据量（条）</th>
+          <th style="width:11%">更新周期</th>
+          <th style="width:12%">操作</th>
+        </tr></thead>
+        <tbody id="tb">
+    <tr data-id="1">
+      <td class="nm">低保对象基础信息<span class="hot">热门</span>
+        <span class="code">MZ-SH-0001</span></td>
+      <td class="dim">社会救助</td>
+      <td><span class="tag free">无条件共享</span></td>
+      <td class="num">126,000</td>
+      <td class="dim">每月</td>
+      <td><span class="btn btn-p btn-sm" data-act="apply" data-id="1" role="button" tabindex="0">申请共享</span></td>
+    </tr>
+    <tr data-id="2">
+      <td class="nm">特困人员供养信息
+        <span class="code">MZ-SH-0002</span></td>
+      <td class="dim">社会救助</td>
+      <td><span class="tag free">无条件共享</span></td>
+      <td class="num">34,000</td>
+      <td class="dim">每月</td>
+      <td><span class="btn btn-p btn-sm" data-act="apply" data-id="2" role="button" tabindex="0">申请共享</span></td>
+    </tr>
+    <tr data-id="3">
+      <td class="nm">养老服务设施台账
+        <span class="code">MZ-YL-0007</span></td>
+      <td class="dim">养老服务</td>
+      <td><span class="tag cond">有条件共享</span></td>
+      <td class="num">8,120</td>
+      <td class="dim">每季度</td>
+      <td><span class="btn btn-p btn-sm" data-act="apply" data-id="3" role="button" tabindex="0">申请共享</span></td>
+    </tr>
+    <tr data-id="4">
+      <td class="nm">社会组织登记信息
+        <span class="code">MZ-ZZ-0021</span></td>
+      <td class="dim">社会组织</td>
+      <td><span class="tag cond">有条件共享</span></td>
+      <td class="num">57,000</td>
+      <td class="dim">每月</td>
+      <td><span class="btn btn-p btn-sm" data-act="apply" data-id="4" role="button" tabindex="0">申请共享</span></td>
+    </tr></tbody>
+      </table>
+      <div class="more" id="more" data-shown="true">
+        共 <b id="more-n">14</b> 项，本页展示前 4 项　
+        <a>查看全部数据资源 ›</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div class="row1">
+      <span class="idcard">党政机关网站标识</span>
+      政府网站标识码：XXXXXXXXXX　|　备案号：X ICP 备 00000000 号　|　公安备案号：X 公网安备 00000000000000 号
+    </div>
+    <div class="row2">
+      主办单位：省民政厅　|　承办单位：省民政厅数据管理组　|　联系电话：0000-00000000　|　
+      <a>站点地图</a>　|　<a>无障碍浏览</a>　|　<a>长者版</a>　|　技术支持：省数据管理中心
+    </div>
+  </div>
+
+</div>
+
+
+
+
+</body></html>

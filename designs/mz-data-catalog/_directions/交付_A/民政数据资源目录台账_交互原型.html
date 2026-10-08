@@ -1,0 +1,900 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>数据资源目录台账 · 共享管理</title>
+<!--
+  省级数据资源目录 · 共享管理台账
+  方向 A · 台账（Ledger）—— 见 direction-approved.md
+
+  设计主张（后续所有屏都必须守住）：
+    1. 把数据资源当"档案台账"编，读起来像省级年鉴/统计公报内页，不是 SaaS 后台
+    2. 秩序由 1px 细线与字重承担 —— 零圆角、零阴影、零渐变、零图标、零 emoji
+    3. 全册只有一种彩色：朱红，且只用于需要被看见的例外
+    4. 逐行读的信息节奏 —— 一屏一表，信息密度高，不靠卡片堆叠
+    5. display 用宋体系；禁用 Inter/Roboto/Arial
+
+  五册结构：目录总账 / 目录详情 / 共享申请 / 我的申请 / 待办审批
+
+  ⚠️ 渲染兼容约束（静态渲染器 10 类静默陷阱，详见 ui-prototype skill）：
+    · 所有 <button> 一律 display:inline（width:auto 会被解析成"占满可用宽度"）
+    · 不用 flex + margin-left:auto 做左右分栏，用 float:right
+    · 表单控件样式必须用 class 选择器（出图时 input/select/textarea 会被换成 span/div）
+    · 不用 grid 的显式列放置 / grid-auto-flow
+    · 不用 inset / min() / display:contents；阴影不用带 alpha 的 oklch
+    · 不用原生 checkbox（会被渲染成黑实心块），改用自绘 role=checkbox
+-->
+<style>
+:root{
+  --ink:#1c1b19; --ink-2:#4a4742; --ink-3:#8c877e;
+  --rule:#d8d3c8; --rule-2:#b9b2a4;
+  --paper:#fbfaf6; --band:#f2efe6; --band-2:#e9e5d8;
+  --cinnabar:#a8342a; --seal:#7a2b22;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:var(--paper); color:var(--ink);
+  font-family:"Songti SC","Noto Serif SC","Source Han Serif SC",Georgia,serif;
+  font-size:13px; line-height:1.85; text-wrap:pretty;
+  /* 密度即设计：压低到 1440×940 视口内 —— 否则页脚控件会掉到折叠线以下 */
+  padding:26px 40px 14px;
+}
+.sheet{max-width:1180px;margin:0 auto}
+
+/* ===== 抬头 ===== */
+.masthead{display:table;width:100%;border-bottom:2.5px solid var(--ink);padding-bottom:10px}
+.masthead .l{display:table-cell;vertical-align:bottom}
+.masthead .r{display:table-cell;vertical-align:bottom;text-align:right;width:1%;white-space:nowrap}
+.masthead h1{font-size:25px;font-weight:700;letter-spacing:3px;line-height:1.3}
+.masthead .org{font-size:12.5px;letter-spacing:2px;color:var(--ink-2)}
+.masthead .meta{font-size:12px;color:var(--ink-3);letter-spacing:1px;line-height:1.7}
+.rule-2{border-bottom:1px solid var(--rule-2);margin-top:2px}
+
+/* ===== 册签（索引标签）===== */
+.spine{border-bottom:1.5px solid var(--ink);padding-top:15px;white-space:nowrap;font-size:0}
+.spine button{
+  display:inline;position:relative;top:1.5px;
+  border:1px solid var(--rule-2);border-bottom:none;background:none;
+  font-family:inherit;font-size:12.5px;letter-spacing:1.5px;color:var(--ink-2);
+  padding:7px 16px 6px;margin-right:5px;cursor:pointer;
+}
+.spine button:hover{color:var(--ink);border-color:var(--rule-2)}
+.spine button[aria-selected="true"]{
+  background:var(--paper);border-color:var(--ink);border-top-width:3px;
+  border-bottom:1.5px solid var(--paper);color:var(--ink);font-weight:700;
+}
+.screen{display:none}
+.screen[data-on="true"]{display:block}
+
+/* ===== 通用区块 ===== */
+h2.sec{
+  font-size:15px;letter-spacing:2px;font-weight:700;
+  padding-bottom:5px;border-bottom:1.5px solid var(--ink);margin-top:22px;
+}
+h2.sec .note{float:right;font-size:11.5px;font-weight:400;color:var(--ink-3);letter-spacing:1px}
+.lede{font-size:12.5px;color:var(--ink-2);padding:5px 0 0;max-width:900px}
+
+/* 提要行 */
+.synopsis{
+  display:table;width:100%;padding:12px 0 13px;border-bottom:1px solid var(--rule);
+}
+.synopsis .cell{display:table-cell;font-size:13px;white-space:nowrap}
+.synopsis .cell em{font-style:normal;color:var(--ink-3);font-size:12px;letter-spacing:1px}
+.synopsis .cell b{font-weight:700;font-feature-settings:"tnum";letter-spacing:.5px}
+.synopsis .cell b i{font-style:normal;font-weight:400;font-size:11.5px;color:var(--ink-2);margin-left:2px}
+.synopsis .cell b.hot{color:var(--cinnabar)}
+
+/* 工具行：inline-block 排一行 + 计数绝对定位贴右 */
+.toolbar{position:relative;padding:11px 0 9px;white-space:nowrap}
+.q{
+  display:inline-block;width:280px;vertical-align:baseline;
+  border:none;border-bottom:1px solid var(--rule-2);background:none;
+  padding:4px 2px;font-family:inherit;font-size:13.5px;color:var(--ink);
+}
+.q::placeholder{color:var(--ink-3);font-size:12.5px;letter-spacing:.5px}
+.filters{display:inline;margin-left:24px}
+.filters button{
+  display:inline;border:none;background:none;font-family:inherit;font-size:12.5px;
+  color:var(--ink-3);padding:2px 0;margin-right:20px;letter-spacing:1px;
+  border-bottom:1.5px solid transparent;cursor:pointer;
+}
+.filters button:hover{color:var(--ink-2)}
+.filters button[aria-pressed="true"]{color:var(--ink);border-bottom-color:var(--ink);font-weight:700}
+.toolbar .count{position:absolute;right:0;bottom:14px;white-space:nowrap;
+  font-size:12px;color:var(--ink-3);letter-spacing:1px}
+
+/* ===== 台账表 ===== */
+table.book{width:100%;border-collapse:collapse;font-size:13px}
+table.book caption{caption-side:top;text-align:left;font-size:12px;color:var(--ink-3);
+  letter-spacing:2px;padding:0 0 7px}
+table.book thead th{
+  background:var(--band);text-align:left;font-weight:700;font-size:12px;letter-spacing:1.5px;
+  color:var(--ink-2);padding:8px 12px;border-top:1.5px solid var(--ink);
+  border-bottom:1px solid var(--rule-2);white-space:nowrap;
+}
+table.book thead th + th{border-left:1px solid var(--rule)}
+table.book tbody td{padding:5px 12px;border-bottom:1px solid var(--rule);
+  vertical-align:top;line-height:1.55}
+table.book tbody td + td{border-left:1px solid var(--rule)}
+table.book tbody tr:nth-child(even) td{background:#f7f5ee}
+table.book tbody tr{cursor:pointer}
+table.book tbody tr:hover td{background:#efece1}
+table.book tbody tr[aria-selected="true"] td{background:#ece7d8}
+table.book tbody tr[aria-selected="true"] td:first-child{box-shadow:inset 3px 0 0 var(--seal)}
+td.nm{font-weight:700;letter-spacing:.3px}
+td.nm .idx{color:var(--ink-3);font-weight:400;font-size:11.5px;margin-right:7px;
+  font-feature-settings:"tnum"}
+td.nm .code{display:block;font-family:ui-monospace,"SF Mono",Menlo,monospace;
+  font-size:10.5px;color:var(--ink-3);letter-spacing:0;margin-top:1px}
+td.num{text-align:right;font-feature-settings:"tnum";font-size:12.5px}
+td.dim{color:var(--ink-2);font-size:12.5px}
+td.time{font-feature-settings:"tnum";font-size:12.5px;color:var(--ink-2)}
+.ex{color:var(--cinnabar)}
+.ok{color:#3f6b57}
+table.book tfoot td{padding:9px 12px;border-top:1.5px solid var(--ink);font-weight:700;
+  font-size:12.5px;letter-spacing:1px}
+table.book tfoot td.num{text-align:right;font-feature-settings:"tnum"}
+.link{color:var(--seal);text-decoration:none;border-bottom:1px solid var(--rule-2)}
+.link:hover{border-bottom-color:var(--seal)}
+
+/* 页脚：分页用 float:right */
+.colophon{margin-top:12px;font-size:11.5px;color:var(--ink-3);letter-spacing:1px;
+  border-top:1px solid var(--rule);padding-top:9px}
+.colophon .pager{float:right;white-space:nowrap;font-size:0;margin-left:24px}
+.colophon .note{display:block;overflow:hidden}
+.colophon .pg{display:inline;border:none;background:none;font-family:inherit;font-size:12px;
+  color:var(--ink-2);cursor:pointer;padding:0;letter-spacing:1px;margin-left:16px}
+.colophon .pg[aria-current="true"]{color:var(--ink);font-weight:700;text-decoration:underline}
+.colophon .pg:disabled{color:#c3bdb1;cursor:default}
+
+/* ===== 详情：对开页 ===== */
+.spread{width:100%;border-collapse:separate;border-spacing:26px 0;margin-top:14px}
+.spread > tbody > tr > td{vertical-align:top;width:50%}
+.spread > tbody > tr > td:first-child{border-right:1px solid var(--rule)}
+h3.sub{font-size:12px;letter-spacing:1.5px;font-weight:700;color:var(--ink-2);
+  padding-bottom:4px;border-bottom:1px solid var(--rule-2);margin:12px 0 0}
+.spread h3.sub:first-child{margin-top:0}
+.rec{width:100%;border-collapse:collapse;font-size:13px;line-height:1.6}
+.rec th{text-align:left;font-weight:400;font-size:12px;color:var(--ink-3);letter-spacing:.5px;
+  padding:4px 0;border-bottom:1px solid var(--rule);width:82px;vertical-align:top}
+.rec td{padding:4px 0;border-bottom:1px solid var(--rule);vertical-align:top}
+.rec td.hot{color:var(--cinnabar);font-weight:700}
+.rec .desc{line-height:1.8}
+.flds{width:100%;border-collapse:collapse;font-size:12.5px}
+.flds th{text-align:left;font-weight:700;font-size:11.5px;letter-spacing:1px;color:var(--ink-2);
+  padding:5px 8px 5px 0;border-bottom:1px solid var(--rule-2);white-space:nowrap}
+.flds td{padding:5px 8px 5px 0;border-bottom:1px solid var(--rule);vertical-align:top}
+.flds td.mono,.mono{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:11.5px}
+
+/* 小台账（变更沿革 / 申请记录） */
+table.mini{width:100%;border-collapse:collapse;font-size:12.5px}
+table.mini th{text-align:left;font-weight:700;font-size:11.5px;letter-spacing:1px;
+  color:var(--ink-2);padding:4px 10px;background:var(--band);
+  border-top:1.5px solid var(--ink);border-bottom:1px solid var(--rule-2);white-space:nowrap}
+table.mini td{padding:4px 10px;border-bottom:1px solid var(--rule);vertical-align:top}
+table.mini tbody tr:nth-child(even) td{background:#f7f5ee}
+.stamp{font-weight:700;letter-spacing:.5px}
+.stamp.wait{color:var(--cinnabar)}
+.stamp.pass{color:#3f6b57}
+.stamp.deny{color:var(--ink-3)}
+
+/* ===== 申请单 ===== */
+.slip{width:100%;border-collapse:collapse;margin-top:14px;border-top:2.5px solid var(--ink)}
+.slip tr{border-bottom:1px solid var(--rule)}
+.slip .lb{width:118px;text-align:right;padding:9px 14px 9px 0;font-size:12.5px;
+  color:var(--ink-2);letter-spacing:1px;vertical-align:top;white-space:nowrap}
+.slip .lb em{font-style:normal;color:var(--cinnabar);margin-left:3px}
+.slip .fd{padding:7px 0 7px 14px;vertical-align:top}
+.slip .fd .full{display:block;width:100%;padding:4px 2px}
+/* 填空线用虚线 —— 既提升"这里要填"的可发现性（实线细到看不见时
+   视觉上会被当成标签），也贴合纸质申请单的书写习惯 */
+.fin,.fsel,.fta{
+  display:inline-block;border:none;border-bottom:1px dotted var(--ink-3);background:none;
+  font-family:inherit;font-size:13px;color:var(--ink);padding:4px 2px;
+}
+.fin{width:260px}
+.fsel{width:180px}
+.fta{
+  display:block;width:100%;min-height:74px;border:1px solid var(--rule-2);
+  padding:8px 10px;line-height:1.8;white-space:pre-wrap;
+}
+.fin::placeholder,.fta::placeholder{color:var(--ink-3);font-size:12.5px}
+.fin[data-err="true"],.fta[data-err="true"]{border-bottom:1px solid var(--cinnabar);
+  border-color:var(--cinnabar)}
+.err{color:var(--cinnabar);font-size:11.5px;letter-spacing:.5px;padding-left:6px}
+.hint-inline{font-size:11.5px;color:var(--ink-3);padding-left:8px;letter-spacing:.5px}
+.cbrow{padding:12px 0 4px;font-size:12.5px;color:var(--ink-2);line-height:1.9}
+.cbrow .lead{width:118px;text-align:right;padding-right:14px;display:inline-block;
+  letter-spacing:1px;vertical-align:top}
+.cb{display:inline-block;width:13px;height:13px;border:1px solid var(--ink-2);background:var(--paper);
+  text-align:center;line-height:11px;font-size:11px;color:var(--paper);cursor:pointer;
+  vertical-align:-2px;margin-right:7px}
+.cb[aria-checked="true"]{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.cb[aria-checked="true"]::after{content:"✓"}
+.acts{padding:6px 0 0;white-space:nowrap}
+.btn{
+  display:inline;border:1px solid var(--rule-2);background:var(--paper);color:var(--ink-2);
+  font-family:inherit;font-size:12.5px;letter-spacing:1.5px;padding:7px 20px;
+  margin-right:10px;cursor:pointer;
+}
+.btn:hover{border-color:var(--ink);color:var(--ink)}
+.btn-p{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.btn-p:hover{background:#0f0e0d;color:#fff}
+.btn:disabled{color:#c3bdb1;border-color:var(--rule);cursor:not-allowed}
+
+/* 展开行（审批意见 / 申请详情）*/
+tr.open td{background:#f4f1e8 !important}
+.detail-cell{padding:0 !important;border-bottom:1px solid var(--rule) !important}
+.exp{display:none;padding:12px 14px 16px}
+tr.exp-row[data-on="true"] + tr .exp{display:block}
+.exp dl{display:table;width:100%;font-size:12.5px}
+.exp dl .r{display:table-row}
+.exp dl dt{display:table-cell;width:84px;color:var(--ink-3);font-size:11.5px;
+  letter-spacing:.5px;padding:4px 0;vertical-align:top}
+.exp dl dd{display:table-cell;padding:4px 0;vertical-align:top}
+.exp .quote{border-left:2px solid var(--cinnabar);padding:6px 0 6px 12px;
+  font-size:12.5px;color:var(--ink-2);line-height:1.8;margin:8px 0 0;max-width:820px}
+.exp .quote.neutral{border-left-color:var(--rule-2);color:var(--ink-2)}
+.exp .fin,.exp .fta{margin-top:6px}
+.op-acts{padding-top:10px;white-space:nowrap}
+
+/* 提示条 */
+.notice{
+  border-left:2px solid var(--cinnabar);background:#faf6f4;
+  font-size:12.5px;color:var(--ink-2);padding:9px 12px;margin-top:14px;
+}
+.notice.plain{border-left-color:var(--rule-2);background:#f7f5ee}
+.notice b{color:var(--seal)}
+</style>
+</head>
+<body>
+<div class="sheet">
+
+  <div class="masthead">
+    <div class="l">
+      <div class="org">省民政厅 · 数据管理组</div>
+      <h1 id="page-title">数据资源目录台账</h1>
+    </div>
+    <div class="r">
+      <div class="meta">
+        第 <span id="issue">7</span> 期 · 截至 2026 年 10 月 6 日<br>编制单位：数据管理组
+      </div>
+    </div>
+  </div>
+  <div class="rule-2"></div>
+
+  <nav class="spine" id="spine" role="tablist">
+    <button data-screen="catalog" role="tab" aria-selected="true">目录总账</button>
+    <button data-screen="detail"  role="tab" aria-selected="false">目录档案</button>
+    <button data-screen="apply"   role="tab" aria-selected="false">共享申请</button>
+    <button data-screen="mine"    role="tab" aria-selected="false">我的申请</button>
+    <button data-screen="review"  role="tab" aria-selected="false">待办审批</button>
+  </nav>
+
+  <!-- ══════════ 一 · 目录总账 ══════════ -->
+  <section class="screen" data-screen="catalog" data-on="true">
+    <div class="synopsis">
+      <div class="cell"><em>在编目录</em> <b id="k-total">14<i>项</i></b></div>
+      <div class="cell"><em>已发布</em> <b>12<i>项</i></b></div>
+      <div class="cell"><em>待审</em> <b class="hot">1<i>项</i></b></div>
+      <div class="cell"><em>已下架</em> <b>1<i>项</i></b></div>
+      <div class="cell"><em>累计申请</em> <b id="k-apps">5<i>件</i></b></div>
+    </div>
+
+    <div class="toolbar">
+      <input class="q" id="q" type="search" placeholder="按目录名称、编码或提供单位检索…" aria-label="检索">
+      <span class="filters" role="group" aria-label="共享类型">
+        <button data-v="全部" aria-pressed="true">全部</button>
+        <button data-v="无条件共享" aria-pressed="false">无条件共享</button>
+        <button data-v="有条件共享" aria-pressed="false">有条件共享</button>
+        <button data-v="不予共享" aria-pressed="false">不予共享</button>
+      </span>
+      <span class="count" id="count">共 14 项</span>
+    </div>
+
+    <table class="book">
+      <caption>表一 · 数据资源目录明细　（点任一行查看完整档案）</caption>
+      <thead>
+        <tr>
+          <th style="width:30%">目录名称 / 编码</th>
+          <th style="width:18%">提供单位</th>
+          <th style="width:11%">共享类型</th>
+          <th style="width:11%;text-align:right">数据量</th>
+          <th style="width:9%">更新周期</th>
+          <th style="width:11%">更新时间</th>
+          <th style="width:10%">状态</th>
+        </tr>
+      </thead>
+      <tbody id="tb"></tbody>
+      <tfoot>
+        <tr>
+          <td colspan="3">合计</td>
+          <td class="num" id="sum">—</td>
+          <td colspan="3" id="sum-note"></td>
+        </tr>
+      </tfoot>
+    </table>
+
+    <div class="colophon">
+      <span class="pager">
+        <button class="pg" id="prev" disabled>‹ 上一页</button>
+        <button class="pg" data-p="1" aria-current="true">1</button>
+        <button class="pg" data-p="2">2</button>
+        <button class="pg" id="next">下一页 ›</button>
+      </span>
+      <span class="note">说明：共享类型标注「不予共享」者仅供内部监管；标注朱色者为需另行审批项。</span>
+    </div>
+  </section>
+
+  <!-- ══════════ 二 · 目录档案（对开页）══════════ -->
+  <section class="screen" data-screen="detail">
+    <h2 class="sec">目录档案<span class="note" id="d-head">—</span></h2>
+    <div class="lede" id="d-lede">—</div>
+
+    <table class="spread"><tbody><tr>
+      <td>
+        <table class="rec"><tbody id="d-rec"></tbody></table>
+      </td>
+      <td>
+        <table class="flds">
+          <thead><tr><th>字段名</th><th>类型</th><th>说明</th></tr></thead>
+          <tbody id="d-flds"></tbody>
+        </table>
+        <div class="notice plain" id="d-warn">—</div>
+      </td>
+    </tr></tbody></table>
+
+    <table class="spread"><tbody><tr>
+      <td>
+        <h3 class="sub">共享属性</h3>
+        <table class="mini">
+          <thead><tr><th style="width:30%">开放属性</th><th style="width:34%">共享方式</th>
+            <th>最长共享期限</th></tr></thead>
+          <tbody id="d-share"></tbody>
+        </table>
+        <table class="mini" style="margin-top:16px">
+          <thead><tr><th style="width:22%">收费情况</th><th>申请材料</th></tr></thead>
+          <tbody id="d-share2"></tbody>
+        </table>
+        <h3 class="sub">变更沿革</h3>
+        <table class="mini">
+          <thead><tr><th style="width:20%">日期</th><th style="width:22%">变更类型</th>
+            <th>变更内容</th></tr></thead>
+          <tbody id="d-trail"></tbody>
+        </table>
+      </td>
+      <td>
+        <h3 class="sub">本目录申请记录<span class="note" id="d-appnote"
+          style="float:right;font-size:11.5px;font-weight:400;color:var(--ink-3);letter-spacing:1px">—</span></h3>
+        <table class="mini">
+          <thead><tr><th style="width:30%">申请编号</th><th style="width:26%">申请单位</th>
+            <th style="width:16%">期限</th><th>状态</th></tr></thead>
+          <tbody id="d-apps"></tbody>
+        </table>
+      </td>
+    </tr></tbody></table>
+
+    <div class="acts">
+      <button class="btn" data-go="catalog">‹ 返回总账</button>
+      <button class="btn btn-p" id="d-apply">申请共享</button>
+    </div>
+  </section>
+
+  <!-- ══════════ 三 · 共享申请 ══════════ -->
+  <section class="screen" data-screen="apply">
+    <h2 class="sec">数据资源共享申请单<span class="note" id="a-no">编号 —</span></h2>
+    <div class="lede">按《政务数据共享条例》及省级数据资源共享管理规定填写。带 <em
+      style="font-style:normal;color:var(--cinnabar)">*</em> 项为必填。</div>
+
+    <table class="slip"><tbody>
+      <tr>
+        <td class="lb">申请目录<em>*</em></td>
+        <td class="fd">
+          <span class="full" id="a-cat-wrap">
+            <select class="fsel" id="a-cat" aria-label="申请目录"></select>
+          </span>
+          <span class="hint-inline" id="a-cat-hint">—</span>
+        </td>
+      </tr>
+      <tr>
+        <td class="lb">申请单位<em>*</em></td>
+        <td class="fd"><input class="fin" id="a-org" type="text" placeholder="填写申请单位全称">
+          <span class="err" id="a-org-err"></span></td>
+      </tr>
+      <tr>
+        <td class="lb">申请人 / 联系电话<em>*</em></td>
+        <td class="fd"><input class="fin" id="a-who" type="text" placeholder="姓名">
+          <input class="fin" id="a-tel" type="text" placeholder="手机号，11 位">
+          <span class="err" id="a-who-err"></span></td>
+      </tr>
+      <tr>
+        <td class="lb">使用期限<em>*</em></td>
+        <td class="fd">
+          <span class="full"><select class="fsel" id="a-term" aria-label="使用期限">
+            <option>3 个月</option><option>6 个月</option>
+            <option>12 个月</option><option>长期</option>
+          </select></span>
+        </td>
+      </tr>
+      <tr>
+        <td class="lb">申请用途<em>*</em></td>
+        <td class="fd">
+          <textarea class="fta" id="a-use" placeholder="说明具体业务场景、所需字段范围及其必要性（不少于 15 字）"></textarea>
+          <span class="err" id="a-use-err"></span>
+          <span class="hint-inline" id="a-use-count">已输入 0 字</span>
+        </td>
+      </tr>
+      <tr>
+        <td class="lb">数据用途类别</td>
+        <td class="fd">
+          <span class="full"><select class="fsel" id="a-kind" aria-label="数据用途类别">
+            <option>业务协同办理</option><option>统计分析</option>
+            <option>监管核查</option><option>政策研究</option>
+          </select></span>
+        </td>
+      </tr>
+    </tbody></table>
+
+    <div class="cbrow">
+      <span class="lead">申请单位承诺<em style="font-style:normal;color:var(--cinnabar)">*</em></span>
+      <span class="cb" id="a-promise" role="checkbox" aria-checked="false" tabindex="0"
+            aria-label="已阅知并承诺"></span>已阅知并承诺：仅在申请用途范围内使用数据，落实分类分级保护，
+      敏感字段不还原、不转供，接受共享全流程审计。
+      <div class="err" id="a-promise-err"></div>
+    </div>
+
+    <div class="acts">
+      <button class="btn btn-p" id="a-submit">提交申请</button>
+      <button class="btn" id="a-reset">重置</button>
+      <span class="hint-inline" id="a-msg"></span>
+    </div>
+  </section>
+
+  <!-- ══════════ 四 · 我的申请 ══════════ -->
+  <section class="screen" data-screen="mine">
+    <h2 class="sec">申请流转台账<span class="note" id="m-note">—</span></h2>
+    <div class="toolbar">
+      <span class="filters" role="group" aria-label="状态筛选" style="margin-left:0">
+        <button data-mv="全部" aria-pressed="true">全部</button>
+        <button data-mv="待审批" aria-pressed="false">待审批</button>
+        <button data-mv="已通过" aria-pressed="false">已通过</button>
+        <button data-mv="已驳回" aria-pressed="false">已驳回</button>
+      </span>
+      <span class="count" id="m-count">—</span>
+    </div>
+    <table class="book">
+      <caption>表二 · 我提交的共享申请　（点任一行查看审批意见）</caption>
+      <thead><tr>
+        <th style="width:15%">申请编号</th>
+        <th style="width:26%">申请目录</th>
+        <th style="width:14%">提交时间</th>
+        <th style="width:9%">期限</th>
+        <th style="width:11%">状态</th>
+        <th>审批意见</th>
+      </tr></thead>
+      <tbody id="mtb"></tbody>
+    </table>
+    <div class="colophon">
+      <span class="note">说明：「已驳回」的申请可按审批意见修改申请用途后重新提交，原编号保留。</span>
+    </div>
+  </section>
+
+  <!-- ══════════ 五 · 待办审批 ══════════ -->
+  <section class="screen" data-screen="review">
+    <h2 class="sec">共享申请审批台账<span class="note" id="r-note">—</span></h2>
+    <div class="lede">按「最小必要」原则审核申请用途与所需字段范围。同意后系统按共享属性自动开通并计入审计日志。</div>
+    <table class="book">
+      <caption>表三 · 待办申请　（点任一行展开审批）</caption>
+      <thead><tr>
+        <th style="width:14%">申请编号</th>
+        <th style="width:15%">申请单位</th>
+        <th style="width:22%">申请目录</th>
+        <th style="width:22%">申请用途</th>
+        <th style="width:9%">期限</th>
+        <th style="width:11%">提交时间</th>
+      </tr></thead>
+      <tbody id="rtb"></tbody>
+    </table>
+    <div class="colophon">
+      <span class="note">说明：审批意见将同步至申请人；驳回须写明具体理由，不得只填「不同意」。</span>
+    </div>
+  </section>
+
+</div>
+
+<script>
+/* ⚠️ 以下 innerHTML 仅渲染本文件内硬编码的常量数据，无网络请求、无用户自由输入进入模板。 */
+const DATA = [
+  [1,'低保对象基础信息','MZ-SH-0001','省民政厅社会救助处','无条件共享',126000,'每月','2026-10-06','已发布','低',false,'全省城乡最低生活保障对象的基本信息、家庭成员构成、救助金额与发放记录。',[['xm','string','姓名'],['sfzh','string','身份证号（脱敏）'],['bjje','decimal','本月保障金额'],['cjsj','datetime','数据产生时间']]],
+  [2,'特困人员供养信息','MZ-SH-0002','省民政厅社会救助处','无条件共享',34000,'每月','2026-10-06','已发布','低',false,'特困人员救助供养对象、供养方式、供养标准及资金发放情况。',[['xm','string','姓名'],['gyfs','string','供养方式'],['gybz','decimal','供养标准']]],
+  [3,'养老服务设施台账','MZ-YL-0007','省民政厅养老服务处','有条件共享',8120,'每季度','2026-10-05','已发布','中',false,'全省养老机构、社区养老服务设施的基础信息、床位规模与运营主体。',[['jdmc','string','机构名称'],['dj','string','机构等级'],['cws','int','床位数']]],
+  [4,'社会组织登记信息','MZ-ZZ-0021','省民政厅社会组织管理局','有条件共享',57000,'每月','2026-10-05','待审核','中',false,'社会组织成立、变更、注销登记信息及年度检查结论。',[['zzmc','string','组织名称'],['tyshxydm','string','统一社会信用代码'],['djrq','date','登记日期']]],
+  [5,'婚姻登记信息（脱敏）','MZ-SW-0003','省民政厅社会事务处','有条件共享',2860000,'每日','2026-10-04','已发布','高',true,'婚姻登记记录。身份证号、住址等敏感字段已按分类分级要求脱敏。',[['jhdjsj','date','结婚登记时间'],['sfzh','string','身份证号（脱敏）'],['djjg','string','登记机关']]],
+  [6,'殡葬服务单位信息','MZ-SW-0011','省民政厅社会事务处','无条件共享',1036,'每季度','2026-10-03','已发布','低',false,'殡仪馆、公墓等殡葬服务单位的基本情况与服务能力。',[['dwmc','string','单位名称'],['lxdh','string','联系电话'],['dz','string','地址']]],
+  [7,'残疾人两项补贴发放信息','MZ-CJ-0005','省民政厅残疾人福利处','无条件共享',248000,'每月','2026-10-03','已发布','中',true,'困难残疾人生活补贴、重度残疾人护理补贴的发放对象与金额明细。',[['xm','string','姓名'],['btlx','string','补贴类型'],['ffje','decimal','发放金额']]],
+  [8,'行政区划与地名数据','MZ-QH-0001','省民政厅区划地名处','无条件共享',42000,'每半年','2026-10-02','已发布','低',false,'行政区划代码、层级、变更沿革以及标准地名信息。',[['qhdm','string','行政区划代码'],['qhmc','string','名称'],['jb','string','层级']]],
+  [9,'儿童福利机构信息','MZ-ET-0002','省民政厅儿童福利处','有条件共享',418,'每季度','2026-10-01','已发布','中',false,'儿童福利院、未成年人保护机构的基础信息与床位使用情况。',[['jdmc','string','机构名称'],['cws','int','床位数']]],
+  [10,'慈善组织公开募捐信息','MZ-CS-0003','省民政厅慈善事业促进处','无条件共享',21000,'每月','2026-09-30','已发布','低',false,'慈善组织公开募捐方案备案信息与募捐进展。',[['zzmc','string','组织名称'],['fa','string','募捐方案'],['je','decimal','募得金额']]],
+  [11,'高龄津贴发放信息','MZ-YL-0019','省民政厅养老服务处','无条件共享',382000,'每月','2026-09-29','已发布','中',true,'高龄老人津贴发放对象、标准与逐月发放记录。',[['xm','string','姓名'],['nl','int','年龄'],['btbz','decimal','补贴标准']]],
+  [12,'社会组织年检结果','MZ-ZZ-0044','省民政厅社会组织管理局','不予共享',18000,'每年','2026-09-28','已下架','高',true,'社会组织年度检查结论与整改情况，仅限内部监管使用。',[['zzmc','string','组织名称'],['njjl','string','年检结论']]],
+  [13,'社会救助家庭经济状况核对','MZ-SH-0009','省民政厅社会救助处','有条件共享',96000,'每月','2026-09-26','已发布','高',true,'低保、特困等救助对象的家庭经济状况核对结果与疑似问题清单。',[['xm','string','姓名'],['hdbm','string','核对部门'],['hdyy','string','核对原因']]],
+  [14,'志愿服务组织与项目','MZ-CS-0017','省民政厅慈善事业促进处','无条件共享',15400,'每季度','2026-09-25','已发布','低',false,'志愿服务组织备案信息与志愿服务项目实施情况。',[['zzmc','string','组织名称'],['xmmc','string','项目名称'],['fwsc','int','服务时长']]],
+];
+/* 申请单流水：编号 / 目录编码 / 申请单位 / 申请人 / 用途 / 期限 / 提交时间 / 状态 / 审批意见 */
+let APPS = [
+  ['SQ-2026-0417','MZ-YL-0007','省卫生健康委','李维','开展全省养老服务设施布点与医疗资源匹配分析，需机构名称、等级、床位数字段。','6 个月','2026-10-05 14:22','待审批',''],
+  ['SQ-2026-0416','MZ-SH-0001','省教育厅','张明','核对困难学生家庭经济状况，用于助学资助精准认定，需家庭成员构成与救助金额字段。','12 个月','2026-10-04 09:10','已通过','同意共享。使用时须保留数据来源标注，脱敏字段不得还原。'],
+  ['SQ-2026-0411','MZ-QH-0001','省自然资源厅','王成','用于国土空间规划底图校核，需行政区划代码与层级字段。','长期','2026-09-28 16:40','已通过','同意共享。'],
+  ['SQ-2026-0402','MZ-SW-0003','省人力资源和社会保障厅','刘岚','社保待遇领取资格比对。','3 个月','2026-09-20 11:05','已驳回','申请用途未说明所需字段的具体范围，与「最小必要」原则不符。请细化到字段级并说明必要性后重新提交。'],
+  ['SQ-2026-0398','MZ-CJ-0005','省财政厅','陈曦','残疾人两项补贴资金拨付审核，需发放对象与金额字段。','12 个月','2026-09-15 10:30','已通过','同意共享。'],
+];
+const PS = 9;
+const fmt = n => n >= 10000 ? (n/10000).toFixed(1) + ' 万' : n.toLocaleString('zh-CN');
+const alertOf = d => d[10] && d[9] === '高';
+const byCode = c => DATA.find(x => x[2] === c);
+
+/* 变更沿革（按目录数据派生，避免手写 14 份）*/
+const trailOf = d => [
+  [d[7], '数据更新', `本期数据更新，累计 ${fmt(d[5])} 条`, d[3]],
+  ['2026-06-18', '共享属性核定', `共享类型核定为「${d[4]}」，敏感级别 ${d[9]} 级`, '省民政厅数据管理组'],
+  ['2026-03-02', '目录发布', '首次发布并纳入在编目录', '省民政厅数据管理组'],
+];
+
+/* ══════════ 屏切换 ══════════ */
+const TITLES = {
+  catalog:'数据资源目录台账', detail:'目录档案',
+  apply:'数据资源共享申请单', mine:'申请流转台账', review:'共享申请审批台账',
+};
+function go(name){
+  document.querySelectorAll('.screen').forEach(s =>
+    s.setAttribute('data-on', String(s.dataset.screen === name)));
+  document.querySelectorAll('#spine button').forEach(b =>
+    b.setAttribute('aria-selected', String(b.dataset.screen === name)));
+  document.getElementById('page-title').textContent = TITLES[name] || '数据资源目录台账';
+  window.scrollTo(0, 0);
+  return name;
+}
+
+/* ══════════ 一 · 目录总账 ══════════ */
+let page = 1, kw = '', share = '全部';
+
+function rows(){
+  const q = kw.trim().toLowerCase();
+  return DATA.filter(r =>
+    (!q || (r[1]+r[2]+r[3]).toLowerCase().includes(q)) && (share === '全部' || r[4] === share));
+}
+function renderCatalog(){
+  const rs = rows();
+  const pages = Math.max(1, Math.ceil(rs.length / PS));
+  if (page > pages) page = pages;
+  const cut = rs.slice((page-1)*PS, page*PS);
+  document.getElementById('tb').innerHTML = cut.map(r => `
+    <tr data-id="${r[0]}">
+      <td class="nm"><span class="idx">${String(r[0]).padStart(2,'0')}</span>${r[1]}
+        <span class="code">${r[2]}</span></td>
+      <td class="dim">${r[3]}</td>
+      <td class="${r[4]==='不予共享'?'ex':''}">${r[4]}</td>
+      <td class="num">${fmt(r[5])}</td>
+      <td class="dim">${r[6]}</td>
+      <td class="time">${r[7]}</td>
+      <td class="${r[8]==='待审核'?'ex':''}">${r[8]}</td>
+    </tr>`).join('');
+  const total = rs.reduce((a,b) => a + b[5], 0);
+  document.getElementById('sum').textContent = fmt(total) + ' 条';
+  document.getElementById('sum-note').textContent =
+    `共 ${rs.length} 项；其中需另行审批 ${rs.filter(alertOf).length} 项。`;
+  document.getElementById('count').textContent = `共 ${rs.length} 项`;
+  document.getElementById('prev').disabled = page <= 1;
+  document.getElementById('next').disabled = page >= pages;
+  document.querySelectorAll('.pg[data-p]').forEach(b =>
+    b.setAttribute('aria-current', String(+b.dataset.p === page)));
+}
+
+/* ══════════ 二 · 目录档案 ══════════ */
+let curCat = DATA[4];   // 默认打开婚姻登记信息（字段最典型）
+
+function renderDetail(){
+  const d = curCat;
+  document.getElementById('d-head').textContent = `${d[2]} · ${d[8]}`;
+  document.getElementById('d-lede').textContent = '本页为该数据资源的完整档案。左页为登记信息，右页为字段清单与安全要求。';
+  document.getElementById('d-rec').innerHTML = [
+    ['目录名称', d[1]], ['目录编码', `<span class="mono">${d[2]}</span>`],
+    ['提供单位', d[3]], ['共享类型', `<span class="${d[4]==='不予共享'?'hot':''}">${d[4]}</span>`],
+    ['数据量', `${fmt(d[5])} 条`], ['更新周期', d[6]],
+    ['更新时间', d[7]], ['敏感级别', `<span class="${d[9]==='高'?'hot':''}">${d[9]} 级</span>`],
+    ['脱敏情况', d[10] ? '是（身份证号、住址等）' : '否'],
+    ['资源摘要', `<span class="desc">${d[11]}</span>`],
+  ].map(([k,v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('');
+
+  document.getElementById('d-flds').innerHTML = d[12].map(f =>
+    `<tr><td class="mono">${f[0]}</td><td>${f[1]}</td><td>${f[2]}</td></tr>`).join('');
+  document.getElementById('d-warn').innerHTML = d[10]
+    ? '使用方须落实分类分级保护，敏感字段不得还原，不得向第三方转供。'
+    : '按开放共享管理规定使用，保留数据来源标注。';
+
+  document.getElementById('d-share').innerHTML = `<tr>
+      <td>${d[4]==='无条件共享'?'无条件开放':d[4]==='有条件共享'?'依申请开放':'不予开放'}</td>
+      <td>${d[4]==='不予共享'?'仅限内部监管':'接口 / 库表 / 文件'}</td>
+      <td>${d[4]==='无条件共享'?'不限':'最长 12 个月'}</td></tr>`;
+  document.getElementById('d-share2').innerHTML = `<tr>
+      <td>${d[4]==='不予共享'?'—':'不收费'}</td>
+      <td>数据资源共享申请单（系统内在线提交）</td></tr>`;
+
+  document.getElementById('d-trail').innerHTML = trailOf(d).map(t =>
+    `<tr><td class="time">${t[0]}</td><td>${t[1]}</td><td>${t[2]}</td></tr>`
+  ).join('');
+
+  const rel = APPS.filter(a => a[1] === d[2]);
+  document.getElementById('d-appnote').textContent = `共 ${rel.length} 件`;
+  document.getElementById('d-apps').innerHTML = rel.length
+    ? rel.map(a => `<tr><td class="mono">${a[0]}</td><td>${a[2]}</td>
+        <td>${a[5]}</td>
+        <td><span class="stamp ${a[7]==='待审批'?'wait':a[7]==='已通过'?'pass':'deny'}">${a[7]}</span></td></tr>`).join('')
+    : `<tr><td colspan="4" class="dim">本目录尚无共享申请记录。</td></tr>`;
+
+  document.getElementById('d-apply').disabled = d[4] === '不予共享';
+}
+
+function openDetail(id){
+  curCat = DATA.find(x => x[0] === id) || curCat;
+  renderDetail();
+  go('detail');
+}
+
+/* ══════════ 三 · 共享申请 ══════════ */
+let promiseOn = false;
+
+function fillCatOptions(){
+  const sel = document.getElementById('a-cat');
+  sel.innerHTML = DATA.filter(d => d[4] !== '不予共享').map(d =>
+    `<option value="${d[2]}">${d[1]}　（${d[2]}）</option>`).join('');
+}
+function catHint(){
+  const d = byCode(document.getElementById('a-cat').value);
+  document.getElementById('a-cat-hint').textContent = d
+    ? `提供单位 ${d[3]} · 共享类型 ${d[4]} · 敏感级别 ${d[9]} 级 · 数据量 ${fmt(d[5])} 条`
+    : '—';
+}
+function setErr(id, msg){
+  const el = document.getElementById(id);
+  if (el) el.textContent = msg || '';
+  const f = document.getElementById(id.replace('-err',''));
+  if (f && f.setAttribute) f.setAttribute('data-err', msg ? 'true' : 'false');
+}
+function useCount(){
+  const v = document.getElementById('a-use').value.trim();
+  document.getElementById('a-use-count').textContent = `已输入 ${v.length} 字`;
+}
+function resetApply(){
+  ['a-org','a-who','a-tel','a-use'].forEach(i => document.getElementById(i).value = '');
+  ['a-org','a-who','a-use'].forEach(i => setErr(i + '-err',''));
+  promiseOn = false;
+  document.getElementById('a-promise').setAttribute('aria-checked','false');
+  document.getElementById('a-promise-err').textContent = '';
+  document.getElementById('a-msg').textContent = '';
+  useCount();
+}
+function nextNo(){
+  const n = APPS.reduce((m,a) => Math.max(m, +a[0].slice(-4)), 400) + 1;
+  return 'SQ-2026-' + String(n).padStart(4,'0');
+}
+function submitApply(){
+  const org = document.getElementById('a-org').value.trim();
+  const who = document.getElementById('a-who').value.trim();
+  const tel = document.getElementById('a-tel').value.trim();
+  const use = document.getElementById('a-use').value.trim();
+  let bad = false;
+  setErr('a-org-err', org ? '' : '请填写申请单位全称'); if (!org) bad = true;
+  if (!who) { setErr('a-who-err','请填写申请人姓名'); bad = true; }
+  else if (!/^1\d{10}$/.test(tel)) { setErr('a-who-err','联系电话须为 11 位手机号'); bad = true; }
+  else setErr('a-who-err','');
+  if (use.length < 15) { setErr('a-use-err',`申请用途不少于 15 字（当前 ${use.length} 字）`); bad = true; }
+  else setErr('a-use-err','');
+  document.getElementById('a-promise-err').textContent = promiseOn ? '' : '请阅知并勾选承诺条款';
+  if (!promiseOn) bad = true;
+  if (bad){ document.getElementById('a-msg').textContent = '存在未通过校验的项，请修正后提交。'; return false; }
+
+  APPS.unshift([nextNo(), document.getElementById('a-cat').value, org, who, use,
+    document.getElementById('a-term').value, '2026-10-07 10:15', '待审批', '']);
+  document.getElementById('a-no').textContent = '编号 ' + APPS[0][0];
+  renderMine(); renderReview(); renderCatalog(); renderDetail();
+  resetApply();
+  document.getElementById('a-msg').textContent = `已提交，编号 ${APPS[0][0]}。可在「我的申请」查看流转状态。`;
+  go('mine');
+  return true;
+}
+
+/* ══════════ 四 · 我的申请 ══════════ */
+let mFilter = '全部', mOpen = null;
+
+function renderMine(){
+  const rs = APPS.filter(a => mFilter === '全部' || a[7] === mFilter);
+  document.getElementById('m-note').textContent = `共 ${rs.length} 件`;
+  document.getElementById('m-count').textContent = `共 ${rs.length} 件`;
+  document.getElementById('mtb').innerHTML = rs.map(a => {
+    const d = byCode(a[1]);
+    const cls = a[7] === '待审批' ? 'wait' : a[7] === '已通过' ? 'pass' : 'deny';
+    const open = mOpen === a[0];
+    return `<tr class="exp-row" data-no="${a[0]}" data-on="${open}" ${open?'aria-selected="true"':''}>
+        <td class="mono">${a[0]}</td>
+        <td class="nm">${d ? d[1] : a[1]}<span class="code">${a[1]}</span></td>
+        <td class="time">${a[6]}</td>
+        <td>${a[5]}</td>
+        <td><span class="stamp ${cls}">${a[7]}</span></td>
+        <td class="dim">${a[7] === '待审批' ? '审批中' : (a[8] || '—').slice(0, 22) + (a[8] && a[8].length > 22 ? '…' : '')}</td>
+      </tr>
+      <tr><td class="detail-cell" colspan="6"><div class="exp">
+        <dl>
+          <div class="r"><dt>申请单位</dt><dd>${a[2]}</dd></div>
+          <div class="r"><dt>申请人</dt><dd>${a[3]}</dd></div>
+          <div class="r"><dt>使用期限</dt><dd>${a[5]}</dd></div>
+          <div class="r"><dt>申请用途</dt><dd>${a[4]}</dd></div>
+        </dl>
+        <div class="quote ${a[7]==='待审批'?'neutral':''}">${
+          a[7] === '待审批' ? '审批中，尚无审批意见。' :
+          (a[8] || '（无审批意见）')}</div>
+      </div></td></tr>`;
+  }).join('');
+  document.querySelectorAll('#m-note').forEach(() => {});
+}
+
+/* ══════════ 五 · 待办审批 ══════════ */
+let rOpen = null;
+
+function renderReview(){
+  const rs = APPS.filter(a => a[7] === '待审批');
+  document.getElementById('r-note').textContent = `待办 ${rs.length} 件`;
+  document.getElementById('rtb').innerHTML = rs.length ? rs.map(a => {
+    const d = byCode(a[1]);
+    const open = rOpen === a[0];
+    return `<tr class="exp-row" data-no="${a[0]}" data-on="${open}" ${open?'aria-selected="true"':''}>
+        <td class="mono">${a[0]}</td>
+        <td>${a[2]}</td>
+        <td class="nm">${d ? d[1] : a[1]}<span class="code">${a[1]}</span></td>
+        <td class="dim">${a[4].slice(0, 26)}${a[4].length > 26 ? '…' : ''}</td>
+        <td>${a[5]}</td>
+        <td class="time">${a[6]}</td>
+      </tr>
+      <tr><td class="detail-cell" colspan="6"><div class="exp">
+        <dl>
+          <div class="r"><dt>申请人 / 单位</dt><dd>${a[3]} · ${a[2]}</dd></div>
+          <div class="r"><dt>申请目录</dt><dd>${d ? d[1] : a[1]}（${a[1]}）· 共享类型 ${d ? d[4] : '—'}${
+            d && alertOf(d) ? ' · <span class="stamp wait">需另行审批</span>' : ''}</dd></div>
+          <div class="r"><dt>申请用途</dt><dd>${a[4]}</dd></div>
+          <div class="r"><dt>使用期限</dt><dd>${a[5]}</dd></div>
+        </dl>
+        <div class="quote neutral">按「最小必要」审核：用途是否具体、所需字段是否在申请目录范围内、期限是否与业务周期匹配。</div>
+        <div class="op-acts">
+          <input class="fin" data-opinion="${a[0]}" type="text" placeholder="审批意见（驳回必填具体理由）">
+          <button class="btn btn-p" data-op="pass" data-no="${a[0]}">同意共享</button>
+          <button class="btn" data-op="deny" data-no="${a[0]}">驳回</button>
+        </div>
+      </div></td></tr>`;
+  }).join('') : `<tr><td colspan="6" class="dim">当前无待办申请。</td></tr>`;
+}
+function opine(no, op){
+  const a = APPS.find(x => x[0] === no); if (!a) return false;
+  const inp = document.querySelector(`[data-opinion="${no}"]`);
+  const txt = (inp && inp.value.trim()) || '';
+  if (op === 'deny' && txt.length < 8) return false;      // 驳回必须写具体理由
+  a[7] = op === 'pass' ? '已通过' : '已驳回';
+  a[8] = txt || '同意共享。';
+  rOpen = null; mOpen = no;
+  renderReview(); renderMine(); renderDetail();
+  return true;
+}
+
+/* ══════════ 绑定 ══════════ */
+document.getElementById('spine').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (b) go(b.dataset.screen);
+});
+document.querySelectorAll('[data-go]').forEach(b =>
+  b.addEventListener('click', () => go(b.dataset.go)));
+
+document.getElementById('tb').addEventListener('click', e => {
+  const tr = e.target.closest('tr'); if (tr) openDetail(+tr.dataset.id);
+});
+document.getElementById('q').addEventListener('input', e => {
+  kw = e.target.value; page = 1; renderCatalog();
+});
+document.querySelectorAll('.filters[aria-label="共享类型"] button').forEach(b =>
+  b.addEventListener('click', () => {
+    share = b.dataset.v; page = 1;
+    document.querySelectorAll('.filters[aria-label="共享类型"] button').forEach(x =>
+      x.setAttribute('aria-pressed', String(x === b)));
+    renderCatalog();
+  }));
+document.getElementById('prev').addEventListener('click', () => { if (page>1){ page--; renderCatalog(); } });
+document.getElementById('next').addEventListener('click', () => { page++; renderCatalog(); });
+document.querySelectorAll('.pg[data-p]').forEach(b =>
+  b.addEventListener('click', () => { page = +b.dataset.p; renderCatalog(); }));
+
+document.getElementById('d-apply').addEventListener('click', () => {
+  document.getElementById('a-cat').value = curCat[2];
+  catHint(); go('apply');
+});
+document.getElementById('a-cat').addEventListener('change', catHint);
+document.getElementById('a-use').addEventListener('input', useCount);
+document.getElementById('a-promise').addEventListener('click', e => {
+  promiseOn = !promiseOn;
+  e.currentTarget.setAttribute('aria-checked', String(promiseOn));
+  document.getElementById('a-promise-err').textContent = '';
+});
+document.getElementById('a-submit').addEventListener('click', submitApply);
+document.getElementById('a-reset').addEventListener('click', () => {
+  resetApply(); document.getElementById('a-cat').value = curCat[2]; catHint();
+});
+
+document.querySelectorAll('.filters[aria-label="状态筛选"] button').forEach(b =>
+  b.addEventListener('click', () => {
+    mFilter = b.dataset.mv;
+    document.querySelectorAll('.filters[aria-label="状态筛选"] button').forEach(x =>
+      x.setAttribute('aria-pressed', String(x === b)));
+    renderMine();
+  }));
+document.getElementById('mtb').addEventListener('click', e => {
+  const tr = e.target.closest('.exp-row'); if (!tr) return;
+  const no = tr.dataset.no;
+  mOpen = (mOpen === no) ? null : no;
+  renderMine();
+});
+document.getElementById('rtb').addEventListener('click', e => {
+  const op = e.target.closest('[data-op]');
+  if (op){ opine(op.dataset.no, op.dataset.op); return; }
+  const tr = e.target.closest('.exp-row'); if (!tr) return;
+  const no = tr.dataset.no;
+  rOpen = (rOpen === no) ? null : no;
+  renderReview();
+});
+
+/* 初始化 */
+document.getElementById('k-apps').innerHTML = `${APPS.length}<i>件</i>`;
+renderCatalog(); renderDetail();
+fillCatOptions(); catHint(); useCount();
+document.getElementById('a-cat').value = curCat[2]; catHint();
+document.getElementById('a-no').textContent = '编号 ' + nextNo();
+renderMine(); renderReview();
+
+/* 测试钩子 */
+window.__proto = {
+  go, screens: () => [...document.querySelectorAll('.screen')].map(s => s.dataset.screen),
+  on: () => document.querySelector('.screen[data-on="true"]').dataset.screen,
+  curTitle: () => document.getElementById('page-title').textContent,
+  catRows: () => document.querySelectorAll('#tb tr').length,
+  catCount: () => document.getElementById('count').textContent,
+  sum: () => document.getElementById('sum').textContent,
+  setKw: v => { const i = document.getElementById('q'); i.value = v;
+    i.dispatchEvent(new Event('input', { bubbles: true })); },
+  setShare: v => { const b = [...document.querySelectorAll('.filters[aria-label="共享类型"] button')]
+      .find(x => x.dataset.v === v); b.click(); },
+  openDetail: id => openDetail(id),
+  detailHead: () => document.getElementById('d-head').textContent,
+  detailFlds: () => document.querySelectorAll('#d-flds tr').length,
+  detailTrail: () => document.querySelectorAll('#d-trail tr').length,
+  detailApps: () => document.querySelectorAll('#d-apps tr').length,
+  apps: () => APPS.length,
+  appNo: () => document.getElementById('a-no').textContent,
+  fill: (id, v) => { const e = document.getElementById(id); e.value = v;
+    e.dispatchEvent(new Event('input', { bubbles: true })); },
+  promise: () => { document.getElementById('a-promise').click(); },
+  submit: () => submitApply(),
+  msg: () => document.getElementById('a-msg').textContent,
+  errs: () => [...document.querySelectorAll('.err')].map(e => e.textContent).filter(Boolean),
+  mineRows: () => document.querySelectorAll('#mtb tr.exp-row').length,
+  mineNote: () => document.getElementById('m-note').textContent,
+  setMineFilter: v => { const b = [...document.querySelectorAll('.filters[aria-label="状态筛选"] button')]
+      .find(x => x.dataset.mv === v); b.click(); },
+  openMine: no => { const tr = document.querySelector(`#mtb tr[data-no="${no}"]`);
+    tr.dispatchEvent(new MouseEvent('click', { bubbles: true })); },
+  mineExpanded: no => (document.querySelector(`#mtb tr[data-no="${no}"]`).dataset.on) === 'true',
+  reviewRows: () => document.querySelectorAll('#rtb tr.exp-row').length,
+  reviewNote: () => document.getElementById('r-note').textContent,
+  openReview: no => { const tr = document.querySelector(`#rtb tr[data-no="${no}"]`);
+    tr.dispatchEvent(new MouseEvent('click', { bubbles: true })); },
+  opinion: (no, v) => { const e = document.querySelector(`[data-opinion="${no}"]`); e.value = v; },
+  act: (no, op) => opine(no, op),
+  statusOf: no => (APPS.find(a => a[0] === no) || {})[7],
+};
+</script>
+</body>
+</html>

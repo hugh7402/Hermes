@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="zh"><head>
+<meta charset="utf-8">
+<title>方向 A · 台账 · 民政数据资源目录</title>
+<!--
+  方向 A · 台账 (Ledger)
+  ------------------------------------------------------------------
+  气质定位：把数据资源当"档案台账"来编。像省级年鉴/统计公报的内页，
+            不是 SaaS 后台。信息密到极致，靠线条与字重建立秩序。
+  主导角色：视觉设计师（排版优先）
+  参考：中华书局年鉴排版 / 日本官报 / Massimo Vignelli 的表格处理
+
+  反 slop 对照（huashu §6.2）：
+    · 零圆角、零阴影、零渐变 —— 秩序全部由 1px 细线与字重承担
+    · 零图标、零 emoji —— 「不做没必要的图形」
+    · 不用圆角卡片 + 左 border accent 那一套
+    · display 字体用宋体系（中文排版正统），不用 Inter/Roboto
+    · 唯一彩色是朱红，且只用于「待审」「不予共享」这类需要被看见的例外
+-->
+<style>
+:root{
+  --ink:#1c1b19;          /* 正文墨 */
+  --ink-2:#4a4742;        /* 次级 */
+  --ink-3:#8c877e;        /* 弱 */
+  --rule:#d8d3c8;         /* 细线 */
+  --rule-2:#b9b2a4;       /* 重线 */
+  --paper:#fbfaf6;        /* 纸 */
+  --band:#f2efe6;         /* 表头带 */
+  --cinnabar:#a8342a;     /* 朱 —— 全页唯一彩色 */
+  --seal:#7a2b22;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:var(--paper); color:var(--ink);
+  font-family:"Songti SC","Noto Serif SC","Source Han Serif SC",Georgia,serif;
+  font-size:13px; line-height:1.85; text-wrap:pretty;
+  /* 密度即设计：压低到 1440×940 视口内 —— 否则分页控件会掉到折叠线以下 */
+  padding:30px 40px 34px;
+}
+.sheet{max-width:1180px;margin:0 auto}
+
+/* 抬头 */
+.masthead{
+  display:flex; align-items:flex-end; gap:20px;
+  padding-bottom:10px; border-bottom:2.5px solid var(--ink);
+}
+.masthead h1{
+  font-size:25px; font-weight:700; letter-spacing:3px; line-height:1.3;
+}
+.masthead .org{
+  font-size:12.5px; letter-spacing:2px; color:var(--ink-2);
+  padding-bottom:3px;
+}
+.masthead .meta{
+  margin-left:auto; text-align:right; font-size:12px;
+  color:var(--ink-3); letter-spacing:1px; line-height:1.7;
+}
+.rule-2{border-bottom:1px solid var(--rule-2);margin-top:2px}
+
+/* 提要 */
+.synopsis{
+  display:grid; grid-template-columns:auto 1fr auto 1fr auto 1fr auto 1fr;
+  align-items:baseline; gap:0 14px;
+  padding:12px 0 14px; border-bottom:1px solid var(--rule);
+  font-size:13px;
+}
+.synopsis dt{color:var(--ink-3); letter-spacing:1px; font-size:12px}
+.synopsis dd{font-weight:700; font-feature-settings:"tnum"; letter-spacing:.5px}
+.synopsis dd .unit{font-weight:400;font-size:11.5px;color:var(--ink-2);margin-left:2px}
+
+/* 工具行：inline-block 排一行 + 计数绝对定位贴右 ——
+   不用 flex 的 auto 外距、也不用 grid 的显式列放置：静态渲染器两者都有边界情形不收敛
+   （前者把右侧项压到 min-content，后者直接丢掉显式放置/自动流的子项）。*/
+.toolbar{
+  position:relative; padding:10px 0 8px; white-space:nowrap;
+}
+.q{
+  display:inline-block; width:280px; vertical-align:baseline;
+  border:none; border-bottom:1px solid var(--rule-2);
+  background:none; padding:4px 2px; font-family:inherit; font-size:13.5px;
+  color:var(--ink);
+}
+.q:focus{outline:none;border-bottom-color:var(--ink)}
+.q::placeholder{color:var(--ink-3);font-size:12.5px;letter-spacing:.5px}
+.filters{display:inline; margin-left:26px}
+/* 计数：绝对定位贴右边 */
+.toolbar .count{position:absolute; right:0; bottom:14px; white-space:nowrap;
+  font-size:12px; color:var(--ink-3); letter-spacing:1px}
+.filters button{
+  display:inline; border:none; background:none; font-family:inherit;
+  font-size:12.5px; color:var(--ink-3); padding:2px 0; margin-right:20px;
+  letter-spacing:1px; border-bottom:1.5px solid transparent; cursor:pointer;
+}
+.filters button:hover{color:var(--ink-2)}
+.filters button[aria-pressed="true"]{color:var(--ink); border-bottom-color:var(--ink); font-weight:700}
+/* 说明区（左） */
+.colophon .note{min-width:0}
+
+/* 台账表 */
+table{width:100%; border-collapse:collapse; font-size:13px}
+caption{
+  caption-side:top; text-align:left; font-size:12px; color:var(--ink-3);
+  letter-spacing:2px; padding:0 0 7px;
+}
+thead th{
+  background:var(--band); text-align:left; font-weight:700; font-size:12px;
+  letter-spacing:1.5px; color:var(--ink-2);
+  padding:8px 12px; border-top:1.5px solid var(--ink); border-bottom:1px solid var(--rule-2);
+  white-space:nowrap;
+}
+thead th + th{border-left:1px solid var(--rule)}
+tbody td{
+  padding:5px 12px; border-bottom:1px solid var(--rule); vertical-align:top;
+  line-height:1.55;
+}
+tbody td + td{border-left:1px solid var(--rule)}
+tbody tr:nth-child(even) td{background:#f7f5ee}
+tbody tr{cursor:pointer}
+tbody tr:hover td{background:#efece1}
+tbody tr[aria-selected="true"] td{background:#ece7d8}
+tbody tr[aria-selected="true"] td:first-child{box-shadow:inset 3px 0 0 var(--seal)}
+td.nm{font-weight:700; letter-spacing:.3px}
+td.nm .idx{color:var(--ink-3); font-weight:400; font-size:11.5px; margin-right:7px; font-feature-settings:"tnum"}
+td.nm .code{
+  display:block; font-family:ui-monospace,"SF Mono",Menlo,monospace;
+  font-size:10.5px; color:var(--ink-3); letter-spacing:0; margin-top:2px;
+}
+td.num{text-align:right; font-feature-settings:"tnum"; font-size:12.5px}
+td.dim{color:var(--ink-2); font-size:12.5px}
+td.time{font-feature-settings:"tnum"; font-size:12.5px; color:var(--ink-2)}
+.ex{color:var(--cinnabar)}          /* 例外项标记 */
+tfoot td{
+  padding:9px 12px; border-top:1.5px solid var(--ink); font-weight:700;
+  font-size:12.5px; letter-spacing:1px;
+}
+tfoot td.num{text-align:right; font-feature-settings:"tnum"}
+
+/* 页脚 */
+/* 页脚：分页控件用 float:right 贴右 —— float 是 CSS 2.1 核心特性，
+   静态渲染器实现最可靠；绝对定位/flex/grid 在这里都会被算成父容器宽而摊开子项。*/
+.colophon{
+  margin-top:12px; font-size:11.5px; color:var(--ink-3);
+  letter-spacing:1px; border-top:1px solid var(--rule); padding-top:9px;
+}
+.colophon .pager{float:right; white-space:nowrap; font-size:0; margin-left:24px}
+.colophon .note{display:block; overflow:hidden}
+/* ⚠️ display:inline 是必须的：WeasyPrint 把 <button> 的 width:auto 解析成
+   "占满可用宽度"，inline-block 的按钮会被撑到约 190pt、行被撑爆
+   （width:max-content / fit-content / max-width:100% 都无效，只有 inline 有效）。
+   浏览器里 button 设 inline 同样按内容宽度渲染，行为一致。*/
+.colophon .pg{display:inline; border:none; background:none; font-family:inherit;
+  font-size:12px; color:var(--ink-2); cursor:pointer; padding:0; letter-spacing:1px;
+  margin-left:16px}
+.colophon .pg[aria-current="true"]{color:var(--ink); font-weight:700; text-decoration:underline}
+.colophon .pg:disabled{color:#c3bdb1; cursor:default}
+
+/* 详情：本方向刻意不用抽屉，改为表下"附录"区 —— 台账的读法是从上往下看 */
+.exhibit{
+  margin-top:22px; border-top:2px solid var(--ink); padding-top:12px;
+  display:none;
+}
+.exhibit[data-open="true"]{display:block}
+.exhibit h2{font-size:15px; letter-spacing:2px; font-weight:700; margin-bottom:2px}
+.exhibit .sub{font-size:11.5px; color:var(--ink-3); letter-spacing:1px; margin-bottom:12px}
+.exhibit .cols{display:grid; grid-template-columns:1fr 1fr; gap:0 40px; font-size:13px}
+.exhibit dl{display:grid; grid-template-columns:78px 1fr; gap:0}
+.exhibit dt{color:var(--ink-3); font-size:12px; padding:5px 0; border-bottom:1px solid var(--rule); letter-spacing:.5px}
+.exhibit dd{padding:5px 0; border-bottom:1px solid var(--rule)}
+.exhibit .fld{width:100%; border-collapse:collapse; font-size:12.5px}
+.exhibit .fld th{
+  background:none; border:none; border-bottom:1px solid var(--rule-2);
+  letter-spacing:1px; font-size:11.5px; padding:4px 8px 4px 0;
+}
+.exhibit .fld td{border-bottom:1px solid var(--rule); padding:5px 8px 5px 0; border-left:none}
+.exhibit .fld .mono{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:11.5px}
+.note{
+  margin-top:14px; padding:10px 12px; border-left:2px solid var(--cinnabar);
+  font-size:12.5px; color:var(--ink-2); background:#faf6f4;
+}
+</style>
+<style>
+    @page{size:1440px 940px;margin:0}
+    *,*::before,*::after{transition:none !important;animation:none !important}
+    html,body{height:940px !important;overflow:hidden !important}
+  </style></head>
+<body>
+<div class="sheet">
+
+  <div class="masthead">
+    <div>
+      <div class="org">省民政厅 · 数据管理组</div>
+      <h1>数据资源目录台账</h1>
+    </div>
+    <div class="meta">
+      第 <span id="issue">7</span> 期 · 截至 2026 年 10 月 6 日<br>
+      编制单位：数据管理组
+    </div>
+  </div>
+  <div class="rule-2"></div>
+
+  <dl class="synopsis">
+    <dt>在编目录</dt><dd id="k-total">14<span class="unit">项</span></dd>
+    <dt>已发布</dt><dd>12<span class="unit">项</span></dd>
+    <dt>待审</dt><dd>1<span class="unit">项</span></dd>
+    <dt>已下架</dt><dd>1<span class="unit">项</span></dd>
+  </dl>
+
+  <div class="toolbar">
+    <span class="q snap-field" style="color:#8c877e">按目录名称、编码或提供单位检索…</span>
+    <div class="filters" role="group" aria-label="共享类型">
+      <button data-v="全部" aria-pressed="true">全部</button>
+      <button data-v="无条件共享" aria-pressed="false">无条件共享</button>
+      <button data-v="有条件共享" aria-pressed="false">有条件共享</button>
+      <button data-v="不予共享" aria-pressed="false">不予共享</button>
+    </div>
+    <span class="count" id="count">共 14 项</span>
+  </div>
+
+  <table id="book">
+    <caption>表一 · 数据资源目录明细</caption>
+    <thead>
+      <tr>
+        <th style="width:31%">目录名称 / 编码</th>
+        <th style="width:19%">提供单位</th>
+        <th style="width:11%">共享类型</th>
+        <th style="width:11%;text-align:right">数据量</th>
+        <th style="width:9%">更新周期</th>
+        <th style="width:11%">更新时间</th>
+        <th style="width:8%">状态</th>
+      </tr>
+    </thead>
+    <tbody id="tb">
+    <tr data-id="1">
+      <td class="nm"><span class="idx">01</span>低保对象基础信息
+        <span class="code">MZ-SH-0001</span></td>
+      <td class="dim">省民政厅社会救助处</td>
+      <td class="">无条件共享</td>
+      <td class="num">12.6 万</td>
+      <td class="dim">每月</td>
+      <td class="time">2026-10-06</td>
+      <td class="">已发布</td>
+    </tr>
+    <tr data-id="2">
+      <td class="nm"><span class="idx">02</span>特困人员供养信息
+        <span class="code">MZ-SH-0002</span></td>
+      <td class="dim">省民政厅社会救助处</td>
+      <td class="">无条件共享</td>
+      <td class="num">3.4 万</td>
+      <td class="dim">每月</td>
+      <td class="time">2026-10-06</td>
+      <td class="">已发布</td>
+    </tr>
+    <tr data-id="3">
+      <td class="nm"><span class="idx">03</span>养老服务设施台账
+        <span class="code">MZ-YL-0007</span></td>
+      <td class="dim">省民政厅养老服务处</td>
+      <td class="">有条件共享</td>
+      <td class="num">8,120</td>
+      <td class="dim">每季度</td>
+      <td class="time">2026-10-05</td>
+      <td class="">已发布</td>
+    </tr>
+    <tr data-id="4">
+      <td class="nm"><span class="idx">04</span>社会组织登记信息
+        <span class="code">MZ-ZZ-0021</span></td>
+      <td class="dim">省民政厅社会组织管理局</td>
+      <td class="">有条件共享</td>
+      <td class="num">5.7 万</td>
+      <td class="dim">每月</td>
+      <td class="time">2026-10-05</td>
+      <td class="ex">待审核</td>
+    </tr>
+    <tr data-id="5">
+      <td class="nm"><span class="idx">05</span>婚姻登记信息（脱敏）
+        <span class="code">MZ-SW-0003</span></td>
+      <td class="dim">省民政厅社会事务处</td>
+      <td class="">有条件共享</td>
+      <td class="num">286.0 万</td>
+      <td class="dim">每日</td>
+      <td class="time">2026-10-04</td>
+      <td class="">已发布</td>
+    </tr>
+    <tr data-id="6">
+      <td class="nm"><span class="idx">06</span>殡葬服务单位信息
+        <span class="code">MZ-SW-0011</span></td>
+      <td class="dim">省民政厅社会事务处</td>
+      <td class="">无条件共享</td>
+      <td class="num">1,036</td>
+      <td class="dim">每季度</td>
+      <td class="time">2026-10-03</td>
+      <td class="">已发布</td>
+    </tr>
+    <tr data-id="7">
+      <td class="nm"><span class="idx">07</span>残疾人两项补贴发放信息
+        <span class="code">MZ-CJ-0005</span></td>
+      <td class="dim">省民政厅残疾人福利处</td>
+      <td class="">无条件共享</td>
+      <td class="num">24.8 万</td>
+      <td class="dim">每月</td>
+      <td class="time">2026-10-03</td>
+      <td class="">已发布</td>
+    </tr>
+    <tr data-id="8">
+      <td class="nm"><span class="idx">08</span>行政区划与地名数据
+        <span class="code">MZ-QH-0001</span></td>
+      <td class="dim">省民政厅区划地名处</td>
+      <td class="">无条件共享</td>
+      <td class="num">4.2 万</td>
+      <td class="dim">每半年</td>
+      <td class="time">2026-10-02</td>
+      <td class="">已发布</td>
+    </tr>
+    <tr data-id="9">
+      <td class="nm"><span class="idx">09</span>儿童福利机构信息
+        <span class="code">MZ-ET-0002</span></td>
+      <td class="dim">省民政厅儿童福利处</td>
+      <td class="">有条件共享</td>
+      <td class="num">418</td>
+      <td class="dim">每季度</td>
+      <td class="time">2026-10-01</td>
+      <td class="">已发布</td>
+    </tr></tbody>
+    <tfoot>
+      <tr>
+        <td colspan="3">合计</td>
+        <td class="num" id="sum">390.9 万 条</td>
+        <td colspan="3" id="sum-note">共 14 项；其中需另行审批 3 项。</td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <div class="colophon">
+    <span class="pager">
+      <button class="pg" id="prev" disabled="">‹ 上一页</button>
+      <button class="pg" data-p="1" aria-current="true">1</button>
+      <button class="pg" data-p="2" aria-current="false">2</button>
+      <button class="pg" id="next">下一页 ›</button>
+    </span>
+    <span class="note">说明：共享类型标注「不予共享」者仅供内部监管；标注朱色者为需另行审批项。</span>
+  </div>
+
+  <section class="exhibit" id="exhibit" aria-live="polite">
+    <h2 id="ex-title">—</h2>
+    <div class="sub" id="ex-sub">—</div>
+    <div class="cols">
+      <dl>
+        <dt>提供单位</dt><dd id="ex-org">—</dd>
+        <dt>共享类型</dt><dd id="ex-share">—</dd>
+        <dt>数据量</dt><dd id="ex-size">—</dd>
+        <dt>更新周期</dt><dd id="ex-cycle">—</dd>
+        <dt>敏感级别</dt><dd id="ex-level">—</dd>
+        <dt>脱敏情况</dt><dd id="ex-mask">—</dd>
+        <dt>资源摘要</dt><dd id="ex-desc">—</dd>
+      </dl>
+      <div>
+        <table class="fld">
+          <thead><tr><th>字段名</th><th>类型</th><th>说明</th></tr></thead>
+          <tbody id="ex-fields"></tbody>
+        </table>
+        <div class="note" id="ex-note">—</div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+
+
+
+</body></html>

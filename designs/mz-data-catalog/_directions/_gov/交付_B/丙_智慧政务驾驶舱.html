@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>方向丙 · 智慧政务驾驶舱 · 数据资源运行监测</title>
+<!--
+  方向 丙 · 智慧政务驾驶舱（运行监测大屏）
+  ------------------------------------------------------------------
+  场景定位：**给领导看运行态势**。不是录入、不是办事，是"一眼看清全局"。
+  对标：政务指挥中心/监管大屏的通行形态。
+
+  三个方向是三种使用者，不是三种皮肤：
+    甲 = 经办人（天天用，表格优先）  乙 = 办事人（找服务，发现性优先）
+    丙 = 领导（看态势，一屏全局优先）
+
+  配色依据：中国政府网实测亮蓝 #2691e2 / 深蓝 #015293；深色底为政务大屏通行做法。
+  反 slop 说明：huashu 清单点名禁的是「均匀 #0D1117 底 + 通用青紫霓虹 glow」那一种
+    偷懒组合。这里是政务监测场景的既定形态（且明度分层、有真实数据层级），
+    属于"该场景本身就用"的合法破例 —— 但刻意不用霓虹 glow、不用粒子装饰。
+
+  ⚠️ 渲染兼容：环形图用 SVG <circle> + stroke-dasharray（实测 SVG 弧线/描边正常）；
+     条形图用 div 宽度百分比而非 CSS 渐变，避免静态渲染器差异。
+-->
+<style>
+:root{
+  --bg:#071d3d;          /* 极深蓝底 */
+  --panel:#0e2a52;       /* 面板底 */
+  --panel-2:#123463;     /* 面板底（深） */
+  --line:#1d4478;        /* 分隔线 */
+  --cyan:#2691e2;        /* 主亮蓝（中国政府网实测） */
+  --cyan-2:#6fd4f5;      /* 浅亮蓝 */
+  --cyan-3:#015293;      /* 深蓝（中国政府网实测主色） */
+  --white:#ffffff;
+  --dim:#9fb6d0;         /* 辅助说明 */
+  --dim-2:#6d88a8;
+  --red:#ff6b6b;         /* 警示 */
+  --amber:#f5b942;
+  --green:#45d09e;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:var(--bg);color:var(--white);
+  font-family:"PingFang SC","Microsoft YaHei","Source Han Sans SC","Noto Sans SC",sans-serif;
+  font-size:14px;line-height:1.6;text-wrap:pretty;
+}
+.wrap{max-width:1420px;margin:0 auto;min-height:940px;padding:0 0 0 0}
+
+/* ══ 顶部通栏标题 ══ */
+.head{
+  height:58px;border-bottom:1px solid var(--line);
+  background-image:linear-gradient(90deg,#0a2547 0%,#0f3563 50%,#0a2547 100%);
+  padding:0 24px;white-space:nowrap;
+}
+.head .t{display:inline-block;font-size:21px;font-weight:700;letter-spacing:5px;
+  line-height:58px;color:#eaf4ff}
+.head .t i{display:inline-block;width:5px;height:20px;background:var(--cyan);
+  margin-right:14px;vertical-align:-3px}
+.head .rt{float:right;font-size:13px;color:var(--dim);line-height:58px}
+.head .rt b{color:var(--cyan-2);font-weight:400}
+.head .rt span{margin-left:18px}
+
+/* ══ KPI 卡片 ══ */
+.kpis{padding:16px 20px 0;white-space:nowrap;font-size:0}
+.kpi{
+  display:inline-block;width:24.25%;margin-right:1%;vertical-align:top;
+  background:var(--panel);border:1px solid var(--line);border-top:2px solid var(--cyan);
+  padding:14px 18px 15px;white-space:normal;
+}
+.kpi:last-child{margin-right:0}
+.kpi .lb{font-size:13.5px;color:var(--dim);letter-spacing:1px}
+.kpi .lb em{font-style:normal;float:right;font-size:11.5px;color:var(--dim-2);
+  padding-top:3px;letter-spacing:0}
+.kpi .v{font-size:34px;font-weight:700;color:var(--cyan-2);
+  font-feature-settings:"tnum";letter-spacing:-.5px;line-height:1.2;padding-top:4px}
+.kpi .v u{font-style:normal;text-decoration:none;font-size:14px;font-weight:400;
+  color:var(--dim);margin-left:5px;letter-spacing:1px}
+.kpi .v.warn{color:var(--amber)}
+.kpi .v.danger{color:var(--red)}
+.kpi .sub{font-size:12.5px;color:var(--dim-2);padding-top:3px}
+
+/* ══ 面板通用 ══ */
+.row2{display:table;width:100%;table-layout:fixed;padding:16px 20px 0}
+.row2 .c{display:table-cell;vertical-align:top;width:50%}
+.row2 .c:first-child{padding-right:8px}
+.row2 .c:last-child{padding-left:8px}
+.panel{background:var(--panel);border:1px solid var(--line);padding:14px 18px 16px}
+.panel .hd{white-space:nowrap;padding-bottom:11px;border-bottom:1px solid var(--line);
+  margin-bottom:13px}
+.panel .hd .t{display:inline-block;font-size:15px;font-weight:700;letter-spacing:2px;
+  color:#dbeaf8}
+.panel .hd .t i{display:inline-block;width:3px;height:14px;background:var(--cyan);
+  margin-right:9px;vertical-align:-2px}
+.panel .hd .r{float:right;font-size:12px;color:var(--dim-2);padding-top:4px;letter-spacing:.5px}
+
+/* 条形图 */
+.bars{font-size:13px}
+.bars .b{white-space:nowrap;padding:7px 0}
+.bars .b .lb{display:inline-block;width:104px;color:var(--dim);vertical-align:middle}
+.bars .b .tr{display:inline-block;width:260px;height:14px;background:var(--panel-2);
+  vertical-align:middle;margin:0 12px}
+.bars .b .tr i{display:block;height:14px;background:var(--cyan)}
+.bars .b .vl{display:inline-block;color:var(--cyan-2);font-feature-settings:"tnum";
+  font-weight:700;vertical-align:middle;font-size:13.5px}
+.bars .b .vl u{font-style:normal;text-decoration:none;color:var(--dim-2);
+  font-weight:400;font-size:12px;margin-left:4px}
+
+/* 环形图 */
+.donut{white-space:nowrap}
+.donut .svg{display:inline-block;vertical-align:middle;margin-right:22px}
+.donut .lg{display:inline-block;vertical-align:middle;font-size:13.5px}
+.donut .lg .r{white-space:nowrap;padding:7px 0}
+.donut .lg .dot{display:inline-block;width:10px;height:10px;margin-right:9px;
+  vertical-align:0}
+.donut .lg .nm{display:inline-block;width:88px;color:var(--dim)}
+.donut .lg .vl{display:inline-block;color:var(--cyan-2);font-weight:700;
+  font-feature-settings:"tnum";margin-right:9px}
+.donut .lg .pc{display:inline-block;color:var(--dim-2);font-size:12.5px}
+
+/* ══ 监测表 ══ */
+.mon{margin:16px 20px 0;background:var(--panel);border:1px solid var(--line)}
+.mon .hd{padding:13px 18px;border-bottom:1px solid var(--line);white-space:nowrap}
+.mon .hd .t{display:inline-block;font-size:15px;font-weight:700;letter-spacing:2px;
+  color:#dbeaf8}
+.mon .hd .t i{display:inline-block;width:3px;height:14px;background:var(--cyan);
+  margin-right:9px;vertical-align:-2px}
+.mon .hd .r{float:right;font-size:12px;color:var(--dim-2);padding-top:4px}
+table.mt{width:100%;border-collapse:collapse;font-size:13.5px}
+table.mt thead th{
+  background:#0a2347;color:var(--cyan-2);text-align:left;font-weight:700;
+  font-size:12.5px;letter-spacing:1px;padding:9px 16px;
+  border-bottom:1px solid var(--line);white-space:nowrap;
+}
+table.mt tbody td{padding:9px 16px;border-bottom:1px solid #16345f;
+  color:#cfdff0;vertical-align:middle}
+table.mt tbody tr:hover td{background:#12305c}
+table.mt td.nm{color:#fff;font-weight:700}
+table.mt td.nm .code{display:block;font-size:11.5px;color:var(--dim-2);font-weight:400;
+  font-family:ui-monospace,"SF Mono",Menlo,monospace}
+table.mt td.num{text-align:right;font-feature-settings:"tnum";color:var(--cyan-2);
+  font-weight:700}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;
+  vertical-align:0}
+.dot.g{background:var(--green)} .dot.a{background:var(--amber)} .dot.r{background:var(--red)}
+.st{color:#cfe6d8}
+.st.w{color:var(--amber)} .st.r{color:var(--red)}
+
+/* ══ 底部功能区（深色版，列明项同指引要求）══ */
+.foot{margin-top:16px;background:#061831;border-top:1px solid var(--line);
+  padding:13px 20px;font-size:12px;color:var(--dim-2);line-height:1.85}
+.foot .row1{white-space:nowrap;padding-bottom:7px;border-bottom:1px solid #12305c;
+  margin-bottom:7px}
+.foot .row1 span{display:inline-block;margin-right:20px}
+.foot .idcard{display:inline-block;border:1px solid var(--line);padding:1px 8px;
+  font-size:11.5px;color:var(--dim)}
+.foot .row2 span{display:inline-block;margin-right:18px}
+.foot .row2 .rt{float:right;margin-right:0}
+.foot a{color:var(--dim);text-decoration:none}
+
+/* ── 密度收口（驾驶舱含 KPI + 双面板 + 监测表 + 底部功能区，统一收紧）── */
+.kpis{padding:12px 20px 0}
+.kpi{padding:11px 18px 12px}
+.kpi .v{font-size:30px}
+.bars .b{padding:4px 0}
+.row2{padding:12px 20px 0}
+.panel{padding:11px 18px 12px}
+.panel .hd{padding-bottom:9px;margin-bottom:10px}
+.mon{margin:12px 20px 0}
+.mon .hd{padding:11px 18px}
+table.mt tbody td{padding:7px 16px}
+table.mt thead th{padding:8px 16px}
+.head{height:52px}
+.head .t{line-height:52px}
+.head .rt{line-height:52px}
+.foot{padding:10px 20px;margin-top:12px}
+
+/* 第二轮收口 */
+.kpi{padding:9px 18px 10px}
+.mon .hd{padding:9px 18px}
+.foot{padding:8px 20px;margin-top:10px}
+/* 条形图改两列：8 个处室单列排太长（且大屏扫读更适双列）*/
+.bars table{width:100%;border-collapse:collapse}
+.bars table td{vertical-align:top;width:50%}
+.bars table td:first-child{padding-right:16px}
+.bars .b .tr{width:110px;margin:0 9px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="head">
+    <span class="t"><i></i>数据资源运行监测</span>
+    <span class="rt">
+      <span>数据截至 <b>2026-10-06</b></span>
+      <span>刷新周期 <b>60 秒</b></span>
+      <span>省民政厅 · 数据管理组</span>
+    </span>
+  </div>
+
+  <!-- KPI -->
+  <div class="kpis">
+    <div class="kpi">
+      <div class="lb">在编目录<em>较上期 +1</em></div>
+      <div class="v" id="k1">14<u>项</u></div>
+      <div class="sub">已发布 12 · 待审 1 · 已下架 1</div>
+    </div>
+    <div class="kpi">
+      <div class="lb">记录总量<em>较上期 +3.2%</em></div>
+      <div class="v" id="k2">390.9<u>万条</u></div>
+      <div class="sub">日均更新 6 项 · 每日更新 1 项</div>
+    </div>
+    <div class="kpi">
+      <div class="lb">共享申请<em>近 30 日</em></div>
+      <div class="v" id="k3">5<u>件</u></div>
+      <div class="sub">已通过 3 · 待审批 1 · 已驳回 1</div>
+    </div>
+    <div class="kpi">
+      <div class="lb">需关注<em>高风险 / 待审</em></div>
+      <div class="v warn" id="k4">3<u>项</u></div>
+      <div class="sub">高敏感且已脱敏 · 需另行审批</div>
+    </div>
+  </div>
+
+  <div class="row2">
+    <!-- 左：各处室数据量 -->
+    <div class="c">
+      <div class="panel">
+        <div class="hd"><span class="t"><i></i>各处室数据量分布</span>
+          <span class="r">按记录数降序</span></div>
+        <div class="bars" id="bars"></div>
+      </div>
+    </div>
+    <!-- 右：共享类型 + 更新周期 -->
+    <div class="c">
+      <div class="panel">
+        <div class="hd"><span class="t"><i></i>共享类型构成</span>
+          <span class="r">共 14 项</span></div>
+        <div class="donut">
+          <svg class="svg" width="140" height="140" viewBox="0 0 140 140"
+               xmlns="http://www.w3.org/2000/svg">
+            <g transform="rotate(-90 70 70)">
+              <circle cx="70" cy="70" r="52" fill="none" stroke="#123463" stroke-width="18"/>
+              <circle cx="70" cy="70" r="52" fill="none" stroke="#2691e2" stroke-width="18"
+                      stroke-dasharray="187 327"/>
+              <circle cx="70" cy="70" r="52" fill="none" stroke="#6fd4f5" stroke-width="18"
+                      stroke-dasharray="117 327" stroke-dashoffset="-187"/>
+              <circle cx="70" cy="70" r="52" fill="none" stroke="#f5b942" stroke-width="18"
+                      stroke-dasharray="23 327" stroke-dashoffset="-304"/>
+            </g>
+            <text x="70" y="66" text-anchor="middle" font-size="15" font-weight="bold"
+                  fill="#ffffff">14</text>
+            <text x="70" y="86" text-anchor="middle" font-size="11"
+                  fill="#9fb6d0">项目录</text>
+          </svg>
+          <span class="lg" id="lg"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 监测表 -->
+  <div class="mon">
+    <div class="hd">
+      <span class="t"><i></i>数据更新与共享运行监测</span>
+      <span class="r">超期未更新项以红色标注 · 点行查看明细</span>
+    </div>
+    <table class="mt">
+      <thead><tr>
+        <th style="width:25%">目录名称</th>
+        <th style="width:15%">提供处室</th>
+        <th style="width:12%;text-align:right">记录数</th>
+        <th style="width:11%">更新周期</th>
+        <th style="width:13%">最近更新</th>
+        <th style="width:12%">更新状态</th>
+        <th style="width:12%">共享类型</th>
+      </tr></thead>
+      <tbody id="mtb"></tbody>
+    </table>
+  </div>
+
+  <div class="foot">
+    <div class="row1">
+      <span><span class="idcard">党政机关网站标识</span></span>
+      <span>政府网站标识码：XXXXXXXXXX</span>
+      <span>备案号：X ICP 备 00000000 号</span>
+      <span>公安备案号：X 公网安备 00000000000000 号</span>
+    </div>
+    <div class="row2">
+      <span>主办单位：省民政厅</span>
+      <span>承办单位：省民政厅数据管理组</span>
+      <span>值班电话：0000-00000000</span>
+      <span><a>站点地图</a></span>
+      <span><a>无障碍浏览</a></span>
+      <span class="rt">内部管理页面 · 数据仅限政务内网使用</span>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ⚠️ 以下 innerHTML 仅渲染本文件内硬编码的常量数据，无网络请求、无外部输入进入模板。 */
+const DATA = [
+  [1,'低保对象基础信息','MZ-SH-0001','社会救助处',126000,'无条件共享','每月','2026-10-06'],
+  [2,'特困人员供养信息','MZ-SH-0002','社会救助处',34000,'无条件共享','每月','2026-10-06'],
+  [3,'养老服务设施台账','MZ-YL-0007','养老服务处',8120,'有条件共享','每季度','2026-10-05'],
+  [4,'社会组织登记信息','MZ-ZZ-0021','社会组织管理局',57000,'有条件共享','每月','2026-10-05'],
+  [5,'婚姻登记信息（脱敏）','MZ-SW-0003','社会事务处',2860000,'有条件共享','每日','2026-10-04'],
+  [6,'殡葬服务单位信息','MZ-SW-0011','社会事务处',1036,'无条件共享','每季度','2026-10-03'],
+  [7,'残疾人两项补贴发放信息','MZ-CJ-0005','残疾人福利处',248000,'无条件共享','每月','2026-10-03'],
+  [8,'行政区划与地名数据','MZ-QH-0001','区划地名处',42000,'无条件共享','每半年','2026-10-02'],
+  [9,'儿童福利机构信息','MZ-ET-0002','儿童福利处',418,'有条件共享','每季度','2026-10-01'],
+  [10,'慈善组织公开募捐信息','MZ-CS-0003','慈善事业促进处',21000,'无条件共享','每月','2026-09-30'],
+  [11,'高龄津贴发放信息','MZ-YL-0019','养老服务处',382000,'无条件共享','每月','2026-09-29'],
+  [12,'社会组织年检结果','MZ-ZZ-0044','社会组织管理局',18000,'不予共享','每年','2026-09-28'],
+  [13,'社会救助家庭经济状况核对','MZ-SH-0009','社会救助处',96000,'有条件共享','每月','2026-09-26'],
+  [14,'志愿服务组织与项目','MZ-CS-0017','慈善事业促进处',15400,'无条件共享','每季度','2026-09-25'],
+];
+const TYPES = ['无条件共享','有条件共享','不予共享'];
+const TYPE_C = { '无条件共享':'#2691e2', '有条件共享':'#6fd4f5', '不予共享':'#f5b942' };
+const fmt = n => n.toLocaleString('zh-CN');
+
+function unitAgg(){
+  const m = new Map();
+  DATA.forEach(d => m.set(d[3], (m.get(d[3]) || 0) + d[4]));
+  return [...m.entries()].sort((a,b) => b[1] - a[1]);
+}
+function renderBars(){
+  const us = unitAgg();
+  const max = us[0][1];
+  const bar = ([n, v]) => `
+    <div class="b">
+      <span class="lb">${n}</span>
+      <span class="tr"><i style="width:${(v/max*100).toFixed(1)}%"></i></span>
+      <span class="vl">${(v/10000).toFixed(1)}<u>万条</u></span>
+    </div>`;
+  /* 两列排：8 个处室单列会有 8 行，既拉高页面也不便于大屏扫读。
+     分两列后每个面板内只有 4 行。 */
+  const half = Math.ceil(us.length / 2);
+  document.getElementById('bars').innerHTML =
+    `<table><tr>
+       <td>${us.slice(0, half).map(bar).join('')}</td>
+       <td>${us.slice(half).map(bar).join('')}</td>
+     </tr></table>`;
+}
+function renderDonut(){
+  const n = DATA.length;
+  document.getElementById('lg').innerHTML = TYPES.map(t => {
+    const c = DATA.filter(d => d[5] === t).length;
+    return `<div class="r">
+      <span class="dot" style="background:${TYPE_C[t]}"></span>
+      <span class="nm">${t}</span>
+      <span class="vl">${c} 项</span>
+      <span class="pc">${(c/n*100).toFixed(0)}%</span></div>`;
+  }).join('');
+}
+/* 更新状态：按"最近更新日期"距基准日 2026-10-07 的天数判定 */
+function updState(d){
+  const days = Math.round((new Date('2026-10-07') - new Date(d[7])) / 86400000);
+  if (d[6] === '每日')   return days <= 3 ? ['g','正常'] : ['a','滞后'];
+  if (d[6] === '每月')   return days <= 12 ? ['g','正常'] : ['a','滞后'];
+  if (d[6] === '每季度') return days <= 95 ? ['g','正常'] : (days <= 110 ? ['a','临近'] : ['r','超期']);
+  if (d[6] === '每半年') return days <= 185 ? ['g','正常'] : ['a','临近'];
+  return ['g','正常'];
+}
+function renderTable(){
+  const rs = [...DATA].sort((a,b) => b[4] - a[4]).slice(0, 6);
+  document.getElementById('mtb').innerHTML = rs.map(d => {
+    const [k, t] = updState(d);
+    return `<tr data-id="${d[0]}">
+      <td class="nm">${d[1]}<span class="code">${d[2]}</span></td>
+      <td style="color:#9fb6d0">${d[3]}</td>
+      <td class="num">${fmt(d[4])}</td>
+      <td style="color:#9fb6d0">${d[6]}</td>
+      <td style="color:#cfdff0;font-feature-settings:'tnum'">${d[7]}</td>
+      <td><span class="dot ${k}"></span><span class="st ${k==='g'?'':k}">${t}</span></td>
+      <td style="color:#cfdff0">${d[5]}</td>
+    </tr>`;
+  }).join('');
+}
+renderBars(); renderDonut(); renderTable();
+
+window.__bing = {
+  barCount: () => document.querySelectorAll('#bars .b').length,
+  bars: () => [...document.querySelectorAll('#bars .b')].map(b =>
+    b.querySelector('.lb').textContent + '=' + b.querySelector('.vl').textContent),
+  legend: () => [...document.querySelectorAll('#lg .r')].map(r => r.textContent.trim()),
+  rows: () => document.querySelectorAll('#mtb tr').length,
+  donutSegs: () => document.querySelectorAll('.svg circle').length,
+  kpi: () => [...document.querySelectorAll('.kpi .v')].map(v => v.textContent.trim()),
+  footItems: () => [...document.querySelectorAll('.foot span')].map(s => s.textContent.trim()),
+};
+</script>
+</body>
+</html>

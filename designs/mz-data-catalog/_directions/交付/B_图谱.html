@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>方向 B · 图谱 · 民政数据资源目录</title>
+<!--
+  方向 B · 图谱 (Atlas)
+  ------------------------------------------------------------------
+  气质定位：把"一本账"画成一张图。数据资源不是清单，是一张有中心的网络——
+            处室围绕目录分布，连线粗细就是数据量。像工程图纸，不像后台。
+  主导角色：视觉设计师 + 前端工程师（SVG 是主角，不是装饰）
+  参考：技术图纸标注法 / Nicholas Felton 的数据年刊 / Observable 的关系图
+
+  与方向 A 的差异（不只是换色）：
+    · 交互模型：A 是「表格检索」，B 是「空间定位」——先看全局分布，再落点
+    · 视觉语言：A 暖纸+宋体+朱红；B 冷图纸+等宽标注+琥珀信号色
+    · 信息组织：A 逐行读取；B 靠位置与连线表达关系
+
+  反 slop 对照：不用渐变、不用 emoji、不用圆角卡片堆叠；
+    SVG 在此是「真实图表」而非「用 SVG 画插图」，符合 §6.2 的例外说明。
+-->
+<style>
+:root{
+  --field:#eef1f3;        /* 图纸底 */
+  --grid:#dfe4e8;         /* 网格 */
+  --paper:#fbfcfc;
+  --ink:#22303a;          /* 墨 */
+  --ink-2:#5b6b76;
+  --ink-3:#93a1aa;
+  --line:#c9d2d8;
+  --line-2:#aab6bd;
+  --signal:#b06a09;       /* 琥珀信号 —— 唯一彩色，只标"需要动作"的项 */
+  --ok:#3f6b57;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background-color:var(--field);
+  /* 图纸网格：用两条渐变画网格是"工具感"而非"渐变 slop"（背景不是主体）*/
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size:24px 24px, 24px 24px;
+  color:var(--ink);
+  font-family:"PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif;
+  font-size:13px; line-height:1.75; text-wrap:pretty;
+  /* 用 grid 显式定行，不用 flex 列 —— 静态渲染器对 flex:1 + overflow-y:auto 不收敛，
+     会让侧栏清单把整体高度顶出视口（多出一页）。*/
+  height:100vh; display:grid; grid-template-rows:auto minmax(0,1fr); overflow:hidden;
+}
+.mono{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+
+/* 图纸标题栏 */
+.plate{
+  display:flex; align-items:center; gap:18px;
+  padding:11px 20px; background:var(--paper);
+  border-bottom:1.5px solid var(--ink);
+}
+.plate h1{font-size:14px; font-weight:600; letter-spacing:2.5px}
+.plate .no{font-size:11px; color:var(--ink-3); letter-spacing:1.5px}
+.plate .kv{margin-left:auto; display:flex; gap:20px; font-size:11px; color:var(--ink-2)}
+.plate .kv b{font-weight:600; color:var(--ink); font-feature-settings:"tnum"}
+.plate .kv span{letter-spacing:1px; color:var(--ink-3); margin-right:5px}
+
+.workspace{display:grid; grid-template-columns:236px minmax(0,1fr) 320px;
+  min-height:0; overflow:hidden}
+
+/* 左：处室清单 */
+.units{
+  background:var(--paper); border-right:1px solid var(--line);
+  display:grid; grid-template-rows:auto minmax(0,1fr); min-height:0; overflow:hidden;
+}
+.pane-h{
+  padding:9px 14px; border-bottom:1px solid var(--line);
+  font-size:11px; letter-spacing:1.5px; color:var(--ink-3);
+}
+.units ul{list-style:none; overflow-y:auto; min-height:0}
+.units li{
+  padding:8px 14px; border-bottom:1px solid var(--line);
+  cursor:pointer; display:flex; flex-direction:column; gap:5px;
+}
+.units li:hover{background:#f2f5f6}
+.units li[aria-current="true"]{background:#e7edef; box-shadow:inset 2px 0 0 var(--ink)}
+.units .nm{display:flex; align-items:baseline; gap:6px; font-size:12.5px}
+.units .nm .n{font-size:10.5px; color:var(--ink-3); letter-spacing:.5px}
+/* 注：这里不用 inset:0 auto 0 0 —— WeasyPrint 不认 inset 简写 */
+.units .vol{height:3px; background:var(--line); position:relative}
+.units .vol i{position:absolute; left:0; top:0; bottom:0; background:var(--ink-2)}
+.units .meta{font-size:10.5px; color:var(--ink-3)}
+
+/* 中：关系图 */
+.atlas{position:relative; min-width:0; overflow:hidden}
+.atlas .legend{
+  position:absolute; left:16px; bottom:14px; font-size:10.5px; color:var(--ink-3);
+  line-height:1.9; background:rgba(251,252,252,.86); padding:8px 11px;
+  border:1px solid var(--line);
+}
+.atlas .legend .row{display:flex; align-items:center; gap:7px}
+.atlas .legend .ln{width:22px; height:0; border-top:1px solid var(--ink-2)}
+.atlas svg{display:block; width:100%; height:100%}
+.hub{fill:var(--ink)}
+.hub-t{fill:#fff; font-size:12px; font-weight:600; letter-spacing:2px}
+.node circle{fill:var(--paper); stroke:var(--ink-2); stroke-width:1.2}
+.node text{fill:var(--ink-2); font-size:11px}
+.node .cnt{fill:var(--ink-3); font-size:10px}
+.node{cursor:pointer}
+.node:hover circle{stroke:var(--ink); stroke-width:1.6}
+.node[data-on="true"] circle{fill:var(--ink); stroke:var(--ink)}
+.node[data-on="true"] text{fill:var(--ink)}
+.link{stroke:var(--line-2); fill:none}
+.node[data-on="true"] + .link{stroke:var(--signal)}
+.doc{fill:var(--paper); stroke:var(--line-2); stroke-width:1}
+.doc[data-alert="true"]{stroke:var(--signal)}
+.doc-t{fill:var(--ink); font-size:9.5px}
+.doc-t[data-alert="true"]{fill:var(--signal)}
+.doc{cursor:pointer}
+.doc:hover{stroke:var(--ink); stroke-width:1.4}
+
+/* 右：详情 */
+.leaf{
+  background:var(--paper); border-left:1px solid var(--line);
+  display:grid; grid-template-rows:auto minmax(0,1fr) auto;
+  min-height:0; overflow:hidden;
+}
+.leaf .body{padding:14px 16px; overflow-y:auto; min-height:0}
+.leaf h2{font-size:14px; font-weight:600; letter-spacing:.5px; line-height:1.5}
+.leaf .code{font-size:10.5px; color:var(--ink-3); margin:3px 0 13px}
+.spec{display:grid; grid-template-columns:66px 1fr; font-size:12px; border-top:1px solid var(--line)}
+.spec dt{padding:6px 0; color:var(--ink-3); font-size:11px; border-bottom:1px solid var(--line); letter-spacing:.5px}
+.spec dd{padding:6px 0; border-bottom:1px solid var(--line); overflow-wrap:anywhere}
+.spec dd.alert{color:var(--signal)}
+.sect{margin-top:15px; font-size:10.5px; letter-spacing:1.5px; color:var(--ink-3);
+  padding-bottom:5px; border-bottom:1px solid var(--line)}
+.fld{width:100%; border-collapse:collapse; font-size:11.5px}
+.fld td{padding:5px 0; border-bottom:1px solid var(--line)}
+.fld td:first-child{width:88px; color:var(--ink-2)}
+.fld td:nth-child(2){width:52px; color:var(--ink-3)}
+.empty{padding:26px 16px; color:var(--ink-3); font-size:12px; line-height:1.9}
+/* ⚠️ 不用 flex 放按钮：WeasyPrint 把 <button> 的 width:auto 解析成"占满可用宽度"，
+   flex 子项会被撑开后把后面的按钮挤出面板（页外、静默消失）。
+   用 inline 流 + margin 排布，按钮宽度=内容宽度。*/
+.actions{padding:11px 16px; border-top:1px solid var(--line); white-space:nowrap}
+.btn{
+  display:inline; padding:5px 13px; font-size:12px; font-family:inherit;
+  border:1px solid var(--line-2); background:var(--paper); color:var(--ink-2);
+  letter-spacing:.5px; cursor:pointer; margin-right:8px;
+}
+.btn:hover{border-color:var(--ink); color:var(--ink)}
+.btn-p{background:var(--ink); border-color:var(--ink); color:var(--paper)}
+.btn-p:hover{background:#16232b; color:#fff}
+.btn:disabled{opacity:.4; cursor:not-allowed; margin-right:0}
+</style>
+</head>
+<body>
+
+<div class="plate">
+  <h1>数据资源图谱</h1>
+  <span class="no mono">DRS-ATLAS / 2026-10-06</span>
+  <div class="kv">
+    <span>处室<b id="k-units">11</b></span>
+    <span>目录<b id="k-docs">14</b></span>
+    <span>记录总量<b id="k-vol">—</b></span>
+    <span>需审批<b id="k-alert" class="alert">4</b></span>
+  </div>
+</div>
+
+<div class="workspace">
+
+  <aside class="units">
+    <div class="pane-h">提供处室 / 数据量</div>
+    <ul id="units"></ul>
+  </aside>
+
+  <main class="atlas">
+    <svg id="svg" viewBox="0 0 760 620" preserveAspectRatio="xMidYMid meet" aria-label="数据资源关系图">
+      <g id="links"></g>
+      <g id="docs"></g>
+      <g id="nodes"></g>
+      <g id="hubg">
+        <circle class="hub" cx="380" cy="310" r="52"/>
+        <!-- ⚠️ SVG 文字必须用 font-size / fill 属性，不能靠 CSS ——
+             WeasyPrint 不把 CSS 的 font-size 应用到 SVG <text>，会一律按默认 14px 渲染。 -->
+        <text class="hub-t" x="380" y="315" text-anchor="middle"
+              font-size="12" font-weight="600" fill="#fff" letter-spacing="2">目录总账</text>
+      </g>
+    </svg>
+    <div class="legend">
+      <div class="row"><span class="ln"></span>连线粗细 = 该处室数据量</div>
+      <div class="row"><span style="width:8px;height:8px;border:1px solid var(--line-2);display:inline-block"></span>小方块 = 一个数据目录</div>
+      <div class="row"><span style="width:8px;height:8px;border:1px solid var(--signal);display:inline-block"></span>琥珀 = 高风险 / 待审核</div>
+    </div>
+  </main>
+
+  <aside class="leaf">
+    <div class="pane-h">目录详情</div>
+    <div class="body" id="leaf"></div>
+    <div class="actions">
+      <button class="btn" id="btn-clear" disabled>清除选择</button>
+      <button class="btn btn-p" id="btn-apply" disabled>申请共享</button>
+    </div>
+  </aside>
+
+</div>
+
+<script>
+/* ⚠️ 说明：以下 innerHTML 仅插入本文件内硬编码的常量数据（DATA），
+   无网络请求、无用户自由输入进入模板。纯本地离线原型，无 XSS 面。 */
+const DATA = [
+  [1,'低保对象基础信息','MZ-SH-0001','社会救助处',126000,'无条件共享','低',false,'全省城乡最低生活保障对象的基本信息、家庭成员构成、救助金额与发放记录。'],
+  [2,'特困人员供养信息','MZ-SH-0002','社会救助处',34000,'无条件共享','低',false,'特困人员救助供养对象、供养方式、供养标准及资金发放情况。'],
+  [3,'养老服务设施台账','MZ-YL-0007','养老服务处',8120,'有条件共享','中',false,'全省养老机构、社区养老服务设施的基础信息、床位规模与运营主体。'],
+  [4,'社会组织登记信息','MZ-ZZ-0021','社会组织管理局',57000,'有条件共享','中',false,'社会组织成立、变更、注销登记信息及年度检查结论。'],
+  [5,'婚姻登记信息（脱敏）','MZ-SW-0003','社会事务处',2860000,'有条件共享','高',true,'婚姻登记记录。身份证号、住址等敏感字段已按分类分级要求脱敏。'],
+  [6,'殡葬服务单位信息','MZ-SW-0011','社会事务处',1036,'无条件共享','低',false,'殡仪馆、公墓等殡葬服务单位的基本情况与服务能力。'],
+  [7,'残疾人两项补贴发放','MZ-CJ-0005','残疾人福利处',248000,'无条件共享','中',true,'困难残疾人生活补贴、重度残疾人护理补贴的发放对象与金额明细。'],
+  [8,'行政区划与地名数据','MZ-QH-0001','区划地名处',42000,'无条件共享','低',false,'行政区划代码、层级、变更沿革以及标准地名信息。'],
+  [9,'儿童福利机构信息','MZ-ET-0002','儿童福利处',418,'有条件共享','中',false,'儿童福利院、未成年人保护机构的基础信息与床位使用情况。'],
+  [10,'慈善组织公开募捐','MZ-CS-0003','慈善事业促进处',21000,'无条件共享','低',false,'慈善组织公开募捐方案备案信息与募捐进展。'],
+  [11,'高龄津贴发放信息','MZ-YL-0019','养老服务处',382000,'无条件共享','中',true,'高龄老人津贴发放对象、标准与逐月发放记录。'],
+  [12,'社会组织年检结果','MZ-ZZ-0044','社会组织管理局',18000,'不予共享','高',true,'社会组织年度检查结论与整改情况，仅限内部监管使用。'],
+  [13,'社会救助家庭经济核对','MZ-SH-0009','社会救助处',96000,'有条件共享','高',true,'低保、特困等救助对象的家庭经济状况核对结果与疑似问题清单。'],
+  [14,'志愿服务组织与项目','MZ-CS-0017','慈善事业促进处',15400,'无条件共享','低',false,'志愿服务组织备案信息与志愿服务项目实施情况。'],
+];
+const CX = 380, CY = 310, RX = 212, RY = 192;
+
+const units = [];
+DATA.forEach(d => {
+  let u = units.find(x => x.name === d[3]);
+  if (!u) { u = { name: d[3], docs: [], vol: 0 }; units.push(u); }
+  u.docs.push(d); u.vol += d[4];
+});
+units.sort((a,b) => b.vol - a.vol);
+const maxVol = Math.max(...units.map(u => u.vol));
+const fmt = n => n >= 10000 ? (n/10000).toFixed(1) + ' 万' : n.toLocaleString('zh-CN');
+const alertOf = d => d[7] && d[6] === '高';
+
+// 角度分配：均匀分布，避免顶部密集
+const ANGLES = units.map((u, i) => {
+  const step = (Math.PI * 2) / units.length;
+  return -Math.PI/2 + i * step + (i % 2 ? step * 0.14 : -step * 0.1);
+});
+const pos = u => {
+  const i = units.indexOf(u);
+  return { x: CX + Math.cos(ANGLES[i]) * RX, y: CY + Math.sin(ANGLES[i]) * RY };
+};
+
+// 处室清单
+document.getElementById('units').innerHTML =
+  `<li data-u="*" aria-current="true"><span class="nm"><span class="n">ALL</span>全部处室</span>
+     <span class="vol"><i style="width:100%"></i></span>
+     <span class="meta">${DATA.length} 项 · ${fmt(DATA.reduce((a,b)=>a+b[4],0))} 条</span></li>` +
+  units.map(u => `
+    <li data-u="${u.name}">
+      <span class="nm"><span class="n">${String(units.indexOf(u)+1).padStart(2,'0')}</span>${u.name}</span>
+      <span class="vol"><i style="width:${Math.max(6, u.vol/maxVol*100)}%"></i></span>
+      <span class="meta">${u.docs.length} 项 · ${fmt(u.vol)} 条</span>
+    </li>`).join('');
+
+// 连线：粗细 = 数据量
+document.getElementById('links').innerHTML = units.map(u => {
+  const p = pos(u);
+  return `<path class="link" stroke-width="${(1 + u.vol/maxVol*5).toFixed(1)}"
+           d="M${CX} ${CY} L${p.x.toFixed(1)} ${p.y.toFixed(1)}" data-u="${u.name}"/>`;
+}).join('');
+
+// 处室节点
+document.getElementById('nodes').innerHTML = units.map(u => {
+  const p = pos(u);
+  return `<g class="node" data-u="${u.name}" transform="translate(${p.x.toFixed(1)},${p.y.toFixed(1)})">
+      <circle r="9"/>
+      <text x="0" y="-15" text-anchor="middle" font-size="11" fill="#5b6b76">${u.name}</text>
+      <text class="cnt" x="0" y="23" text-anchor="middle" font-size="10" fill="#93a1aa">${fmt(u.vol)}</text>
+    </g>`;
+}).join('');
+
+/* 目录方块：每个处室的目录在「节点外侧」排成一列（方块 + 标签）。
+   ⚠️ 早先版本把同一处室的方块按 14px 间距排在垂直于半径的方向上 —— 但标签文字宽
+   约 70-100px，14px 的间距必然让相邻标签叠成一团（视觉上完全不可读）。
+   现在沿竖直方向成列、行高 15px、标签朝外侧排；左半边的标签向右对齐（朝左延伸），
+   避免文字撞向中心圆。椭圆半径同步收小，给标签留出画布内空间。 */
+const ROW = 15;
+document.getElementById('docs').innerHTML = units.map(u => {
+  const p = pos(u);
+  const right = Math.cos(ANGLES[units.indexOf(u)]) >= 0;
+  const n = u.docs.length;
+  const bx = p.x + (right ? 24 : -24);
+  const y0 = p.y - (n - 1) * ROW / 2;
+  return u.docs.map((d, k) => {
+    const y = y0 + k * ROW;
+    const al = alertOf(d);
+    const rx = right ? bx : bx - 7;
+    const tx = right ? bx + 12 : bx - 12;
+    const short = d[1].replace(/（.*?）/, '');
+    const lbl = short.length > 6 ? short.slice(0, 6) + '…' : short;
+    return `<g class="doc" data-id="${d[0]}" data-alert="${al}">
+      <title>${d[1]}（${d[2]}）</title>
+      <rect x="${rx.toFixed(1)}" y="${(y - 3.5).toFixed(1)}" width="7" height="7"
+            data-bx="${rx.toFixed(1)}" data-by="${(y - 3.5).toFixed(1)}"/>
+      <text class="doc-t" x="${tx.toFixed(1)}" y="${(y + 3.5).toFixed(1)}"
+            text-anchor="${right ? 'start' : 'end'}" font-size="9.5" data-alert="${al}"
+            fill="${al ? '#b06a09' : '#22303a'}">${lbl}</text>
+    </g>`;
+  }).join('');
+}).join('');
+
+document.getElementById('k-units').textContent = units.length;
+document.getElementById('k-docs').textContent = DATA.length;
+document.getElementById('k-vol').textContent = fmt(DATA.reduce((a,b)=>a+b[4],0));
+document.getElementById('k-alert').textContent = DATA.filter(alertOf).length;
+
+let picked = null, unitFilter = '*';
+
+function paint(){
+  document.querySelectorAll('.node').forEach(n =>
+    n.setAttribute('data-on', String(unitFilter === n.dataset.u)));
+  document.querySelectorAll('.doc').forEach(g => {
+    const d = DATA.find(x => x[0] === +g.dataset.id);
+    const dim = unitFilter !== '*' && d[3] !== unitFilter;
+    const sel = picked === d[0];
+    g.setAttribute('opacity', dim ? '0.22' : '1');
+    const r = g.querySelector('rect');
+    // 基准坐标存在 data-bx/data-by（不能读当前 x/y —— 反复绘制会累积外扩漂移）
+    const baseX = +r.getAttribute('data-bx'), baseY = +r.getAttribute('data-by');
+    // 方块几何改为绝对值（不再用 transform），选中态只做描边加粗 + 外扩 1px
+    r.setAttribute('x', (sel ? baseX - 1 : baseX).toFixed(1));
+    r.setAttribute('y', (sel ? baseY - 1 : baseY).toFixed(1));
+    r.setAttribute('width', sel ? '9' : '7');
+    r.setAttribute('height', sel ? '9' : '7');
+    r.setAttribute('stroke-width', sel ? '2' : '1');
+    r.setAttribute('stroke', sel ? '#22303a' : (alertOf(d) ? 'var(--signal)' : 'var(--line-2)'));
+    r.setAttribute('fill', sel ? '#22303a' : 'var(--paper)');
+    const t = g.querySelector('text');
+    if (t) t.setAttribute('font-weight', sel ? '700' : '400');
+    g.style.pointerEvents = dim ? 'none' : 'auto';
+  });
+  document.querySelectorAll('.link').forEach(l => {
+    const dim = unitFilter !== '*' && l.dataset.u !== unitFilter;
+    l.setAttribute('opacity', dim ? '0.18' : '1');
+  });
+  document.querySelectorAll('#units li').forEach(li =>
+    li.setAttribute('aria-current', String(li.dataset.u === unitFilter)));
+}
+function show(id){
+  picked = id;
+  const d = DATA.find(x => x[0] === id);
+  document.getElementById('leaf').innerHTML = `
+    <h2>${d[1]}</h2>
+    <div class="code mono">${d[2]}</div>
+    <dl class="spec">
+      <dt>提供处室</dt><dd>${d[3]}</dd>
+      <dt>共享类型</dt><dd class="${d[5]==='不予共享'?'alert':''}">${d[5]}</dd>
+      <dt>数据量</dt><dd>${fmt(d[4])} 条</dd>
+      <dt>敏感级别</dt><dd class="${d[6]==='高'?'alert':''}">${d[6]} 级</dd>
+      <dt>是否脱敏</dt><dd>${d[7] ? '是' : '否'}</dd>
+      <dt>资源摘要</dt><dd>${d[8]}</dd>
+    </dl>
+    <div class="sect">安全要求</div>
+    <div style="font-size:12px;line-height:1.8;color:var(--ink-2);padding-top:8px">
+      ${d[7] ? '使用方须落实分类分级保护，敏感字段不得还原，不得向第三方转供。'
+             : '按开放共享管理规定使用，保留数据来源标注。'}
+    </div>`;
+  document.getElementById('btn-clear').disabled = false;
+  document.getElementById('btn-apply').disabled = d[5] === '不予共享';
+  paint();
+}
+document.getElementById('docs').addEventListener('click', e => {
+  const g = e.target.closest('.doc'); if (g) show(+g.dataset.id);
+});
+document.getElementById('nodes').addEventListener('click', e => {
+  const g = e.target.closest('.node');
+  if (g) { unitFilter = (unitFilter === g.dataset.u) ? '*' : g.dataset.u; paint(); }
+});
+document.getElementById('units').addEventListener('click', e => {
+  const li = e.target.closest('li');
+  if (li) { unitFilter = (unitFilter === li.dataset.u) ? '*' : li.dataset.u; paint(); }
+});
+document.getElementById('btn-clear').addEventListener('click', () => {
+  picked = null; unitFilter = '*';
+  document.getElementById('leaf').innerHTML =
+    '<div class="empty">在图中点选一个数据目录方块，或先点处室节点聚焦该处室。</div>';
+  document.getElementById('btn-clear').disabled = true;
+  document.getElementById('btn-apply').disabled = true;
+  paint();
+});
+paint();
+window.__dirB = { docs: () => document.querySelectorAll('.doc').length,
+  nodes: () => document.querySelectorAll('.node').length,
+  picked: () => picked, unit: () => unitFilter,
+  leafTitle: () => (document.querySelector('#leaf h2')||{}).textContent || '' };
+</script>
+</body>
+</html>

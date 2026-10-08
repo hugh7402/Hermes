@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="zh"><head>
+<meta charset="utf-8">
+<title>方向 B · 图谱 · 民政数据资源目录</title>
+<!--
+  方向 B · 图谱 (Atlas)
+  ------------------------------------------------------------------
+  气质定位：把"一本账"画成一张图。数据资源不是清单，是一张有中心的网络——
+            处室围绕目录分布，连线粗细就是数据量。像工程图纸，不像后台。
+  主导角色：视觉设计师 + 前端工程师（SVG 是主角，不是装饰）
+  参考：技术图纸标注法 / Nicholas Felton 的数据年刊 / Observable 的关系图
+
+  与方向 A 的差异（不只是换色）：
+    · 交互模型：A 是「表格检索」，B 是「空间定位」——先看全局分布，再落点
+    · 视觉语言：A 暖纸+宋体+朱红；B 冷图纸+等宽标注+琥珀信号色
+    · 信息组织：A 逐行读取；B 靠位置与连线表达关系
+
+  反 slop 对照：不用渐变、不用 emoji、不用圆角卡片堆叠；
+    SVG 在此是「真实图表」而非「用 SVG 画插图」，符合 §6.2 的例外说明。
+-->
+<style>
+:root{
+  --field:#eef1f3;        /* 图纸底 */
+  --grid:#dfe4e8;         /* 网格 */
+  --paper:#fbfcfc;
+  --ink:#22303a;          /* 墨 */
+  --ink-2:#5b6b76;
+  --ink-3:#93a1aa;
+  --line:#c9d2d8;
+  --line-2:#aab6bd;
+  --signal:#b06a09;       /* 琥珀信号 —— 唯一彩色，只标"需要动作"的项 */
+  --ok:#3f6b57;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background-color:var(--field);
+  /* 图纸网格：用两条渐变画网格是"工具感"而非"渐变 slop"（背景不是主体）*/
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size:24px 24px, 24px 24px;
+  color:var(--ink);
+  font-family:"PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif;
+  font-size:13px; line-height:1.75; text-wrap:pretty;
+  /* 用 grid 显式定行，不用 flex 列 —— 静态渲染器对 flex:1 + overflow-y:auto 不收敛，
+     会让侧栏清单把整体高度顶出视口（多出一页）。*/
+  height:100vh; display:grid; grid-template-rows:auto minmax(0,1fr); overflow:hidden;
+}
+.mono{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+
+/* 图纸标题栏 */
+.plate{
+  display:flex; align-items:center; gap:18px;
+  padding:11px 20px; background:var(--paper);
+  border-bottom:1.5px solid var(--ink);
+}
+.plate h1{font-size:14px; font-weight:600; letter-spacing:2.5px}
+.plate .no{font-size:11px; color:var(--ink-3); letter-spacing:1.5px}
+.plate .kv{margin-left:auto; display:flex; gap:20px; font-size:11px; color:var(--ink-2)}
+.plate .kv b{font-weight:600; color:var(--ink); font-feature-settings:"tnum"}
+.plate .kv span{letter-spacing:1px; color:var(--ink-3); margin-right:5px}
+
+.workspace{display:grid; grid-template-columns:236px minmax(0,1fr) 320px;
+  min-height:0; overflow:hidden}
+
+/* 左：处室清单 */
+.units{
+  background:var(--paper); border-right:1px solid var(--line);
+  display:grid; grid-template-rows:auto minmax(0,1fr); min-height:0; overflow:hidden;
+}
+.pane-h{
+  padding:9px 14px; border-bottom:1px solid var(--line);
+  font-size:11px; letter-spacing:1.5px; color:var(--ink-3);
+}
+.units ul{list-style:none; overflow-y:auto; min-height:0}
+.units li{
+  padding:8px 14px; border-bottom:1px solid var(--line);
+  cursor:pointer; display:flex; flex-direction:column; gap:5px;
+}
+.units li:hover{background:#f2f5f6}
+.units li[aria-current="true"]{background:#e7edef; box-shadow:inset 2px 0 0 var(--ink)}
+.units .nm{display:flex; align-items:baseline; gap:6px; font-size:12.5px}
+.units .nm .n{font-size:10.5px; color:var(--ink-3); letter-spacing:.5px}
+/* 注：这里不用 inset:0 auto 0 0 —— WeasyPrint 不认 inset 简写 */
+.units .vol{height:3px; background:var(--line); position:relative}
+.units .vol i{position:absolute; left:0; top:0; bottom:0; background:var(--ink-2)}
+.units .meta{font-size:10.5px; color:var(--ink-3)}
+
+/* 中：关系图 */
+.atlas{position:relative; min-width:0; overflow:hidden}
+.atlas .legend{
+  position:absolute; left:16px; bottom:14px; font-size:10.5px; color:var(--ink-3);
+  line-height:1.9; background:rgba(251,252,252,.86); padding:8px 11px;
+  border:1px solid var(--line);
+}
+.atlas .legend .row{display:flex; align-items:center; gap:7px}
+.atlas .legend .ln{width:22px; height:0; border-top:1px solid var(--ink-2)}
+.atlas svg{display:block; width:100%; height:100%}
+.hub{fill:var(--ink)}
+.hub-t{fill:#fff; font-size:12px; font-weight:600; letter-spacing:2px}
+.node circle{fill:var(--paper); stroke:var(--ink-2); stroke-width:1.2}
+.node text{fill:var(--ink-2); font-size:11px}
+.node .cnt{fill:var(--ink-3); font-size:10px}
+.node{cursor:pointer}
+.node:hover circle{stroke:var(--ink); stroke-width:1.6}
+.node[data-on="true"] circle{fill:var(--ink); stroke:var(--ink)}
+.node[data-on="true"] text{fill:var(--ink)}
+.link{stroke:var(--line-2); fill:none}
+.node[data-on="true"] + .link{stroke:var(--signal)}
+.doc{fill:var(--paper); stroke:var(--line-2); stroke-width:1}
+.doc[data-alert="true"]{stroke:var(--signal)}
+.doc-t{fill:var(--ink); font-size:9.5px}
+.doc-t[data-alert="true"]{fill:var(--signal)}
+.doc{cursor:pointer}
+.doc:hover{stroke:var(--ink); stroke-width:1.4}
+
+/* 右：详情 */
+.leaf{
+  background:var(--paper); border-left:1px solid var(--line);
+  display:grid; grid-template-rows:auto minmax(0,1fr) auto;
+  min-height:0; overflow:hidden;
+}
+.leaf .body{padding:14px 16px; overflow-y:auto; min-height:0}
+.leaf h2{font-size:14px; font-weight:600; letter-spacing:.5px; line-height:1.5}
+.leaf .code{font-size:10.5px; color:var(--ink-3); margin:3px 0 13px}
+.spec{display:grid; grid-template-columns:66px 1fr; font-size:12px; border-top:1px solid var(--line)}
+.spec dt{padding:6px 0; color:var(--ink-3); font-size:11px; border-bottom:1px solid var(--line); letter-spacing:.5px}
+.spec dd{padding:6px 0; border-bottom:1px solid var(--line); overflow-wrap:anywhere}
+.spec dd.alert{color:var(--signal)}
+.sect{margin-top:15px; font-size:10.5px; letter-spacing:1.5px; color:var(--ink-3);
+  padding-bottom:5px; border-bottom:1px solid var(--line)}
+.fld{width:100%; border-collapse:collapse; font-size:11.5px}
+.fld td{padding:5px 0; border-bottom:1px solid var(--line)}
+.fld td:first-child{width:88px; color:var(--ink-2)}
+.fld td:nth-child(2){width:52px; color:var(--ink-3)}
+.empty{padding:26px 16px; color:var(--ink-3); font-size:12px; line-height:1.9}
+/* ⚠️ 不用 flex 放按钮：WeasyPrint 把 <button> 的 width:auto 解析成"占满可用宽度"，
+   flex 子项会被撑开后把后面的按钮挤出面板（页外、静默消失）。
+   用 inline 流 + margin 排布，按钮宽度=内容宽度。*/
+.actions{padding:11px 16px; border-top:1px solid var(--line); white-space:nowrap}
+.btn{
+  display:inline; padding:5px 13px; font-size:12px; font-family:inherit;
+  border:1px solid var(--line-2); background:var(--paper); color:var(--ink-2);
+  letter-spacing:.5px; cursor:pointer; margin-right:8px;
+}
+.btn:hover{border-color:var(--ink); color:var(--ink)}
+.btn-p{background:var(--ink); border-color:var(--ink); color:var(--paper)}
+.btn-p:hover{background:#16232b; color:#fff}
+.btn:disabled{opacity:.4; cursor:not-allowed; margin-right:0}
+</style>
+<style>
+    @page{size:1440px 940px;margin:0}
+    *,*::before,*::after{transition:none !important;animation:none !important}
+    html,body{height:940px !important;overflow:hidden !important}
+  </style></head>
+<body>
+
+<div class="plate">
+  <h1>数据资源图谱</h1>
+  <span class="no mono">DRS-ATLAS / 2026-10-06</span>
+  <div class="kv">
+    <span>处室<b id="k-units">8</b></span>
+    <span>目录<b id="k-docs">14</b></span>
+    <span>记录总量<b id="k-vol">390.9 万</b></span>
+    <span>需审批<b id="k-alert" class="alert">3</b></span>
+  </div>
+</div>
+
+<div class="workspace">
+
+  <aside class="units">
+    <div class="pane-h">提供处室 / 数据量</div>
+    <ul id="units"><li data-u="*" aria-current="true"><span class="nm"><span class="n">ALL</span>全部处室</span>
+     <span class="vol"><i style="width:100%"></i></span>
+     <span class="meta">14 项 · 390.9 万 条</span></li>
+    <li data-u="社会事务处" aria-current="false">
+      <span class="nm"><span class="n">01</span>社会事务处</span>
+      <span class="vol"><i style="width:100%"></i></span>
+      <span class="meta">2 项 · 286.1 万 条</span>
+    </li>
+    <li data-u="养老服务处" aria-current="false">
+      <span class="nm"><span class="n">02</span>养老服务处</span>
+      <span class="vol"><i style="width:13.635620104046225%"></i></span>
+      <span class="meta">2 项 · 39.0 万 条</span>
+    </li>
+    <li data-u="社会救助处" aria-current="false">
+      <span class="nm"><span class="n">03</span>社会救助处</span>
+      <span class="vol"><i style="width:8.947807717204537%"></i></span>
+      <span class="meta">3 项 · 25.6 万 条</span>
+    </li>
+    <li data-u="残疾人福利处" aria-current="false">
+      <span class="nm"><span class="n">04</span>残疾人福利处</span>
+      <span class="vol"><i style="width:8.668188726041896%"></i></span>
+      <span class="meta">1 项 · 24.8 万 条</span>
+    </li>
+    <li data-u="社会组织管理局" aria-current="false">
+      <span class="nm"><span class="n">05</span>社会组织管理局</span>
+      <span class="vol"><i style="width:6%"></i></span>
+      <span class="meta">2 项 · 7.5 万 条</span>
+    </li>
+    <li data-u="区划地名处" aria-current="false">
+      <span class="nm"><span class="n">06</span>区划地名处</span>
+      <span class="vol"><i style="width:6%"></i></span>
+      <span class="meta">1 项 · 4.2 万 条</span>
+    </li>
+    <li data-u="慈善事业促进处" aria-current="false">
+      <span class="nm"><span class="n">07</span>慈善事业促进处</span>
+      <span class="vol"><i style="width:6%"></i></span>
+      <span class="meta">2 项 · 3.6 万 条</span>
+    </li>
+    <li data-u="儿童福利处" aria-current="false">
+      <span class="nm"><span class="n">08</span>儿童福利处</span>
+      <span class="vol"><i style="width:6%"></i></span>
+      <span class="meta">1 项 · 418 条</span>
+    </li></ul>
+  </aside>
+
+  <main class="atlas">
+    <svg id="svg" viewBox="0 0 760 620" preserveAspectRatio="xMidYMid meet" aria-label="数据资源关系图">
+      <g id="links"><path class="link" stroke-width="6.0" d="M380 310 L363.4 118.6" data-u="社会事务处" opacity="1"></path><path class="link" stroke-width="1.7" d="M380 310 L545.5 190.0" data-u="养老服务处" opacity="1"></path><path class="link" stroke-width="1.4" d="M380 310 L591.3 294.9" data-u="社会救助处" opacity="1"></path><path class="link" stroke-width="1.4" d="M380 310 L512.6 459.8" data-u="残疾人福利处" opacity="1"></path><path class="link" stroke-width="1.1" d="M380 310 L396.6 501.4" data-u="社会组织管理局" opacity="1"></path><path class="link" stroke-width="1.1" d="M380 310 L214.5 430.0" data-u="区划地名处" opacity="1"></path><path class="link" stroke-width="1.1" d="M380 310 L168.7 325.1" data-u="慈善事业促进处" opacity="1"></path><path class="link" stroke-width="1.0" d="M380 310 L247.4 160.2" data-u="儿童福利处" opacity="1"></path></g>
+      <g id="docs"><g class="doc" data-id="5" data-alert="true" opacity="1" style="pointer-events: auto;">
+      <title>婚姻登记信息（脱敏）（MZ-SW-0003）</title>
+      <rect x="332.4" y="107.6" width="7" height="7" data-bx="332.4" data-by="107.6" stroke-width="1" stroke="var(--signal)" fill="var(--paper)"></rect>
+      <text class="doc-t" x="327.4" y="114.6" text-anchor="end" font-size="9.5" data-alert="true" fill="#b06a09" font-weight="400">婚姻登记信息</text>
+    </g><g class="doc" data-id="6" data-alert="false" opacity="1" style="pointer-events: auto;">
+      <title>殡葬服务单位信息（MZ-SW-0011）</title>
+      <rect x="332.4" y="122.6" width="7" height="7" data-bx="332.4" data-by="122.6" stroke-width="1" stroke="var(--line-2)" fill="var(--paper)"></rect>
+      <text class="doc-t" x="327.4" y="129.6" text-anchor="end" font-size="9.5" data-alert="false" fill="#22303a" font-weight="400">殡葬服务单位…</text>
+    </g><g class="doc" data-id="3" data-alert="false" opacity="1" style="pointer-events: auto;">
+      <title>养老服务设施台账（MZ-YL-0007）</title>
+      <rect x="569.5" y="179.0" width="7" height="7" data-bx="569.5" data-by="179.0" stroke-width="1" stroke="var(--line-2)" fill="var(--paper)"></rect>
+      <text class="doc-t" x="581.5" y="186.0" text-anchor="start" font-size="9.5" data-alert="false" fill="#22303a" font-weight="400">养老服务设施…</text>
+    </g><g class="doc" data-id="11" data-alert="false" opacity="1" style="pointer-events: auto;">
+      <title>高龄津贴发放信息（MZ-YL-0019）</title>
+      <rect x="569.5" y="194.0" width="7" height="7" data-bx="569.5" data-by="194.0" stroke-width="1" stroke="var(--line-2)" fill="var(--paper)"></rect>
+      <text class="doc-t" x="581.5" y="201.0" text-anchor="start" font-size="9.5" data-alert="false" fill="#22303a" font-weight="400">高龄津贴发放…</text>
+    </g><g class="doc" data-id="1" data-alert="false" opacity="1" style="pointer-events: auto;">
+      <title>低保对象基础信息（MZ-SH-0001）</title>
+      <rect x="615.3" y="276.4" width="7" height="7" data-bx="615.3" data-by="276.4" stroke-width="1" stroke="var(--line-2)" fill="var(--paper)"></rect>
+      <text class="doc-t" x="627.3" y="283.4" text-anchor="start" font-size="9.5" data-alert="false" fill="#22303a" font-weight="400">低保对象基础…</text>
+    </g><g class="doc" data-id="2" data-alert="false" opacity="1" style="pointer-events: auto;">
+      <title>特困人员供养信息（MZ-SH-0002）</title>
+      <rect x="615.3" y="291.4" width="7" height="7" data-bx="615.3" data-by="291.4" stroke-width="1" stroke="var(--line-2)" fill="var(--paper)"></rect>
+      <text class="doc-t" x="627.3" y="298.4" text-anchor="start" font-size="9.5" data-alert="false" fill="#22303a" font-weight="400">特困人员供养…</text>
+    </g><g class="doc" data-id="13" data-alert="true" opacity="1" style="pointer-events: auto;">
+      <title>社会救助家庭经济核对（MZ-SH-0009）</title>
+      <rect x="615.3" y="306.4" width="7" height="7" data-bx="615.3" data-by="306.4" stroke-width="1" stroke="var(--signal)" fill="var(--paper)"></rect>
+      <text class="doc-t" x="627.3" y="313.4" text-anchor="start" font-size="9.5" data-alert="true" fill="#b06a09" font-weight="400">社会救助家庭…</text>
+    </g><g class="doc" data-id="7" data-alert="false" opacity="1" style="pointer-events: auto;">
+      <title>残疾人两项补贴发放（MZ-CJ-0005）</title>
+      <rect x="536.6" y="456.3" width="7" height="7" data-bx="536.6" data-by="456.3" stroke-width="1" stroke="var(--line-2)" fill="var(--paper)"></rect>
+      <text class="doc-t" x="548.6" y="463.3" text-anchor="start" font-size="9.5" data-alert="false" fill="#22303a" font-weight="400">残疾人两项补…</text>
+    </g><g class="doc" data-id="4" data-alert="false" opacity="1" style="pointer-events: auto;">
+      <title>社会组织登记信息（MZ-ZZ-0021）</title>
+      <rect x="420.6" y="490.4" width="7" height="7" data-bx="420.6" data-by="490.4" stroke-width="1" stroke="var(--line-2)" fill="var(--paper)"></rect>
+      <text class="doc-t" x="432.6" y="497.4" text-anchor="start" font-size="9.5" data-alert="false" fill="#22303a" font-weight="400">社会组织登记…</text>
+    </g><g class="doc" data-id="12" data-alert="true" opacity="1" style="pointer-events: auto;">
+      <title>社会组织年检结果（MZ-ZZ-0044）</title>
+      <rect x="420.6" y="505.4" width="7" height="7" data-bx="420.6" data-by="505.4" stroke-width="1" stroke="var(--signal)" fill="var(--paper)"></rect>
+      <text class="doc-t" x="432.6" y="512.4" text-anchor="start" font-size="9.5" data-alert="true" fill="#b06a09" font-weight="400">社会组织年检…</text>
+    </g><g class="doc" data-id="8" data-alert="false" opacity="1" style="pointer-events: auto;">
+      <title>行政区划与地名数据（MZ-QH-0001）</title>
+      <rect x="183.5" y="426.5" width="7" height="7" data-bx="183.5" data-by="426.5" stroke-width="1" stroke="var(--line-2)" fill="var(--paper)"></rect>
+      <text class="doc-t" x="178.5" y="433.5" text-anchor="end" font-size="9.5" data-alert="false" fill="#22303a" font-weight="400">行政区划与地…</text>
+    </g><g class="doc" data-id="10" data-alert="false" opacity="1" style="pointer-events: auto;">
+      <title>慈善组织公开募捐（MZ-CS-0003）</title>
+      <rect x="137.7" y="314.1" width="7" height="7" data-bx="137.7" data-by="314.1" stroke-width="1" stroke="var(--line-2)" fill="var(--paper)"></rect>
+      <text class="doc-t" x="132.7" y="321.1" text-anchor="end" font-size="9.5" data-alert="false" fill="#22303a" font-weight="400">慈善组织公开…</text>
+    </g><g class="doc" data-id="14" data-alert="false" opacity="1" style="pointer-events: auto;">
+      <title>志愿服务组织与项目（MZ-CS-0017）</title>
+      <rect x="137.7" y="329.1" width="7" height="7" data-bx="137.7" data-by="329.1" stroke-width="1" stroke="var(--line-2)" fill="var(--paper)"></rect>
+      <text class="doc-t" x="132.7" y="336.1" text-anchor="end" font-size="9.5" data-alert="false" fill="#22303a" font-weight="400">志愿服务组织…</text>
+    </g><g class="doc" data-id="9" data-alert="false" opacity="1" style="pointer-events: auto;">
+      <title>儿童福利机构信息（MZ-ET-0002）</title>
+      <rect x="216.4" y="156.7" width="7" height="7" data-bx="216.4" data-by="156.7" stroke-width="1" stroke="var(--line-2)" fill="var(--paper)"></rect>
+      <text class="doc-t" x="211.4" y="163.7" text-anchor="end" font-size="9.5" data-alert="false" fill="#22303a" font-weight="400">儿童福利机构…</text>
+    </g></g>
+      <g id="nodes"><g class="node" data-u="社会事务处" transform="translate(363.4,118.6)" data-on="false">
+      <circle r="9"></circle>
+      <text x="0" y="-15" text-anchor="middle" font-size="11" fill="#5b6b76">社会事务处</text>
+      <text class="cnt" x="0" y="23" text-anchor="middle" font-size="10" fill="#93a1aa">286.1 万</text>
+    </g><g class="node" data-u="养老服务处" transform="translate(545.5,190.0)" data-on="false">
+      <circle r="9"></circle>
+      <text x="0" y="-15" text-anchor="middle" font-size="11" fill="#5b6b76">养老服务处</text>
+      <text class="cnt" x="0" y="23" text-anchor="middle" font-size="10" fill="#93a1aa">39.0 万</text>
+    </g><g class="node" data-u="社会救助处" transform="translate(591.3,294.9)" data-on="false">
+      <circle r="9"></circle>
+      <text x="0" y="-15" text-anchor="middle" font-size="11" fill="#5b6b76">社会救助处</text>
+      <text class="cnt" x="0" y="23" text-anchor="middle" font-size="10" fill="#93a1aa">25.6 万</text>
+    </g><g class="node" data-u="残疾人福利处" transform="translate(512.6,459.8)" data-on="false">
+      <circle r="9"></circle>
+      <text x="0" y="-15" text-anchor="middle" font-size="11" fill="#5b6b76">残疾人福利处</text>
+      <text class="cnt" x="0" y="23" text-anchor="middle" font-size="10" fill="#93a1aa">24.8 万</text>
+    </g><g class="node" data-u="社会组织管理局" transform="translate(396.6,501.4)" data-on="false">
+      <circle r="9"></circle>
+      <text x="0" y="-15" text-anchor="middle" font-size="11" fill="#5b6b76">社会组织管理局</text>
+      <text class="cnt" x="0" y="23" text-anchor="middle" font-size="10" fill="#93a1aa">7.5 万</text>
+    </g><g class="node" data-u="区划地名处" transform="translate(214.5,430.0)" data-on="false">
+      <circle r="9"></circle>
+      <text x="0" y="-15" text-anchor="middle" font-size="11" fill="#5b6b76">区划地名处</text>
+      <text class="cnt" x="0" y="23" text-anchor="middle" font-size="10" fill="#93a1aa">4.2 万</text>
+    </g><g class="node" data-u="慈善事业促进处" transform="translate(168.7,325.1)" data-on="false">
+      <circle r="9"></circle>
+      <text x="0" y="-15" text-anchor="middle" font-size="11" fill="#5b6b76">慈善事业促进处</text>
+      <text class="cnt" x="0" y="23" text-anchor="middle" font-size="10" fill="#93a1aa">3.6 万</text>
+    </g><g class="node" data-u="儿童福利处" transform="translate(247.4,160.2)" data-on="false">
+      <circle r="9"></circle>
+      <text x="0" y="-15" text-anchor="middle" font-size="11" fill="#5b6b76">儿童福利处</text>
+      <text class="cnt" x="0" y="23" text-anchor="middle" font-size="10" fill="#93a1aa">418</text>
+    </g></g>
+      <g id="hubg">
+        <circle class="hub" cx="380" cy="310" r="52"></circle>
+        <!-- ⚠️ SVG 文字必须用 font-size / fill 属性，不能靠 CSS ——
+             WeasyPrint 不把 CSS 的 font-size 应用到 SVG <text>，会一律按默认 14px 渲染。 -->
+        <text class="hub-t" x="380" y="315" text-anchor="middle" font-size="12" font-weight="600" fill="#fff" letter-spacing="2">目录总账</text>
+      </g>
+    </svg>
+    <div class="legend">
+      <div class="row"><span class="ln"></span>连线粗细 = 该处室数据量</div>
+      <div class="row"><span style="width:8px;height:8px;border:1px solid var(--line-2);display:inline-block"></span>小方块 = 一个数据目录</div>
+      <div class="row"><span style="width:8px;height:8px;border:1px solid var(--signal);display:inline-block"></span>琥珀 = 高风险 / 待审核</div>
+    </div>
+  </main>
+
+  <aside class="leaf">
+    <div class="pane-h">目录详情</div>
+    <div class="body" id="leaf"></div>
+    <div class="actions">
+      <button class="btn" id="btn-clear" disabled="">清除选择</button>
+      <button class="btn btn-p" id="btn-apply" disabled="">申请共享</button>
+    </div>
+  </aside>
+
+</div>
+
+
+
+
+</body></html>

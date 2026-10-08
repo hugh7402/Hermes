@@ -226,8 +226,75 @@ Check logs: `~/.hermes/logs/hindsight-embed.log` and `~/.hindsight/profiles/<pro
 
 **`hermes plugins enable` 一次只能启一个**：`hermes plugins enable disk-cleanup security-guidance` 会报 `unrecognized arguments`，必须逐个 `enable`。插件验证以实际行为为准（write_file 触发 security 警告 / tracked.json 有记录），`hermes plugins list` 显示 enabled 只是配置生效。
 
+**改 `hindsight/config.json` 后不重启 gateway = 不生效（2026-10-07 实测）**：
+
+症状：把 `config.json` 的 `llm_model`/`llm_base_url` 改对了（甚至手动起 daemon 已验证
+`Connection verified`），但 daemon 重新拉起时**又变回旧配置**——
+`/opt/data/.hindsight/profiles/hermes.env` 被**覆盖回旧值**（与备份逐字一致）。
+
+**根因**：`hermes.env` 不是权威配置，它是**插件在 gateway 进程内存里根据 `config.json` 生成的**
+（`plugins/memory/hindsight/__init__.py` 约 602 行：`current_base_url = config.get("llm_base_url") or os.environ.get(...)`，
+随后把值写进 `HINDSIGHT_API_LLM_*`）。gateway 只在启动时读一次 `config.json`，之后一直用内存里的旧副本——
+**手动改 hermes.env / 手动重启 daemon 都是白忙**，下次插件拉 daemon 就给你盖回去。
+
+**正确修法**：改完 `config.json` 后**重启 gateway**：`/command/s6-svc -t /run/service/gateway-default`（s6 会自动拉回；约 2 分钟完全就绪，期间平台通道会断 ~1 分钟）。
+
+**重启必须「延迟执行」，否则本轮回复发不出去**：把 `s6-svc -t` 直接写进当前回合，gateway 会在回复投递前就死掉。做法 = 后台脚本 `sleep 25` 后再 `s6-svc -t`，并在回复里明确告知用户「通道会 blip 一下，等 1 分钟再发消息」。
+
+**这类运维动作自己做，别问用户「要不要你手动重启」**——用户会反问回来「需要我手动替你重启网关吗？」。做、说清影响即可（用户 2026-10-07 对重启网关的答复是「要 重启吧」）。
+
+验证：重启后拉起 daemon，看 log 出现 `Verifying connection: openai/deepseek-chat` → `Connection verified`。⚠️ 这只证明 **LLM 通**，不代表能写——还要看 `/health`，见上一节验收三步。
+
+**⚠️ 判断「改到底生效没」，千万别看 `hermes.env`（2026-10-07 被它误导过一轮）**：
+
+重启 gateway 之后，`hermes.env` **可能仍然显示旧值**（实测 mtime 停在改配置之前、内容与备份逐字相同），
+但此时新拉起的 daemon 已经在用新配置了——因为插件是把 config **在 spawn 时直接传给 daemon**
+（对比 `expected_env` 而非改写该文件）。**拿这个文件当依据会追一个根本不存在的幽灵问题。**
+
+权威判据（按顺序）：
+```bash
+# 1. daemon 启动日志里的实际生效值（最硬）
+awk '$0 >= "<改配置的日期时间>"' /opt/data/.hindsight/profiles/hermes.log \
+  | grep -aE "model=|base_url=|Verifying connection|Connection verified"
+#    期望: model=deepseek-chat, base_url=https://api.deepseek.com/v1  →  Connection verified
+
+# 2. /health 必须 healthy
+curl -s http://127.0.0.1:9177/health
+
+# 3. gateway 启动时间（辅助，只说明「有没有重启过」）
+ps -eo pid,lstart,cmd | grep "[h]ermes gateway"
+```
+然后再做真验收（retain + recall），见下节。**只凭 `Connection verified` 宣布修好 = 误报。**
+
+**`hindsight_retain` 卡到 420s 超时 = 按顺序排两个根因，别怀疑工具本身**（2026-10-07 实测：两个根因**同时存在**，且第二个远比第一个隐蔽——LLM 配置改对了、日志出现 `Connection verified`、结果 retain 照样超时）：
+
+1. **先看 `/health`（最容易被跳过，却是硬前提）**：
+   ```bash
+   timeout 8 curl -s -w ' HTTP %{http_code}\n' http://127.0.0.1:9177/health
+   ```
+   `000` = daemon/PG 没起来 → **LLM 配置再正确，retain 也一定超时**。去查 PG 标准目录（见上文「daemon 报 `Failed to start embedded PostgreSQL`」），或直接跑 `scripts/hindsight_repair.sh`。
+   期望值：`{"status":"healthy","database":"connected",...}`
+2. **再看 LLM**：`APIStatusError ... HTTP 402`（硅基流动余额不足）会让 retain **卡满 420s 才返回**，不是快速失败。查 `/opt/data/.hindsight/profiles/hermes.log` 尾部。
+
+   ⚠️ **换 `llm_base_url` 时必须同时换 key，并先单独打一次 API 验明正身**。拿旧 key 打新 provider
+   会得到 **401**（key 不属于该 provider），和 **402**（key 属于但余额不足）**是两回事**，
+   别把 401 当欠费，也别以为改了 base_url 就完事：
+   ```bash
+   # 401 = key 不对     402 = 欠费     OK = 可用
+   curl -s -o /dev/null -w '%{http_code}\n' -X POST "$BASE_URL/chat/completions" \
+     -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' \
+     -d '{"model":"'"$MODEL"'","messages":[{"role":"user","content":"hi"}],"max_tokens":1}'
+   ```
+   正确的 key 在各 provider 的条目里（本机在 `/opt/data/.env`，用 `os.open()` 读，别用 read_file）。
+3. **最后真验收**：配置对 + `/health` healthy **≠ 通过**。必须真调一次 `hindsight_retain`（期望 `Memory stored successfully`），再用刚存内容的关键词 `hindsight_recall`（期望新记忆排最前）。**仅凭日志 `Connection verified` 宣布修好 = 误报**——本轮就是这么被误导的。
+
+> ⚠️ **模型名要用 `deepseek-chat`，不要用 `deepseek-flash` / `deepseek-v4-flash`**：
+> 后两者是**推理模型**，会把 token 花在 `reasoning_content` 上、返回的 `content` 为空串，
+> Hindsight 的实体抽取会静默拿到空结果。详见 `knowledge-base-maintenance` skill 同名坑位。
+
 ## Reference Files
 
+- `scripts/hindsight_repair.sh` — **retain 超时 / daemon 起不来时第一个跑的脚本**（2026-10-07 实跑通过）：幂等补齐 11 个 PG 标准目录 → 清 daemon+孤儿 postgres → 等 dashboard 重拉至 `/health` 返回 200 → 打印三步验收提示。**永不删实例数据**，可反复跑。
 - `references/bailian-setup.md` — 百炼 (Bailian) API specific setup: endpoints, model pricing, verification commands
 - `references/local-embedded-activation.md` — **local_embedded 从零到 retain/recall 全通实录（2026-08-09 验证）**：只读 venv + lazy-packages 安装、hindsight-embed 替代错误的老 hindsight 包、HF 模型经 hf-mirror 预下载、HindsightEmbedded shim、api_url 端口匹配。配置好但 is_available() False / daemon 不启动时先读这个。
 - `references/hindsight-daemon-recovery.md` — **PG 起不来 / daemon 卡死完整修复实录（2026-08-17）**：libicu70 缺失 + 缺 PG 标准目录的修复（直接补目录，**勿删实例**）、postgres wrapper 注入 LD_LIBRARY_PATH、手动启动 daemon 三必设环境（HOME/DATABASE_URL/unset proxy）、--daemon 孤儿进程占端口。daemon 起不来或 PG 报错时先读这个。

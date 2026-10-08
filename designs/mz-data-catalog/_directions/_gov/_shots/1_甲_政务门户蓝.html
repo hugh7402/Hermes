@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="zh"><head>
+<meta charset="utf-8">
+<title>方向甲 · 政务门户蓝 · 数据资源目录管理平台</title>
+<!--
+  方向 甲 · 政务门户蓝（正统政务后台）
+  ------------------------------------------------------------------
+  场景定位：**日常业务办理**。省级部门经办人天天用的管理后台。
+  对标：中国政府网 + 省级政府门户 + 通行政务业务系统后台形态。
+
+  配色有实证依据（2026-10-07 实测抓取）：
+    中国政府网主样式表最高频彩色 = #015293（×20）；中国红 #d9000d（×11，仅重要/警示）
+    陕西省政府主样式表 = #20528f / #11559b；浅蓝底 #f7f8fb
+    国办发〔2017〕47号《政府网站发展指引》：**"应确定一种主色调，合理搭配辅色调，
+      总色调不宜超过3种"** —— 本方向严格 3 色：政务蓝 / 中性灰白 / 中国红点缀。
+    底部功能区按指引列明：党政机关标识、政府网站标识码、ICP备案、公安备案、
+      主办单位及联系方式、站点地图。
+
+  与方向 A（台账）的根本差异：
+    A 是"把数据当档案编"，甲是"把系统按政务规范做"——信息架构、色彩、字体、组件
+    全部换成政务惯例：深蓝顶栏 + 白色主导航 + 左侧竖向菜单 + 浅蓝表头 + 底部功能区。
+
+  ⚠️ 渲染兼容：静态渲染器会给 <button> 的 width:auto 判成"占满可用宽度"，
+     所以按钮一律用 <span role="button">（span + inline-block 才能按内容宽度排）。
+     详见 ui-prototype skill 的 references/weasyprint-static-render-traps.md
+-->
+<style>
+:root{
+  /* 主色：中国政府网实测最高频彩色 */
+  --p:#015293;
+  --p-d:#013e6f;      /* 主色加深（顶栏/悬停） */
+  --p-m:#0b6aa8;      /* 主色中调 */
+  --p-l:#e8f1f9;      /* 浅蓝底：表头 / 选中行 */
+  --p-l2:#f3faff;     /* 极浅蓝：悬停 */
+  --red:#d9000d;      /* 中国红：仅警示、待办、必填 */
+  --ink:#333333;
+  --ink-2:#666666;
+  --ink-3:#999999;
+  --line:#e2e6eb;
+  --line-2:#c9d4de;
+  --bg:#f2f5f8;
+  --white:#fff;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:var(--bg);color:var(--ink);
+  font-family:"PingFang SC","Microsoft YaHei","Source Han Sans SC","Noto Sans SC",sans-serif;
+  font-size:13px;line-height:1.6;text-wrap:pretty;
+}
+.wrap{max-width:1420px;margin:0 auto;background:var(--white);min-height:940px}
+
+/* ══ 顶栏 ══ */
+.topbar{background:var(--p);color:#fff;height:52px;padding:0 20px;white-space:nowrap}
+.topbar .emblem{
+  display:inline-block;width:30px;height:30px;border-radius:50%;
+  background:var(--red);text-align:center;line-height:30px;font-size:15px;
+  vertical-align:middle;margin-right:10px;font-weight:700;letter-spacing:0;
+}
+.topbar .sysname{display:inline-block;font-size:17px;font-weight:700;letter-spacing:1.5px;
+  vertical-align:middle}
+.topbar .org{display:inline-block;font-size:13px;vertical-align:middle;
+  padding-left:12px;margin-left:12px;border-left:1px solid rgba(255,255,255,.35);
+  color:#d5e6f4;letter-spacing:.5px}
+.topbar .tools{float:right;white-space:nowrap;padding-top:15px;font-size:12px}
+.topbar .tools span{display:inline;margin-left:16px;color:#d5e6f4;cursor:pointer}
+.topbar .tools b{font-weight:400;color:#fff}
+.topbar .tools .u{color:#fff}
+
+/* ══ 主导航 ══ */
+.mainnav{background:var(--white);border-bottom:1px solid var(--line);
+  padding:0 20px;height:46px;white-space:nowrap;font-size:0}
+.mainnav span{
+  display:inline-block;height:46px;line-height:46px;padding:0 22px;
+  font-size:14px;color:var(--ink);cursor:pointer;border-bottom:3px solid transparent;
+}
+.mainnav span:hover{color:var(--p)}
+.mainnav span[aria-current="true"]{color:var(--p);font-weight:700;border-bottom-color:var(--p)}
+
+/* ══ 主体：左菜单 + 右内容 ══ */
+.body{display:table;width:100%;table-layout:fixed}
+.side{display:table-cell;width:186px;background:var(--white);
+  border-right:1px solid var(--line);vertical-align:top}
+.side .grp{padding:14px 16px 6px;font-size:12px;color:var(--ink-3);letter-spacing:1px}
+.side a{
+  display:block;padding:10px 16px 10px 22px;font-size:13.5px;color:var(--ink);
+  text-decoration:none;border-left:3px solid transparent;cursor:pointer;
+}
+.side a:hover{background:var(--p-l2);color:var(--p)}
+.side a[aria-current="true"]{background:var(--p-l);color:var(--p);font-weight:700;
+  border-left-color:var(--p)}
+.side .badge{float:right;background:var(--red);color:#fff;font-size:11px;
+  padding:0 6px;border-radius:8px;font-weight:400;line-height:16px;margin-top:3px}
+.main{display:table-cell;vertical-align:top;padding:16px 20px 24px;background:var(--bg)}
+
+/* ══ 面包屑 + 标题 ══ */
+.crumb{font-size:12px;color:var(--ink-3);padding-bottom:12px}
+.crumb b{font-weight:400;color:var(--ink-2)}
+h1.pg{font-size:19px;font-weight:700;color:#1a1a1a;padding-bottom:12px;
+  border-bottom:2px solid var(--p);margin-bottom:0;letter-spacing:.5px}
+h1.pg em{font-style:normal;font-size:12px;font-weight:400;color:var(--ink-3);
+  padding-left:12px;letter-spacing:0}
+
+/* ══ 检索条（政务系统典型：label + 下拉 + 按钮）══ */
+.filter{background:var(--white);border:1px solid var(--line);border-top:none;
+  padding:14px 18px;white-space:nowrap}
+.filter .fld{display:inline-block;margin-right:20px;vertical-align:middle}
+.filter .lb{font-size:13px;color:var(--ink-2);margin-right:7px}
+.filter .sel,.filter .txt{
+  display:inline-block;height:30px;line-height:28px;border:1px solid var(--line-2);
+  background:var(--white);font-family:inherit;font-size:13px;color:var(--ink);
+  padding:0 9px;min-width:132px;
+}
+.filter .txt{min-width:230px;color:var(--ink)}
+.filter .btn{margin-right:8px}
+
+/* 按钮：政务风格的主/次按钮。用 span 而非 button（见顶部渲染兼容说明）*/
+.btn{
+  display:inline-block;height:30px;line-height:28px;padding:0 17px;font-size:13px;
+  border:1px solid var(--line-2);background:var(--white);color:var(--ink);
+  cursor:pointer;vertical-align:middle;white-space:nowrap;
+}
+.btn:hover{border-color:var(--p);color:var(--p)}
+.btn-p{background:var(--p);border-color:var(--p);color:#fff}
+.btn-p:hover{background:var(--p-d);border-color:var(--p-d);color:#fff}
+
+/* ══ 数据表 ══ */
+.panel{background:var(--white);border:1px solid var(--line);border-top:none}
+.panel-hd{padding:12px 18px;border-bottom:1px solid var(--line);white-space:nowrap}
+.panel-hd .t{display:inline-block;font-size:14px;font-weight:700;color:#1a1a1a;
+  letter-spacing:.5px;vertical-align:middle}
+.panel-hd .t i{display:inline-block;width:3px;height:14px;background:var(--p);
+  margin-right:8px;vertical-align:-1px}
+.panel-hd .r{float:right;font-size:12px;color:var(--ink-3);padding-top:3px}
+table.grid{width:100%;border-collapse:collapse;font-size:13px}
+table.grid thead th{
+  background:var(--p-l);color:#01406e;text-align:left;font-weight:700;
+  padding:10px 12px;border-bottom:1px solid var(--line-2);white-space:nowrap;
+  letter-spacing:.3px;
+}
+table.grid thead th + th{border-left:1px solid #d5e4f0}
+table.grid tbody td{padding:9px 12px;border-bottom:1px solid var(--line);
+  vertical-align:middle}
+table.grid tbody tr:hover td{background:var(--p-l2)}
+table.grid tbody tr{cursor:pointer}
+td.nm{font-weight:700;color:#1a1a1a}
+td.nm .code{display:block;font-size:11.5px;color:var(--ink-3);font-weight:400;
+  font-family:ui-monospace,"SF Mono",Menlo,monospace;margin-top:1px}
+td.num{text-align:right;font-feature-settings:"tnum"}
+td.dim{color:var(--ink-2)}
+.tag{display:inline-block;font-size:11.5px;padding:1px 8px;border:1px solid var(--line-2);
+  color:var(--ink-2);background:#fafbfc;line-height:17px}
+.tag.ok{border-color:#9ecfae;color:#1f7a44;background:#f1faf4}
+.tag.wait{border-color:#f0b0b4;color:var(--red);background:#fdf3f3}
+.tag.off{border-color:var(--line-2);color:var(--ink-3);background:#f5f5f5}
+.tag.must{border-color:#f0b0b4;color:var(--red);background:#fdf3f3}
+.link{color:var(--p);text-decoration:none;cursor:pointer}
+.link:hover{text-decoration:underline}
+
+/* 分页 */
+.pager{padding:12px 18px;white-space:nowrap;font-size:13px;color:var(--ink-2)}
+.pager .r{float:right}
+.pager .pg{display:inline-block;min-width:28px;height:28px;line-height:26px;text-align:center;
+  border:1px solid var(--line-2);background:var(--white);color:var(--ink-2);
+  margin-left:5px;cursor:pointer;font-size:12.5px;padding:0 6px}
+.pager .pg:hover{border-color:var(--p);color:var(--p)}
+.pager .pg[aria-current="true"]{background:var(--p);border-color:var(--p);color:#fff}
+.pager .pg[aria-disabled="true"]{color:#c0c8d0;cursor:default;border-color:var(--line)}
+
+/* 备注条（政务系统的"提示"惯用形态）*/
+.tip{background:#fffaf0;border:1px solid #f5deb8;color:#8a6116;
+  padding:9px 14px;font-size:12.5px;margin-top:14px}
+.tip b{color:var(--red)}
+
+/* ══ 底部功能区（国办指引要求列明项）══ */
+.foot{background:#eef2f6;border-top:1px solid var(--line-2);
+  padding:16px 20px;font-size:12px;color:var(--ink-2);line-height:1.9}
+.foot .row1{white-space:nowrap;padding-bottom:8px;
+  border-bottom:1px solid #dde4ea;margin-bottom:8px}
+.foot .row1 span{display:inline-block;margin-right:22px;color:var(--ink-2)}
+.foot .idcard{
+  display:inline-block;border:1px solid var(--line-2);background:var(--white);
+  padding:1px 8px;color:var(--ink-2);font-size:11.5px;
+}
+.foot .row2{white-space:nowrap}
+.foot .row2 span{display:inline-block;margin-right:20px}
+.foot .row2 .rt{float:right;margin-right:0}
+.foot a{color:var(--ink-2);text-decoration:none;cursor:pointer}
+.foot a:hover{color:var(--p)}
+
+/* ── 密度收口 ──────────────────────────────────────────────
+   政务形态比纯内容页多了顶栏 + 主导航 + 左侧菜单 + 底部功能区，
+   纵向占用显著增加。为在 1440×940 视口内完整呈现，统一收紧内边距。 */
+table.grid tbody td{padding:7px 12px}
+.filter{padding:11px 18px}
+.main{padding:12px 20px 14px}
+.crumb{padding-bottom:9px}
+h1.pg{padding-bottom:10px}
+.panel-hd{padding:10px 18px}
+.pager{padding:10px 18px}
+.foot{padding:12px 20px}
+.tip{padding:7px 14px;margin-top:10px}
+.topbar{height:50px}
+.mainnav{height:44px}
+.mainnav span{height:44px;line-height:44px}
+
+/* 第二轮收口：甲只差约 20pt */
+.filter{padding:9px 18px}
+.panel-hd{padding:8px 18px}
+.pager{padding:8px 18px}
+.main{padding:12px 20px 10px}
+.tip{padding:5px 14px;margin-top:8px}
+.foot{padding:10px 20px}
+.foot .row1{padding-bottom:6px;margin-bottom:6px}
+</style>
+<style>
+    @page{size:1440px 940px;margin:0}
+    *,*::before,*::after{transition:none !important;animation:none !important}
+    html,body{height:940px !important;overflow:hidden !important}
+    .snap-ctl{display:inline-block}
+  </style></head>
+<body>
+<div class="wrap">
+
+  <!-- 顶栏 -->
+  <div class="topbar">
+    <span class="emblem">政</span>
+    <span class="sysname">数据资源目录管理平台</span>
+    <span class="org">省民政厅 · 数据管理组</span>
+    <span class="tools">
+      <span>无障碍浏览</span><span>长者版</span><span>繁體</span><span>使用帮助</span>
+      <span class="u">张明（省民政厅）</span><span>退出</span>
+    </span>
+  </div>
+
+  <!-- 主导航 -->
+  <div class="mainnav">
+    <span aria-current="true">数据资源</span>
+    <span>共享管理</span>
+    <span>统计分析</span>
+    <span>运行监测</span>
+    <span>系统管理</span>
+  </div>
+
+  <div class="body">
+    <!-- 左侧菜单 -->
+    <div class="side">
+      <div class="grp">数据资源</div>
+      <a aria-current="true">目录总账</a>
+      <a>目录档案</a>
+      <a>数据资源登记</a>
+      <div class="grp">共享管理</div>
+      <a>共享申请</a>
+      <a>我的申请</a>
+      <a>待办审批<span class="badge" id="side-badge">3</span></a>
+      <div class="grp">统计分析</div>
+      <a>共享情况统计</a>
+      <a>数据更新监测</a>
+    </div>
+
+    <!-- 内容区 -->
+    <div class="main">
+      <div class="crumb">当前位置：<b>数据资源</b> &gt; <b>目录总账</b></div>
+      <h1 class="pg">数据资源目录总账<em>截至 2026 年 10 月 6 日 · 第 7 期</em></h1>
+
+      <!-- 检索条 -->
+      <div class="filter">
+        <span class="fld"><span class="lb">共享类型</span>
+          <span class="sel" id="f-share">全部</span></span>
+        <span class="fld"><span class="lb">提供单位</span>
+          <span class="sel" id="f-org">全部</span></span>
+        <span class="fld"><span class="lb">目录名称</span>
+          <span class="txt snap-ctl" style="color:#9aa6b2">请输入目录名称或编码</span></span>
+        <span class="btn btn-p" id="btn-q" role="button" tabindex="0">查询</span>
+        <span class="btn" id="btn-r" role="button" tabindex="0">重置</span>
+      </div>
+
+      <!-- 数据表 -->
+      <div class="panel">
+        <div class="panel-hd">
+          <span class="t"><i></i>数据资源目录明细</span>
+          <span class="r" id="hd-count">共 14 项　含需另行审批 5 项</span>
+        </div>
+        <table class="grid">
+          <thead>
+            <tr>
+              <th style="width:26%">目录名称</th>
+              <th style="width:17%">提供单位</th>
+              <th style="width:11%">共享类型</th>
+              <th style="width:11%;text-align:right">数据量</th>
+              <th style="width:9%">更新周期</th>
+              <th style="width:11%">更新时间</th>
+              <th style="width:15%">状态 / 操作</th>
+            </tr>
+          </thead>
+          <tbody id="tb">
+    <tr data-id="1">
+      <td class="nm">低保对象基础信息<span class="code">MZ-SH-0001</span></td>
+      <td class="dim">社会救助处</td>
+      <td>无条件共享</td>
+      <td class="num">126,000</td>
+      <td class="dim">每月</td>
+      <td class="dim">2026-10-06</td>
+      <td><span class="tag ok">已发布</span> 
+        <a class="link" data-act="apply" data-id="1">申请</a></td>
+    </tr>
+    <tr data-id="2">
+      <td class="nm">特困人员供养信息<span class="code">MZ-SH-0002</span></td>
+      <td class="dim">社会救助处</td>
+      <td>无条件共享</td>
+      <td class="num">34,000</td>
+      <td class="dim">每月</td>
+      <td class="dim">2026-10-06</td>
+      <td><span class="tag ok">已发布</span> 
+        <a class="link" data-act="apply" data-id="2">申请</a></td>
+    </tr>
+    <tr data-id="3">
+      <td class="nm">养老服务设施台账<span class="code">MZ-YL-0007</span></td>
+      <td class="dim">养老服务处</td>
+      <td>有条件共享</td>
+      <td class="num">8,120</td>
+      <td class="dim">每季度</td>
+      <td class="dim">2026-10-05</td>
+      <td><span class="tag ok">已发布</span> 
+        <a class="link" data-act="apply" data-id="3">申请</a></td>
+    </tr>
+    <tr data-id="4">
+      <td class="nm">社会组织登记信息<span class="code">MZ-ZZ-0021</span></td>
+      <td class="dim">社会组织管理局</td>
+      <td>有条件共享</td>
+      <td class="num">57,000</td>
+      <td class="dim">每月</td>
+      <td class="dim">2026-10-05</td>
+      <td><span class="tag wait">待审核</span> 
+        <a class="link" data-act="apply" data-id="4">申请</a></td>
+    </tr>
+    <tr data-id="5" style="background:var(--p-l)">
+      <td class="nm">婚姻登记信息（脱敏）<span class="code">MZ-SW-0003</span></td>
+      <td class="dim">社会事务处</td>
+      <td>有条件共享</td>
+      <td class="num">2,860,000</td>
+      <td class="dim">每日</td>
+      <td class="dim">2026-10-04</td>
+      <td><span class="tag ok">已发布</span> <span class="tag must">需审批</span>
+        <a class="link" data-act="apply" data-id="5">申请</a></td>
+    </tr>
+    <tr data-id="6">
+      <td class="nm">殡葬服务单位信息<span class="code">MZ-SW-0011</span></td>
+      <td class="dim">社会事务处</td>
+      <td>无条件共享</td>
+      <td class="num">1,036</td>
+      <td class="dim">每季度</td>
+      <td class="dim">2026-10-03</td>
+      <td><span class="tag ok">已发布</span> 
+        <a class="link" data-act="apply" data-id="6">申请</a></td>
+    </tr>
+    <tr data-id="7">
+      <td class="nm">残疾人两项补贴发放信息<span class="code">MZ-CJ-0005</span></td>
+      <td class="dim">残疾人福利处</td>
+      <td>无条件共享</td>
+      <td class="num">248,000</td>
+      <td class="dim">每月</td>
+      <td class="dim">2026-10-03</td>
+      <td><span class="tag ok">已发布</span> <span class="tag must">需审批</span>
+        <a class="link" data-act="apply" data-id="7">申请</a></td>
+    </tr>
+    <tr data-id="8">
+      <td class="nm">行政区划与地名数据<span class="code">MZ-QH-0001</span></td>
+      <td class="dim">区划地名处</td>
+      <td>无条件共享</td>
+      <td class="num">42,000</td>
+      <td class="dim">每半年</td>
+      <td class="dim">2026-10-02</td>
+      <td><span class="tag ok">已发布</span> 
+        <a class="link" data-act="apply" data-id="8">申请</a></td>
+    </tr></tbody>
+        </table>
+        <div class="pager">
+          <span class="r">
+            <span class="pg" id="pg-prev" aria-disabled="true" role="button" tabindex="0">上一页</span>
+            <span class="pg" data-p="1" aria-current="true" role="button" tabindex="0">1</span>
+            <span class="pg" data-p="2" role="button" tabindex="0" aria-current="false">2</span>
+            <span class="pg" id="pg-next" role="button" tabindex="0" aria-disabled="false">下一页</span>
+          </span>
+          <span id="pg-info">共 14 条记录，每页 8 条，当前第 1/2 页</span>
+        </div>
+      </div>
+
+      <div class="tip">
+        <b>提示：</b>标注「不予共享」的目录仅供内部监管，不得对外提供；
+        标注 <span class="tag must">需审批</span> 的目录由数据管理组另行审核。
+        共享申请请通过「共享管理 → 共享申请」提交。
+      </div>
+    </div>
+  </div>
+
+  <!-- 底部功能区 -->
+  <div class="foot">
+    <div class="row1">
+      <span><span class="idcard">党政机关网站标识</span></span>
+      <span>政府网站标识码：XXXXXXXXXX</span>
+      <span>备案号：X ICP 备 00000000 号</span>
+      <span>公安备案号：X 公网安备 00000000000000 号</span>
+    </div>
+    <div class="row2">
+      <span>主办单位：省民政厅</span>
+      <span>承办单位：省民政厅数据管理组</span>
+      <span>联系电话：0000-00000000</span>
+      <span><a>站点地图</a></span>
+      <span><a>无障碍浏览</a></span>
+      <span><a>长者版</a></span>
+      <span class="rt">技术支持：省数据管理中心　|　本站点已通过二级等级保护测评</span>
+    </div>
+  </div>
+
+</div>
+
+
+
+
+</body></html>

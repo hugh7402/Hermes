@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="zh"><head>
+<meta charset="utf-8">
+<title>方向 C · 检索 · 民政数据资源目录</title>
+<!--
+  方向 C · 检索 (Query)
+  ------------------------------------------------------------------
+  气质定位：假设使用者已经知道要什么，只是要最快拿到。所以不给仪表盘、
+            不给表格、不给侧栏——只给一个输入框和结果流。像用 Raycast/Spotlight
+            找文件，而不是像逛后台。
+  主导角色：前端工程师 + 文案（交互节奏优先，字要少）
+
+  与 A/B 的差异：
+    · 交互模型：A「逐行读」、B「空间定位」、C「直接问」——键盘优先，无鼠标也能用
+    · 视觉语言：A 暖纸宋体、B 冷图纸等宽、C 纯黑白大字距（几乎无彩色）
+    · 信息密度：C 刻意最稀，一次只让你看清一条
+
+  反 slop 对照：无渐变、无 emoji、无圆角卡片墙、无侧边栏+左 border accent 那套；
+    唯一彩色是一条 3px 的激活标线，其余全靠字重与留白。
+-->
+<style>
+:root{
+  --ink:#0f1214;
+  --ink-2:#4b5459;
+  --ink-3:#9aa3a8;
+  --hair:#e3e6e8;         /* 发丝线 */
+  --hair-2:#c3c9cc;
+  --accent:#0b6b5b;       /* 深松绿 —— 全页唯一彩色，只标"当前这一条" */
+  --bg:#fff;
+  --wash:#f6f7f8;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:"PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif;
+  font-size:14px; line-height:1.7; text-wrap:pretty;
+  min-height:100vh; display:flex; justify-content:center;
+  padding:74px 28px 90px;
+}
+.wrap{width:100%; max-width:860px}
+
+/* 抬头：极简，只有一行小字 */
+.eyebrow{
+  font-size:11px; letter-spacing:3.5px; color:var(--ink-3);
+  text-transform:uppercase; margin-bottom:34px;
+}
+.eyebrow b{color:var(--ink-2); font-weight:500; letter-spacing:2px}
+
+/* 命令输入 */
+.ask{position:relative; border-bottom:2px solid var(--ink); padding-bottom:12px}
+/* 用 class 选择器而非 `input` 标签选择器：出图时会把 <input> 换成同样 class 的
+   <span>（静态渲染器完全不渲染 input，连边框都不画），class 才能让样式照旧生效。*/
+.ask .field{
+  display:inline-block; width:100%; border:none; background:none; outline:none;
+  font-family:inherit; font-size:31px; font-weight:600;
+  letter-spacing:-.4px; color:var(--ink); padding-right:60px;
+}
+.ask .field::placeholder{color:#c9cfd3; font-weight:500; letter-spacing:-.2px}
+.ask .mark{
+  position:absolute; right:0; bottom:14px; font-size:11px; letter-spacing:1.5px;
+  color:var(--ink-3);
+}
+.ask .mark kbd{
+  font-family:inherit; font-size:10.5px; border:1px solid var(--hair-2);
+  padding:1px 5px; color:var(--ink-2); margin-left:4px;
+}
+
+/* 提示行 */
+/* 提示行：inline 流 + float:right（不用 flex+auto 外距，静态渲染器会把右侧项压到 min-content）*/
+.hints{
+  padding:11px 0 0;
+  font-size:11.5px; color:var(--ink-3); letter-spacing:.6px;
+}
+.hints > span{display:inline; margin-right:22px}
+.hints kbd{
+  font-family:inherit; font-size:11px; border:1px solid var(--hair-2);
+  padding:1px 5px; color:var(--ink-2); margin-right:3px;
+}
+.hints .right{float:right; margin-right:0; font-feature-settings:"tnum"; color:var(--ink-2)}
+
+/* 结果流 */
+.results{margin-top:30px; border-top:1px solid var(--hair)}
+.row{position:relative; border-bottom:1px solid var(--hair); cursor:pointer}
+.row:hover{background:var(--wash)}
+.row[aria-selected="true"]{background:var(--wash)}
+.row[aria-selected="true"]::before{
+  content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--accent);
+}
+.row-main{display:grid; grid-template-columns:26px 1fr auto; align-items:baseline;
+  gap:0 16px; padding:15px 14px 15px 18px}
+.row .idx{font-size:11px; color:var(--ink-3); font-feature-settings:"tnum"}
+.row .nm{font-size:15.5px; font-weight:600; letter-spacing:-.2px}
+.row .nm .code{
+  font-family:ui-monospace,"SF Mono",Menlo,monospace;
+  font-size:10.5px; font-weight:400; color:var(--ink-3); margin-left:9px; letter-spacing:0;
+}
+.row .org{display:block; font-size:12px; color:var(--ink-3); margin-top:3px}
+.row .stat{font-size:12px; color:var(--ink-2); text-align:right; white-space:nowrap;
+  font-feature-settings:"tnum"}
+.row .stat .lbl{color:var(--ink-3); font-size:11px; margin-right:4px}
+.tag{
+  display:inline-block; font-size:10.5px; letter-spacing:.8px;
+  border:1px solid var(--hair-2); color:var(--ink-2); padding:0 6px; margin-left:8px;
+  vertical-align:1px;
+}
+.tag.hot{border-color:var(--accent); color:var(--accent)}
+
+/* 展开的详情：不是弹窗、不是抽屉，就长在这一行下面 */
+.detail{
+  display:none; padding:4px 14px 22px 60px;
+  border-left:3px solid var(--accent); background:var(--wash);
+}
+.row[aria-selected="true"] .detail{display:block}
+.detail .lede{font-size:13px; color:var(--ink-2); line-height:1.85; max-width:640px;
+  margin-bottom:16px}
+.grid2{display:grid; grid-template-columns:1fr 1fr; gap:0 40px}
+dl.spec{display:grid; grid-template-columns:72px 1fr; font-size:12.5px}
+dl.spec dt{color:var(--ink-3); font-size:11.5px; padding:6px 0; border-bottom:1px solid var(--hair)}
+dl.spec dd{padding:6px 0; border-bottom:1px solid var(--hair); overflow-wrap:anywhere}
+dl.spec dd.hot{color:var(--accent); font-weight:600}
+.flds{width:100%; border-collapse:collapse; font-size:12px}
+.flds td{padding:6px 0; border-bottom:1px solid var(--hair)}
+.flds td:first-child{width:96px; font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:11.5px}
+.flds td:nth-child(2){width:58px; color:var(--ink-3)}
+.detail .act{margin-top:18px; white-space:nowrap}
+.btn{
+  display:inline; padding:6px 15px; font-family:inherit; font-size:12.5px;
+  background:var(--bg); border:1px solid var(--hair-2); color:var(--ink-2);
+  letter-spacing:.5px; cursor:pointer; margin-right:10px;
+}
+.btn:hover{border-color:var(--ink); color:var(--ink)}
+.btn-p{background:var(--ink); border-color:var(--ink); color:#fff}
+.btn-p:hover{background:#000; color:#fff}
+.btn:disabled{opacity:.35; cursor:not-allowed}
+
+/* 空态 */
+.none{padding:60px 0; text-align:center; color:var(--ink-3); font-size:13px}
+.none b{display:block; font-size:15px; color:var(--ink-2); font-weight:600; margin-bottom:6px}
+
+/* 底部条 */
+.foot{
+  margin-top:34px;
+  font-size:11.5px; color:var(--ink-3); letter-spacing:.6px;
+  border-top:1px solid var(--hair); padding-top:14px;
+}
+.chips{display:inline}
+.chips button{
+  display:inline; border:none; background:none; font-family:inherit; font-size:11.5px;
+  color:var(--ink-3); cursor:pointer; padding:0; letter-spacing:.6px;
+  border-bottom:1.5px solid transparent; margin-right:16px;
+}
+.chips button:hover{color:var(--ink-2)}
+.chips button[aria-pressed="true"]{color:var(--ink); border-bottom-color:var(--ink); font-weight:600}
+.foot .right{float:right; font-feature-settings:"tnum"}
+</style>
+<style>
+    @page{size:1440px 940px;margin:0}
+    *,*::before,*::after{transition:none !important;animation:none !important}
+    html,body{height:940px !important;overflow:hidden !important}
+  </style></head>
+<body>
+<div class="wrap">
+
+  <div class="eyebrow">省民政厅 · 数据资源目录 <b>／ 检索</b></div>
+
+  <div class="ask">
+    <span class="field snap-field">养老</span>
+    <span class="mark">聚焦 <kbd>⌘</kbd><kbd>K</kbd></span>
+  </div>
+
+  <div class="hints">
+    <span class="right" id="count">2 项 · 共 39.0 万 条记录</span>
+    <span><kbd>↑</kbd><kbd>↓</kbd>切换</span>
+    <span><kbd>↵</kbd>展开详情</span>
+    <span><kbd>esc</kbd>清空</span>
+  </div>
+
+  <div class="results" id="results" role="listbox" aria-label="检索结果"><div class="row" role="option" data-id="3" data-i="0" aria-selected="true">
+      <div class="row-main">
+        <span class="idx">01</span>
+        <span>
+          <span class="nm">养老服务设施台账<span class="code">MZ-YL-0007</span></span>
+          <span class="org">养老服务处 · 有条件共享</span>
+        </span>
+        <span class="stat"><span class="lbl">记录</span>8,120<span class="tag hot">需留意</span></span>
+      </div>
+      <div class="detail">
+        <p class="lede">全省养老机构、社区养老服务设施的基础信息、床位规模与运营主体。</p>
+        <div class="grid2">
+          <dl class="spec">
+            <dt>编码</dt><dd>MZ-YL-0007</dd>
+            <dt>提供处室</dt><dd>养老服务处</dd>
+            <dt>共享类型</dt><dd class="">有条件共享</dd>
+            <dt>敏感级别</dt><dd class="">中 级</dd>
+            <dt>是否脱敏</dt><dd>否</dd>
+          </dl>
+          <table class="flds"><tbody><tr><td>jdmc</td><td>string</td><td>机构名称</td></tr><tr><td>dj</td><td>string</td><td>机构等级</td></tr><tr><td>cws</td><td>int</td><td>床位数</td></tr></tbody></table>
+        </div>
+        <div class="act">
+          <button class="btn" data-act="close">收起</button>
+          <button class="btn btn-p" data-act="apply">申请共享</button>
+        </div>
+      </div>
+    </div><div class="row" role="option" data-id="11" data-i="1" aria-selected="false">
+      <div class="row-main">
+        <span class="idx">02</span>
+        <span>
+          <span class="nm">高龄津贴发放信息<span class="code">MZ-YL-0019</span></span>
+          <span class="org">养老服务处 · 无条件共享</span>
+        </span>
+        <span class="stat"><span class="lbl">记录</span>38.2 万</span>
+      </div>
+      <div class="detail">
+        <p class="lede">高龄老人津贴发放对象、标准与逐月发放记录。</p>
+        <div class="grid2">
+          <dl class="spec">
+            <dt>编码</dt><dd>MZ-YL-0019</dd>
+            <dt>提供处室</dt><dd>养老服务处</dd>
+            <dt>共享类型</dt><dd class="">无条件共享</dd>
+            <dt>敏感级别</dt><dd class="">中 级</dd>
+            <dt>是否脱敏</dt><dd>是（身份证号、住址等）</dd>
+          </dl>
+          <table class="flds"><tbody><tr><td>xm</td><td>string</td><td>姓名</td></tr><tr><td>nl</td><td>int</td><td>年龄</td></tr><tr><td>btbz</td><td>decimal</td><td>补贴标准</td></tr></tbody></table>
+        </div>
+        <div class="act">
+          <button class="btn" data-act="close">收起</button>
+          <button class="btn btn-p" data-act="apply">申请共享</button>
+        </div>
+      </div>
+    </div></div>
+
+  <div class="foot">
+    <span class="right">数据截至 2026-10-06</span>
+    <div class="chips" role="group" aria-label="共享类型筛选">
+      <button data-v="全部" aria-pressed="true">全部类型</button>
+      <button data-v="无条件共享" aria-pressed="false">无条件</button>
+      <button data-v="有条件共享" aria-pressed="false">有条件</button>
+      <button data-v="不予共享" aria-pressed="false">不予共享</button>
+    </div>
+  </div>
+
+</div>
+
+
+
+
+</body></html>

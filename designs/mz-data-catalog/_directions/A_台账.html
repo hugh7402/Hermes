@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>方向 A · 台账 · 民政数据资源目录</title>
+<!--
+  方向 A · 台账 (Ledger)
+  ------------------------------------------------------------------
+  气质定位：把数据资源当"档案台账"来编。像省级年鉴/统计公报的内页，
+            不是 SaaS 后台。信息密到极致，靠线条与字重建立秩序。
+  主导角色：视觉设计师（排版优先）
+  参考：中华书局年鉴排版 / 日本官报 / Massimo Vignelli 的表格处理
+
+  反 slop 对照（huashu §6.2）：
+    · 零圆角、零阴影、零渐变 —— 秩序全部由 1px 细线与字重承担
+    · 零图标、零 emoji —— 「不做没必要的图形」
+    · 不用圆角卡片 + 左 border accent 那一套
+    · display 字体用宋体系（中文排版正统），不用 Inter/Roboto
+    · 唯一彩色是朱红，且只用于「待审」「不予共享」这类需要被看见的例外
+-->
+<style>
+:root{
+  --ink:#1c1b19;          /* 正文墨 */
+  --ink-2:#4a4742;        /* 次级 */
+  --ink-3:#8c877e;        /* 弱 */
+  --rule:#d8d3c8;         /* 细线 */
+  --rule-2:#b9b2a4;       /* 重线 */
+  --paper:#fbfaf6;        /* 纸 */
+  --band:#f2efe6;         /* 表头带 */
+  --cinnabar:#a8342a;     /* 朱 —— 全页唯一彩色 */
+  --seal:#7a2b22;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:var(--paper); color:var(--ink);
+  font-family:"Songti SC","Noto Serif SC","Source Han Serif SC",Georgia,serif;
+  font-size:13px; line-height:1.85; text-wrap:pretty;
+  /* 密度即设计：压低到 1440×940 视口内 —— 否则分页控件会掉到折叠线以下 */
+  padding:30px 40px 34px;
+}
+.sheet{max-width:1180px;margin:0 auto}
+
+/* 抬头 */
+.masthead{
+  display:flex; align-items:flex-end; gap:20px;
+  padding-bottom:10px; border-bottom:2.5px solid var(--ink);
+}
+.masthead h1{
+  font-size:25px; font-weight:700; letter-spacing:3px; line-height:1.3;
+}
+.masthead .org{
+  font-size:12.5px; letter-spacing:2px; color:var(--ink-2);
+  padding-bottom:3px;
+}
+.masthead .meta{
+  margin-left:auto; text-align:right; font-size:12px;
+  color:var(--ink-3); letter-spacing:1px; line-height:1.7;
+}
+.rule-2{border-bottom:1px solid var(--rule-2);margin-top:2px}
+
+/* 提要 */
+.synopsis{
+  display:grid; grid-template-columns:auto 1fr auto 1fr auto 1fr auto 1fr;
+  align-items:baseline; gap:0 14px;
+  padding:12px 0 14px; border-bottom:1px solid var(--rule);
+  font-size:13px;
+}
+.synopsis dt{color:var(--ink-3); letter-spacing:1px; font-size:12px}
+.synopsis dd{font-weight:700; font-feature-settings:"tnum"; letter-spacing:.5px}
+.synopsis dd .unit{font-weight:400;font-size:11.5px;color:var(--ink-2);margin-left:2px}
+
+/* 工具行：inline-block 排一行 + 计数绝对定位贴右 ——
+   不用 flex 的 auto 外距、也不用 grid 的显式列放置：静态渲染器两者都有边界情形不收敛
+   （前者把右侧项压到 min-content，后者直接丢掉显式放置/自动流的子项）。*/
+.toolbar{
+  position:relative; padding:10px 0 8px; white-space:nowrap;
+}
+.q{
+  display:inline-block; width:280px; vertical-align:baseline;
+  border:none; border-bottom:1px solid var(--rule-2);
+  background:none; padding:4px 2px; font-family:inherit; font-size:13.5px;
+  color:var(--ink);
+}
+.q:focus{outline:none;border-bottom-color:var(--ink)}
+.q::placeholder{color:var(--ink-3);font-size:12.5px;letter-spacing:.5px}
+.filters{display:inline; margin-left:26px}
+/* 计数：绝对定位贴右边 */
+.toolbar .count{position:absolute; right:0; bottom:14px; white-space:nowrap;
+  font-size:12px; color:var(--ink-3); letter-spacing:1px}
+.filters button{
+  display:inline; border:none; background:none; font-family:inherit;
+  font-size:12.5px; color:var(--ink-3); padding:2px 0; margin-right:20px;
+  letter-spacing:1px; border-bottom:1.5px solid transparent; cursor:pointer;
+}
+.filters button:hover{color:var(--ink-2)}
+.filters button[aria-pressed="true"]{color:var(--ink); border-bottom-color:var(--ink); font-weight:700}
+/* 说明区（左） */
+.colophon .note{min-width:0}
+
+/* 台账表 */
+table{width:100%; border-collapse:collapse; font-size:13px}
+caption{
+  caption-side:top; text-align:left; font-size:12px; color:var(--ink-3);
+  letter-spacing:2px; padding:0 0 7px;
+}
+thead th{
+  background:var(--band); text-align:left; font-weight:700; font-size:12px;
+  letter-spacing:1.5px; color:var(--ink-2);
+  padding:8px 12px; border-top:1.5px solid var(--ink); border-bottom:1px solid var(--rule-2);
+  white-space:nowrap;
+}
+thead th + th{border-left:1px solid var(--rule)}
+tbody td{
+  padding:5px 12px; border-bottom:1px solid var(--rule); vertical-align:top;
+  line-height:1.55;
+}
+tbody td + td{border-left:1px solid var(--rule)}
+tbody tr:nth-child(even) td{background:#f7f5ee}
+tbody tr{cursor:pointer}
+tbody tr:hover td{background:#efece1}
+tbody tr[aria-selected="true"] td{background:#ece7d8}
+tbody tr[aria-selected="true"] td:first-child{box-shadow:inset 3px 0 0 var(--seal)}
+td.nm{font-weight:700; letter-spacing:.3px}
+td.nm .idx{color:var(--ink-3); font-weight:400; font-size:11.5px; margin-right:7px; font-feature-settings:"tnum"}
+td.nm .code{
+  display:block; font-family:ui-monospace,"SF Mono",Menlo,monospace;
+  font-size:10.5px; color:var(--ink-3); letter-spacing:0; margin-top:2px;
+}
+td.num{text-align:right; font-feature-settings:"tnum"; font-size:12.5px}
+td.dim{color:var(--ink-2); font-size:12.5px}
+td.time{font-feature-settings:"tnum"; font-size:12.5px; color:var(--ink-2)}
+.ex{color:var(--cinnabar)}          /* 例外项标记 */
+tfoot td{
+  padding:9px 12px; border-top:1.5px solid var(--ink); font-weight:700;
+  font-size:12.5px; letter-spacing:1px;
+}
+tfoot td.num{text-align:right; font-feature-settings:"tnum"}
+
+/* 页脚 */
+/* 页脚：分页控件用 float:right 贴右 —— float 是 CSS 2.1 核心特性，
+   静态渲染器实现最可靠；绝对定位/flex/grid 在这里都会被算成父容器宽而摊开子项。*/
+.colophon{
+  margin-top:12px; font-size:11.5px; color:var(--ink-3);
+  letter-spacing:1px; border-top:1px solid var(--rule); padding-top:9px;
+}
+.colophon .pager{float:right; white-space:nowrap; font-size:0; margin-left:24px}
+.colophon .note{display:block; overflow:hidden}
+/* ⚠️ display:inline 是必须的：WeasyPrint 把 <button> 的 width:auto 解析成
+   "占满可用宽度"，inline-block 的按钮会被撑到约 190pt、行被撑爆
+   （width:max-content / fit-content / max-width:100% 都无效，只有 inline 有效）。
+   浏览器里 button 设 inline 同样按内容宽度渲染，行为一致。*/
+.colophon .pg{display:inline; border:none; background:none; font-family:inherit;
+  font-size:12px; color:var(--ink-2); cursor:pointer; padding:0; letter-spacing:1px;
+  margin-left:16px}
+.colophon .pg[aria-current="true"]{color:var(--ink); font-weight:700; text-decoration:underline}
+.colophon .pg:disabled{color:#c3bdb1; cursor:default}
+
+/* 详情：本方向刻意不用抽屉，改为表下"附录"区 —— 台账的读法是从上往下看 */
+.exhibit{
+  margin-top:22px; border-top:2px solid var(--ink); padding-top:12px;
+  display:none;
+}
+.exhibit[data-open="true"]{display:block}
+.exhibit h2{font-size:15px; letter-spacing:2px; font-weight:700; margin-bottom:2px}
+.exhibit .sub{font-size:11.5px; color:var(--ink-3); letter-spacing:1px; margin-bottom:12px}
+.exhibit .cols{display:grid; grid-template-columns:1fr 1fr; gap:0 40px; font-size:13px}
+.exhibit dl{display:grid; grid-template-columns:78px 1fr; gap:0}
+.exhibit dt{color:var(--ink-3); font-size:12px; padding:5px 0; border-bottom:1px solid var(--rule); letter-spacing:.5px}
+.exhibit dd{padding:5px 0; border-bottom:1px solid var(--rule)}
+.exhibit .fld{width:100%; border-collapse:collapse; font-size:12.5px}
+.exhibit .fld th{
+  background:none; border:none; border-bottom:1px solid var(--rule-2);
+  letter-spacing:1px; font-size:11.5px; padding:4px 8px 4px 0;
+}
+.exhibit .fld td{border-bottom:1px solid var(--rule); padding:5px 8px 5px 0; border-left:none}
+.exhibit .fld .mono{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:11.5px}
+.note{
+  margin-top:14px; padding:10px 12px; border-left:2px solid var(--cinnabar);
+  font-size:12.5px; color:var(--ink-2); background:#faf6f4;
+}
+</style>
+</head>
+<body>
+<div class="sheet">
+
+  <div class="masthead">
+    <div>
+      <div class="org">省民政厅 · 数据管理组</div>
+      <h1>数据资源目录台账</h1>
+    </div>
+    <div class="meta">
+      第 <span id="issue">7</span> 期 · 截至 2026 年 10 月 6 日<br>
+      编制单位：数据管理组
+    </div>
+  </div>
+  <div class="rule-2"></div>
+
+  <dl class="synopsis">
+    <dt>在编目录</dt><dd id="k-total">14<span class="unit">项</span></dd>
+    <dt>已发布</dt><dd>12<span class="unit">项</span></dd>
+    <dt>待审</dt><dd>1<span class="unit">项</span></dd>
+    <dt>已下架</dt><dd>1<span class="unit">项</span></dd>
+  </dl>
+
+  <div class="toolbar">
+    <input class="q" id="q" type="search" placeholder="按目录名称、编码或提供单位检索…" aria-label="检索">
+    <div class="filters" role="group" aria-label="共享类型">
+      <button data-v="全部" aria-pressed="true">全部</button>
+      <button data-v="无条件共享" aria-pressed="false">无条件共享</button>
+      <button data-v="有条件共享" aria-pressed="false">有条件共享</button>
+      <button data-v="不予共享" aria-pressed="false">不予共享</button>
+    </div>
+    <span class="count" id="count">共 14 项</span>
+  </div>
+
+  <table id="book">
+    <caption>表一 · 数据资源目录明细</caption>
+    <thead>
+      <tr>
+        <th style="width:31%">目录名称 / 编码</th>
+        <th style="width:19%">提供单位</th>
+        <th style="width:11%">共享类型</th>
+        <th style="width:11%;text-align:right">数据量</th>
+        <th style="width:9%">更新周期</th>
+        <th style="width:11%">更新时间</th>
+        <th style="width:8%">状态</th>
+      </tr>
+    </thead>
+    <tbody id="tb"></tbody>
+    <tfoot>
+      <tr>
+        <td colspan="3">合计</td>
+        <td class="num" id="sum">—</td>
+        <td colspan="3" id="sum-note"></td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <div class="colophon">
+    <span class="pager">
+      <button class="pg" id="prev" disabled>‹ 上一页</button>
+      <button class="pg" data-p="1" aria-current="true">1</button>
+      <button class="pg" data-p="2">2</button>
+      <button class="pg" id="next">下一页 ›</button>
+    </span>
+    <span class="note">说明：共享类型标注「不予共享」者仅供内部监管；标注朱色者为需另行审批项。</span>
+  </div>
+
+  <section class="exhibit" id="exhibit" aria-live="polite">
+    <h2 id="ex-title">—</h2>
+    <div class="sub" id="ex-sub">—</div>
+    <div class="cols">
+      <dl>
+        <dt>提供单位</dt><dd id="ex-org">—</dd>
+        <dt>共享类型</dt><dd id="ex-share">—</dd>
+        <dt>数据量</dt><dd id="ex-size">—</dd>
+        <dt>更新周期</dt><dd id="ex-cycle">—</dd>
+        <dt>敏感级别</dt><dd id="ex-level">—</dd>
+        <dt>脱敏情况</dt><dd id="ex-mask">—</dd>
+        <dt>资源摘要</dt><dd id="ex-desc">—</dd>
+      </dl>
+      <div>
+        <table class="fld">
+          <thead><tr><th>字段名</th><th>类型</th><th>说明</th></tr></thead>
+          <tbody id="ex-fields"></tbody>
+        </table>
+        <div class="note" id="ex-note">—</div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+const DATA = [
+  [1,'低保对象基础信息','MZ-SH-0001','省民政厅社会救助处','无条件共享',126000,'每月','2026-10-06','已发布','低',false,'全省城乡最低生活保障对象的基本信息、家庭成员构成、救助金额与发放记录。',[['xm','string','姓名'],['sfzh','string','身份证号（脱敏）'],['bjje','decimal','本月保障金额'],['cjsj','datetime','数据产生时间']]],
+  [2,'特困人员供养信息','MZ-SH-0002','省民政厅社会救助处','无条件共享',34000,'每月','2026-10-06','已发布','低',false,'特困人员救助供养对象、供养方式、供养标准及资金发放情况。',[['xm','string','姓名'],['gyfs','string','供养方式'],['gybz','decimal','供养标准']]],
+  [3,'养老服务设施台账','MZ-YL-0007','省民政厅养老服务处','有条件共享',8120,'每季度','2026-10-05','已发布','中',false,'全省养老机构、社区养老服务设施的基础信息、床位规模与运营主体。',[['jdmc','string','机构名称'],['dj','string','机构等级'],['cws','int','床位数']]],
+  [4,'社会组织登记信息','MZ-ZZ-0021','省民政厅社会组织管理局','有条件共享',57000,'每月','2026-10-05','待审核','中',false,'社会组织成立、变更、注销登记信息及年度检查结论。',[['zzmc','string','组织名称'],['tyshxydm','string','统一社会信用代码'],['djrq','date','登记日期']]],
+  [5,'婚姻登记信息（脱敏）','MZ-SW-0003','省民政厅社会事务处','有条件共享',2860000,'每日','2026-10-04','已发布','高',true,'婚姻登记记录。身份证号、住址等敏感字段已按分类分级要求脱敏。',[['jhdjsj','date','结婚登记时间'],['sfzh','string','身份证号（脱敏）'],['djjg','string','登记机关']]],
+  [6,'殡葬服务单位信息','MZ-SW-0011','省民政厅社会事务处','无条件共享',1036,'每季度','2026-10-03','已发布','低',false,'殡仪馆、公墓等殡葬服务单位的基本情况与服务能力。',[['dwmc','string','单位名称'],['lxdh','string','联系电话'],['dz','string','地址']]],
+  [7,'残疾人两项补贴发放信息','MZ-CJ-0005','省民政厅残疾人福利处','无条件共享',248000,'每月','2026-10-03','已发布','中',true,'困难残疾人生活补贴、重度残疾人护理补贴的发放对象与金额明细。',[['xm','string','姓名'],['btlx','string','补贴类型'],['ffje','decimal','发放金额']]],
+  [8,'行政区划与地名数据','MZ-QH-0001','省民政厅区划地名处','无条件共享',42000,'每半年','2026-10-02','已发布','低',false,'行政区划代码、层级、变更沿革以及标准地名信息。',[['qhdm','string','行政区划代码'],['qhmc','string','名称'],['jb','string','层级']]],
+  [9,'儿童福利机构信息','MZ-ET-0002','省民政厅儿童福利处','有条件共享',418,'每季度','2026-10-01','已发布','中',false,'儿童福利院、未成年人保护机构的基础信息与床位使用情况。',[['jdmc','string','机构名称'],['cws','int','床位数']]],
+  [10,'慈善组织公开募捐信息','MZ-CS-0003','省民政厅慈善事业促进处','无条件共享',21000,'每月','2026-09-30','已发布','低',false,'慈善组织公开募捐方案备案信息与募捐进展。',[['zzmc','string','组织名称'],['fa','string','募捐方案'],['je','decimal','募得金额']]],
+  [11,'高龄津贴发放信息','MZ-YL-0019','省民政厅养老服务处','无条件共享',382000,'每月','2026-09-29','已发布','中',true,'高龄老人津贴发放对象、标准与逐月发放记录。',[['xm','string','姓名'],['nl','int','年龄'],['btbz','decimal','补贴标准']]],
+  [12,'社会组织年检结果','MZ-ZZ-0044','省民政厅社会组织管理局','不予共享',18000,'每年','2026-09-28','已下架','高',true,'社会组织年度检查结论与整改情况，仅限内部监管使用。',[['zzmc','string','组织名称'],['njjl','string','年检结论']]],
+  [13,'社会救助家庭经济状况核对','MZ-SH-0009','省民政厅社会救助处','有条件共享',96000,'每月','2026-09-26','已发布','高',true,'低保、特困等救助对象的家庭经济状况核对结果与疑似问题清单。',[['xm','string','姓名'],['hdbm','string','核对部门'],['hdyy','string','核对原因']]],
+  [14,'志愿服务组织与项目','MZ-CS-0017','省民政厅慈善事业促进处','无条件共享',15400,'每季度','2026-09-25','已发布','低',false,'志愿服务组织备案信息与志愿服务项目实施情况。',[['zzmc','string','组织名称'],['xmmc','string','项目名称'],['fwsc','int','服务时长']]],
+];
+const PS = 9;
+let page = 1, kw = '', share = '全部', sel = null;
+
+const size = n => n >= 10000 ? (n/10000).toFixed(1) + ' 万' : n.toLocaleString('zh-CN');
+const esc = s => String(s);
+
+function rows(){
+  const q = kw.trim().toLowerCase();
+  /* 检索覆盖 名称 + 编码 + 提供单位 —— 表格里显示了编码，用户一定会试着搜它 */
+  return DATA.filter(r =>
+    (!q || (r[1]+r[2]+r[3]).toLowerCase().includes(q)) && (share === '全部' || r[4] === share));
+}
+function render(){
+  const rs = rows();
+  const pages = Math.max(1, Math.ceil(rs.length / PS));
+  if (page > pages) page = pages;
+  const cut = rs.slice((page-1)*PS, page*PS);
+  document.getElementById('tb').innerHTML = cut.map(r => `
+    <tr data-id="${r[0]}" ${sel===r[0]?'aria-selected="true"':''}>
+      <td class="nm"><span class="idx">${String(r[0]).padStart(2,'0')}</span>${r[1]}
+        <span class="code">${r[2]}</span></td>
+      <td class="dim">${r[3]}</td>
+      <td class="${r[4]==='不予共享'?'ex':''}">${r[4]}</td>
+      <td class="num">${size(r[5])}</td>
+      <td class="dim">${r[6]}</td>
+      <td class="time">${r[7]}</td>
+      <td class="${r[8]==='待审核'?'ex':''}">${r[8]}</td>
+    </tr>`).join('');
+  const total = rs.reduce((a,b) => a + b[5], 0);
+  document.getElementById('sum').textContent = size(total) + ' 条';
+  document.getElementById('sum-note').textContent =
+    `共 ${rs.length} 项；其中需另行审批 ${rs.filter(r=>r[9]==='高').length} 项。`;
+  document.getElementById('count').textContent = `共 ${rs.length} 项`;
+  document.getElementById('prev').disabled = page <= 1;
+  document.getElementById('next').disabled = page >= pages;
+  document.querySelectorAll('.pg[data-p]').forEach(b =>
+    b.setAttribute('aria-current', String(+b.dataset.p === page)));
+}
+function exhibit(id){
+  const r = DATA.find(x => x[0] === id);
+  if (!r) return;
+  sel = id;
+  const ex = document.getElementById('exhibit');
+  ex.setAttribute('data-open','true');
+  document.getElementById('ex-title').textContent = r[1];
+  document.getElementById('ex-sub').textContent = `编码 ${r[2]} · 附表`;
+  document.getElementById('ex-org').textContent = r[3];
+  document.getElementById('ex-share').textContent = r[4];
+  document.getElementById('ex-size').textContent = size(r[5]) + ' 条';
+  document.getElementById('ex-cycle').textContent = r[6];
+  document.getElementById('ex-level').textContent = r[9] + ' 级';
+  document.getElementById('ex-mask').textContent = r[10] ? '是（身份证号、住址等）' : '否';
+  document.getElementById('ex-desc').textContent = r[11];
+  document.getElementById('ex-fields').innerHTML = r[12].map(f =>
+    `<tr><td class="mono">${f[0]}</td><td>${f[1]}</td><td>${f[2]}</td></tr>`).join('');
+  document.getElementById('ex-note').textContent = r[10]
+    ? '使用方须落实分类分级保护，敏感字段不得还原，不得向第三方转供。'
+    : '按开放共享管理规定使用，保留数据来源标注。';
+  render();
+}
+document.getElementById('tb').addEventListener('click', e => {
+  const tr = e.target.closest('tr'); if (tr) exhibit(+tr.dataset.id);
+});
+document.getElementById('q').addEventListener('input', e => { kw = e.target.value; page = 1; render(); });
+document.querySelectorAll('.filters button').forEach(b => b.addEventListener('click', () => {
+  share = b.dataset.v; page = 1;
+  document.querySelectorAll('.filters button').forEach(x =>
+    x.setAttribute('aria-pressed', String(x === b)));
+  render();
+}));
+document.getElementById('prev').addEventListener('click', () => { if (page>1){ page--; render(); } });
+document.getElementById('next').addEventListener('click', () => { page++; render(); });
+document.querySelectorAll('.pg[data-p]').forEach(b =>
+  b.addEventListener('click', () => { page = +b.dataset.p; render(); }));
+render();
+window.__dirA = { rows: () => document.querySelectorAll('#tb tr').length,
+  sel: () => sel, total: () => document.getElementById('count').textContent,
+  open: () => document.getElementById('exhibit').dataset.open };
+</script>
+</body>
+</html>
