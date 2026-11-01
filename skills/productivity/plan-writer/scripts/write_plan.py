@@ -4,7 +4,7 @@
 - 第2轮：用户确认（外部）
 - 第3轮：基于架构+知识库一次生成全文（Prompt已嵌入humanizer原则）
 - 第4步：humanizer 去AI味后处理
-- 模型：硅基流动 deepseek-ai/DeepSeek-V4-Pro（2.5折优惠）
+- 模型：DeepSeek 官方 deepseek-v4-pro（可用环境变量 PLAN_MODEL 覆盖）
 """
 import os, sys, json, re, urllib.request, time
 from pathlib import Path
@@ -33,29 +33,55 @@ def search_knowledge_base(query, max_results=10):
     results.sort(key=lambda x: x["score"], reverse=True)
     return results[:max_results]
 
-def call_llm(prompt, max_tokens=8000, temperature=0.3):
+DS_URL = "https://api.deepseek.com/v1/chat/completions"
+DS_MODEL = os.environ.get("PLAN_MODEL", "deepseek-v4-pro")
+DS_MAXTOK_CAP = 32000          # 单次输出上限（推理型模型 reasoning 会占用该预算）
+
+def call_llm(prompt, max_tokens=16000, temperature=0.3):
     fd = os.open("/opt/data/.env", os.O_RDONLY)
-    data = os.read(fd, 8192).decode("utf-8")
+    data = os.read(fd, 65536).decode("utf-8")
     os.close(fd)
     key = ""
     for line in data.split("\n"):
-        if line.startswith("SILICONFLOW_API_KEY"):
+        if line.startswith("DEEPSEEK_API_KEY"):
             key = line.strip().split("=", 1)[1].strip().strip('"').strip("'")
-    url = "https://api.siliconflow.cn/v1/chat/completions"
+    if not key:
+        raise RuntimeError("未在 /opt/data/.env 读到 DEEPSEEK_API_KEY")
+    mt = max_tokens
+    last = None
     for attempt in range(3):
         try:
             body = json.dumps({
-                "model": "deepseek-ai/DeepSeek-V4-Pro",
+                "model": DS_MODEL,
                 "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": max_tokens, "temperature": temperature
+                "max_tokens": mt, "temperature": temperature
             }).encode()
-            req = urllib.request.Request(url, data=body, headers={
+            req = urllib.request.Request(DS_URL, data=body, headers={
                 "Authorization": f"Bearer {key}", "Content-Type": "application/json"
             })
-            resp = urllib.request.urlopen(req, timeout=300)
-            return json.loads(resp.read())["choices"][0]["message"]["content"]
+            resp = urllib.request.urlopen(req, timeout=600)
+            d = json.loads(resp.read())
+            ch = d["choices"][0]
+            content = (ch.get("message") or {}).get("content") or ""
+            u = d.get("usage") or {}
+            # 闸门1：推理型模型可能把预算全用在 reasoning 上、正文为空（不报错的静默失败）
+            if not content.strip():
+                mt = min(mt * 2, DS_MAXTOK_CAP)
+                raise RuntimeError(
+                    f"模型未返回正文（completion_tokens={u.get('completion_tokens')}）；"
+                    f"已把 max_tokens 提到 {mt} 重试")
+            # 闸门2：被 max_tokens 截断的正文不能用
+            if ch.get("finish_reason") == "length":
+                mt = min(mt * 2, DS_MAXTOK_CAP)
+                raise RuntimeError(
+                    f"输出被 max_tokens 截断（本次 {len(content)} 字）；已提到 {mt} 重试")
+            print(f"    [模型 {DS_MODEL} · 输出 {len(content)} 字 · "
+                  f"completion_tokens={u.get('completion_tokens')} · mt={mt}]")
+            return content
         except Exception as e:
-            if attempt == 2: raise e
+            last = e
+            if attempt == 2:
+                raise RuntimeError(f"{DS_MODEL} 调用 3 次均失败：{last}")
             time.sleep(5)
 
 def humanize_text(text):
@@ -145,7 +171,7 @@ def write_plan(requirement, output_name=None):
 ===
 注意：这是架构设计，不写全文。结构要清晰，每节涵盖核心要点。"""
     
-    arch = call_llm(arch_prompt, max_tokens=4000)
+    arch = call_llm(arch_prompt, max_tokens=8000)
     
     arch_path = os.path.join(out_dir, "01-架构设计.md")
     Path(arch_path).write_text(f"# 架构设计\n\n{requirement}\n\n{arch}", encoding='utf-8')
@@ -181,7 +207,7 @@ def write_plan(requirement, output_name=None):
 - 结尾不写"展望未来/前景广阔/必将"等AI式收尾，用事实或问题收尾
 - 像体制内有经验的老笔杆子那样写：该说理说理，该摆数摆数，不装不飘"""
     
-    full = call_llm(full_prompt, max_tokens=8000)
+    full = call_llm(full_prompt, max_tokens=24000)
     
     print(f"🔄  第4步：Humanizer 去AI味...")
     full = humanize_text(full)

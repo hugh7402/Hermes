@@ -66,6 +66,43 @@ GET https://javdb.com/v/{id}
 
 每个磁链在页面中出现两次（一次在按钮区，一次在复制区），通过 `btih:` hash 去重。
 
+### 实测的当前结构：按 `div.item` 切块，体积读 `data-size`（单位 MB）
+
+磁链列表容器是 `<div id="magnets-content" class="magnet-links">`，**每条磁链是一个 `div.item.odd/.even`**，
+体积/文件数/日期都在 `data-*` 属性上，比用正则从展示文案里抠可靠得多：
+
+```html
+<div id="magnets-content" class="magnet-links">
+  …<div class="sda-content">（广告区，别当磁链）…
+  <div class="item odd" data-rank="0" data-size="5315" data-files="0" data-date="20260820">
+    <div class="magnet-name">
+      <a href="magnet:?xt=urn:btih:5cf7ecc9…&amp;dn=[javdb.com]MIDA-709-C.torrent">
+        <span class="name">MIDA-709-C.torrent</span>
+        <div class="tags">
+          <span class="tag is-primary is-small is-light">高清</span>
+          <span class="tag is-warning is-small is-light">字幕</span>
+        </div>
+        <span class="meta">5.19GB</span>
+      </a>
+    </div>
+    <div class="date"><span class="time">2026-08-20</span></div>
+    <button class="button is-info is-small copy-to-clipboard"
+            data-clipboard-text="magnet:?xt=urn:btih:5cf7ecc9…">複製</button>
+  </div>
+</div>
+```
+
+解析规则（按这个来，别按类名猜）：
+
+1. **切块**：`seg = html[html.find('magnets-content'):]` → `re.split(r'<div class="item (?:odd|even)"', seg)[1:]`
+2. **体积**：`data-size` 的**单位是 MB**（5315 = 5.19GB），不要拿它当字节；展示值在 `<span class="meta">` 里
+3. **标签**：`<div class="tags">` 内的 `span.tag` 文本（`高清` / `標清` / `字幕`）
+4. **文件名 + btih**：`<span class="name">` 与 `data-clipboard-text` / `href` 里的 `btih:`
+
+⚠️ **别按 `magnet-link` 这个类名切**：类名在 `div#magnets-content` 上，不在每条磁链上；
+按 `<a class="magnet-link"` 切块会得到 0 条，然后误判成“这个番号没有磁链”。
+同理，`<span class="meta">` 里的体积文本**可能被外层结构拆散**，用 `data-size` 兜底。
+
 ## 字幕检测
 
 检测以下关键词判断磁链是否含字幕：

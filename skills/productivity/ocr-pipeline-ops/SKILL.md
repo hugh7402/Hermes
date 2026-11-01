@@ -63,9 +63,9 @@ DOC = _pick_dir("/opt/data/WebChat BackUp/文档", "/opt/data/WebChat Back Up/�
 | 项 | 值 |
 |---|---|
 | 端点 | `https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions`（OpenAI 兼容） |
-| 模型 | **`qwen-vl-ocr-latest`** |
+| 模型 | **`qwen-vl-ocr`**（🔴 2026-10-25：`qwen-vl-ocr-latest` 别名已下线，返回 404 `model_not_found`；`/v1/models` 现有 `qwen-vl-ocr`、`qwen-vl-ocr-2025-11-20`、`qwen3.5-ocr`） |
 | 价格（华北2北京） | 输入 **0.3 元/百万 tok**，输出 **0.5 元/百万 tok** |
-| 实测速度 | ≈5-6.6s/页（dpi=200）；31 页 174s |
+| 实测速度 | 串行 ≈5-6.6s/页（dpi=200）；**并发 6 路后 68 页 ≈60-80s**（pdf_ocr.py `OCR_WORKERS=6`，主线程顺序渲染 + 线程池发请求，PyMuPDF 不跨线程用） |
 | 实测成本 | 31 页 ≈ **0.039 元**（in 100,192 + out 17,865 tok） |
 | Key | `/opt/data/.env` 的 `BAILIAN_API_KEY` |
 

@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>数据目录列表 · 新基线</title>
+<style>
+/* ══════════════════════════════════════════════════════════════════════
+   设计令牌（政务约束：主色 ≤3 种；"品质感"靠层次/密度/动效，不靠渐变）
+   ── 中性色向品牌蓝偏移 0.01 chroma，不用暖灰/暖米
+   ══════════════════════════════════════════════════════════════════════ */
+:root{
+  --brand:#0b5aa6;          /* 主色 1 */
+  --brand-deep:#08457f;     /* 主色 2（加深，非新色相） */
+  --brand-soft:#eaf2fb;     /* 主色 3（浅底） */
+  --ink:#16202b; --ink-2:#43536b; --ink-3:#74839a;
+  --line:#e2e8f0; --line-2:#eef2f7;
+  --bg:#eff3f8; --surface:#ffffff;
+  --ok:#1f7a4d; --ok-bg:#eaf6ef;
+  --warn:#9a6200; --warn-bg:#fdf3e2;
+  --danger:#b3261e;  --danger-bg:#fdeceb;
+  --r:8px;
+  --sh-1:0 1px 2px rgb(16 32 58 / .06),0 1px 1px rgb(16 32 58 / .04);
+  --sh-2:0 6px 18px rgb(16 32 58 / .10);
+  --sh-3:0 12px 32px rgb(16 32 58 / .14);
+  /* 动效：统一缓动与时长（进场/出场一律 ease-out；超过 300ms 必须有理由） */
+  --e-out:cubic-bezier(.23,1,.32,1);
+  --e-morph:cubic-bezier(.77,0,.175,1);
+  --t-fast:140ms;   /* 按压反馈 */
+  --t-base:180ms;   /* 悬浮/颜色 */
+  --t-layer:240ms;  /* 抽屉/弹窗进场（出场 160ms，比进场短） */
+  --t-count:620ms;  /* 指标数字爬升：唯一"展示型"动效，仅首屏一次 */
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  font:14px/1.55 "PingFang SC","Microsoft YaHei","Source Han Sans SC","Noto Sans SC",system-ui,sans-serif;
+  color:var(--ink);background:var(--bg);
+  -webkit-font-smoothing:antialiased;
+}
+/* 数字等宽对齐：表格里的数值得以逐位比较 */
+.num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+
+/* ── 顶栏 ── */
+.topbar{
+  height:52px;display:flex;align-items:center;gap:14px;padding:0 20px;
+  background:linear-gradient(180deg,var(--brand),var(--brand-deep));
+  color:#fff;box-shadow:var(--sh-1);position:relative;z-index:20;
+}
+.mark{width:26px;height:26px;border-radius:6px;background:rgb(255 255 255 / .16);
+  display:grid;place-items:center;font-weight:700;font-size:13px;letter-spacing:.5px}
+.appname{font-size:15px;font-weight:600;letter-spacing:.2px}
+.topbar .spacer{flex:1}
+.tb-btn{
+  height:30px;padding:0 11px;border:1px solid rgb(255 255 255 / .28);border-radius:6px;
+  background:transparent;color:#fff;font-size:13px;cursor:pointer;
+  transition:background var(--t-base) var(--e-out),border-color var(--t-base) var(--e-out);
+}
+.tb-btn:hover{background:rgb(255 255 255 / .13);border-color:rgb(255 255 255 / .45)}
+.tb-btn:active{background:rgb(255 255 255 / .2)}
+.who{display:flex;align-items:center;gap:8px;font-size:13px;opacity:.95}
+.avatar{width:26px;height:26px;border-radius:50%;background:rgb(255 255 255 / .2);
+  display:grid;place-items:center;font-size:12px}
+
+/* ── 骨架 ── */
+.shell{display:flex;height:calc(100% - 52px)}
+.side{
+  width:208px;flex:0 0 208px;background:var(--surface);border-right:1px solid var(--line);
+  padding:10px 0;overflow-y:auto;
+}
+.side .grp{font-size:11px;color:var(--ink-3);padding:10px 16px 4px;letter-spacing:.6px}
+.nav{
+  display:flex;align-items:center;gap:9px;height:36px;padding:0 14px;color:var(--ink-2);
+  font-size:13.5px;cursor:pointer;border-left:2px solid transparent;
+  transition:background var(--t-base) var(--e-out),color var(--t-base) var(--e-out);
+}
+.nav:hover{background:var(--line-2);color:var(--ink)}
+.nav.on{background:var(--brand-soft);color:var(--brand);border-left-color:var(--brand);font-weight:600}
+.nav .dot{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.45}
+.nav .badge{margin-left:auto;background:var(--danger-bg);color:var(--danger);
+  font-size:11px;padding:1px 7px;border-radius:9px;font-weight:500}
+
+.main{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.crumb{display:flex;align-items:center;gap:6px;padding:9px 22px 0;color:var(--ink-3);font-size:12.5px}
+.crumb b{color:var(--ink-2);font-weight:500}
+.head{display:flex;align-items:flex-start;gap:16px;padding:6px 22px 0}
+h1{margin:0;font-size:20px;font-weight:650;letter-spacing:.1px;color:#101a26}
+.sub{margin:3px 0 0;color:var(--ink-3);font-size:12.5px}
+.head .right{margin-left:auto;display:flex;gap:8px}
+
+.scroll{flex:1;min-height:0;display:flex;flex-direction:column;padding:14px 22px 18px}
+
+/* ── 指标条：紧凑一行，不是四张大卡（避免占掉首屏） ── */
+.strip{
+  flex:0 0 auto;display:flex;align-items:stretch;background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--r);box-shadow:var(--sh-1);overflow:hidden;
+  border-top:2px solid var(--brand);
+}
+.cell{flex:1;padding:10px 15px;border-right:1px solid var(--line-2);min-width:0}
+.cell:last-child{border-right:0}
+.cell[role=button]{cursor:pointer;position:relative;transition:background var(--t-base) var(--e-out)}
+.cell[role=button]::after{content:"下钻 ›";position:absolute;right:12px;top:11px;font-size:11px;color:var(--brand);
+  opacity:0;transition:opacity var(--t-base) var(--e-out)}
+.cell[role=button]:focus-visible{outline:none;box-shadow:inset 0 0 0 2px rgb(11 90 166 / .45)}
+@media (hover:hover) and (pointer:fine){.cell[role=button]:hover{background:#f7fbff}
+  .cell[role=button]:hover::after{opacity:1}}
+.cell .k{font-size:12px;color:var(--ink-3);display:flex;align-items:center;gap:6px;letter-spacing:.3px}
+.cell .v{font-size:26px;font-weight:650;letter-spacing:-.2px;margin-top:1px;color:var(--ink)}
+.cell .d{font-size:11.5px;margin-top:1px}
+.up{color:var(--ok)} .down{color:var(--danger)} .flat{color:var(--ink-3)}
+.spark{display:flex;align-items:flex-end;gap:2px;height:22px;margin-top:6px}
+.spark i{flex:1;background:var(--brand-soft);border-radius:1px;transition:background var(--t-base) var(--e-out)}
+.spark b{flex:1;background:var(--brand);border-radius:1px}
+
+/* ── 筛选：默认只露 3 项，高级项可展开 ── */
+.filters{
+  flex:0 0 auto;margin-top:10px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  box-shadow:var(--sh-1);padding:10px 14px;
+}
+.frow{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end}
+.f{display:flex;flex-direction:column;gap:5px;min-width:158px}
+.f label{font-size:12px;color:var(--ink-3)}
+input[type=text],select{
+  height:32px;border:1px solid var(--line);border-radius:6px;padding:0 10px;font-size:13px;
+  color:var(--ink);background:#fff;outline:none;width:100%;
+  transition:border-color var(--t-base) var(--e-out),box-shadow var(--t-base) var(--e-out);
+}
+input[type=text]:hover,select:hover{border-color:#cbd6e4}
+input[type=text]:focus-visible,select:focus-visible{
+  border-color:var(--brand);box-shadow:0 0 0 3px rgb(11 90 166 / .13);
+}
+.btn{
+  height:32px;padding:0 14px;border-radius:6px;border:1px solid var(--line);background:#fff;
+  color:var(--ink-2);font-size:13px;cursor:pointer;
+  transition:background var(--t-base) var(--e-out),border-color var(--t-base) var(--e-out),
+             transform var(--t-fast) var(--e-out);
+}
+.btn:hover{background:#f7f9fc;border-color:#cbd6e4;color:var(--ink)}
+.btn:active{transform:scale(.98)}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:500;
+  box-shadow:0 1px 2px rgb(8 69 127 / .28)}
+.btn.primary:hover{background:var(--brand-deep);border-color:var(--brand-deep)}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--brand)}
+.btn.ghost:hover{background:var(--brand-soft)}
+.adv{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);
+  display:grid;grid-template-rows:0fr;transition:grid-template-rows var(--t-layer) var(--e-out)}
+.adv.open{grid-template-rows:1fr}
+.adv>div{overflow:hidden}
+.adv-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px 14px;margin-top:10px}
+
+/* ── 表格：高密度、表头有色、可选中、粘性表头 ── */
+.panel{
+  margin-top:12px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  box-shadow:var(--sh-1);overflow:hidden;
+  flex:1;min-height:220px;display:flex;flex-direction:column;
+}
+.twrap{flex:1;min-height:0;overflow:auto}
+.pbar{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line-2)}
+.pbar .sel{font-size:12.5px;color:var(--ink-2);background:var(--brand-soft);
+  padding:3px 9px;border-radius:12px}
+.fchip{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--brand);
+  background:var(--brand-soft);padding:3px 6px 3px 10px;border-radius:12px}
+.fchip[hidden]{display:none}
+.legend{font-size:11.5px;color:var(--ink-3);display:flex;align-items:center;gap:5px}
+.legend i{width:6px;height:6px;border-radius:50%;display:inline-block}
+.legend .g-ok{background:var(--ok)}.legend .g-warn{background:var(--warn)}.legend .g-bad{background:var(--danger)}
+.pbar .spacer{flex:1}
+table{width:100%;border-collapse:separate;border-spacing:0}
+thead th{
+  position:sticky;top:0;z-index:2;background:#f7f9fc;color:var(--ink-2);
+  font-size:12.5px;font-weight:600;text-align:left;padding:8px 12px;
+  border-bottom:1px solid var(--line);white-space:nowrap;
+}
+thead th.sortable{cursor:pointer}
+thead th.sortable:hover{color:var(--brand)}
+thead th .arw{font-size:10px;color:var(--brand);margin-left:3px}
+tbody td{padding:7px 12px;border-bottom:1px solid var(--line-2);font-size:13px;vertical-align:middle}
+tbody tr{transition:background var(--t-base) var(--e-out)}
+tbody tr:hover{background:#f8fbff}
+tbody tr.picked{background:var(--brand-soft)}
+.tname{font-weight:600;color:var(--ink)}
+.tcode{color:var(--ink-3);font-size:11.5px;margin-top:1px}
+.chip{
+  display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:2px 9px;border-radius:11px;
+  transition:background var(--t-base) var(--e-out);
+}
+.chip::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.85}
+.chip.ok{background:var(--ok-bg);color:#175f3c}
+.chip.wait{background:var(--warn-bg);color:#7d4f00}
+.chip.off{background:var(--line-2);color:var(--ink-3)}
+.chip.bad{background:var(--danger-bg);color:var(--danger)}
+.qbar{display:flex;align-items:center;gap:7px;min-width:96px}
+.qbar .bar{flex:1;height:5px;border-radius:3px;background:var(--line-2);overflow:hidden}
+.qbar .bar i{display:block;height:100%;background:var(--ok);width:0;
+  transition:width var(--t-count) var(--e-out)}
+.rowact{display:flex;gap:2px;justify-content:flex-end}
+.linkb{border:0;background:none;color:var(--brand);font-size:12.5px;cursor:pointer;padding:3px 6px;
+  border-radius:5px;transition:background var(--t-base) var(--e-out)}
+.linkb:hover{background:var(--brand-soft)}
+.linkb[disabled]{color:var(--ink-3);cursor:not-allowed;background:none;opacity:.55}
+.linkb.danger{color:var(--danger)}
+.linkb.danger:hover{background:var(--danger-bg)}
+.pager{flex:0 0 auto;display:flex;align-items:center;gap:10px;
+  padding:9px 14px;color:var(--ink-2);font-size:12.5px;background:var(--surface);
+  border-top:1px solid var(--line)}
+.pager .spacer{flex:1}
+.pg{min-width:28px;height:28px;border:1px solid var(--line);background:#fff;border-radius:6px;
+  cursor:pointer;font-size:12.5px;color:var(--ink-2);
+  transition:background var(--t-base) var(--e-out),border-color var(--t-base) var(--e-out)}
+.pg:hover{border-color:#cbd6e4;background:#f7f9fc}
+.pg.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.empty{padding:38px 16px;text-align:center;color:var(--ink-3);font-size:13px}
+.empty b{display:block;color:var(--ink-2);font-size:14px;margin-bottom:4px}
+
+/* ── 抽屉：进场 240ms、出场 160ms；只用 transform/opacity ── */
+.scrim{position:fixed;inset:0;background:rgb(14 24 40 / .34);opacity:0;pointer-events:none;
+  transition:opacity var(--t-layer) var(--e-out);z-index:40}
+.scrim.show{opacity:1;pointer-events:auto}
+.drawer{
+  position:fixed;top:0;right:0;height:100%;width:460px;background:var(--surface);
+  box-shadow:var(--sh-3);z-index:41;display:flex;flex-direction:column;
+  transform:translateX(100%);transition:transform var(--t-layer) var(--e-out);will-change:transform;
+}
+.drawer.show{transform:translateX(0);transition-duration:var(--t-layer)}
+.drawer.hide{transition-duration:160ms}
+.dh{display:flex;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line)}
+.dh b{font-size:15px}
+.dh .x{margin-left:auto;border:0;background:none;color:var(--ink-3);font-size:19px;cursor:pointer;
+  width:30px;height:30px;border-radius:6px;transition:background var(--t-base) var(--e-out)}
+.dh .x:hover{background:var(--line-2);color:var(--ink)}
+.db{padding:16px 18px;overflow-y:auto;flex:1}
+.kv{display:grid;grid-template-columns:88px 1fr;gap:10px 12px;font-size:13px}
+.kv .k{color:var(--ink-3)}
+.df{padding:12px 18px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end}
+
+.toast{
+  position:fixed;right:24px;top:64px;transform:translateY(-10px);opacity:0;pointer-events:none;
+  background:#16202b;color:#fff;font-size:13px;padding:9px 16px;border-radius:8px;box-shadow:var(--sh-3);
+  transition:opacity var(--t-base) var(--e-out),transform var(--t-base) var(--e-out);z-index:60;
+}
+.toast.show{opacity:1;transform:translateY(0)}
+.modal{
+  position:fixed;left:50%;top:50%;width:392px;background:var(--surface);border-radius:10px;
+  box-shadow:var(--sh-3);z-index:52;transform:translate(-50%,-48%) scale(.97);opacity:0;
+  pointer-events:none;transition:opacity var(--t-layer) var(--e-out),transform var(--t-layer) var(--e-out);
+}
+.modal.show{opacity:1;transform:translate(-50%,-50%) scale(1);pointer-events:auto;
+  transition-duration:var(--t-layer)}
+.modal.hide{transition-duration:160ms}
+.mh{padding:15px 18px 0}
+.mh b{font-size:15px}
+.mb{padding:8px 18px 16px;color:var(--ink-2);font-size:13px}
+.mf{padding:12px 18px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end}
+.btn.danger{background:var(--danger);border-color:var(--danger);color:#fff}
+.btn.danger:hover{background:#98211b;border-color:#98211b}
+.btn.danger[disabled]{opacity:.5;cursor:not-allowed}
+
+/* 悬浮只给有指针的设备（触摸设备会误触发） */
+@media (hover:hover) and (pointer:fine){
+  .cell:hover .v{color:var(--brand);transition:color var(--t-base) var(--e-out)}
+}
+/* 减少动效：保留透明度与颜色，去掉位移；内容始终可见 */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition-duration:1ms!important}
+  .drawer{transform:none!important}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="mark">政</div>
+  <div class="appname">市政务数据资源管理平台</div>
+  <div class="spacer"></div>
+  <button class="tb-btn" id="btn-export">导出</button>
+  <button class="tb-btn" id="btn-help">帮助</button>
+  <div class="who"><span>数据管理员</span><div class="avatar">李</div></div>
+</header>
+
+<div class="shell">
+  <aside class="side">
+    <div class="grp">数据目录</div>
+    <div class="nav"><i class="dot"></i>目录编制</div>
+    <div class="nav on"><i class="dot"></i>目录管理</div>
+    <div class="nav"><i class="dot"></i>目录审核<span class="badge" title="待我审核 12 件">待办 12</span></div>
+    <div class="nav"><i class="dot"></i>元数据管理</div>
+    <div class="grp">归集与治理</div>
+    <div class="nav"><i class="dot"></i>归集任务</div>
+    <div class="nav"><i class="dot"></i>质量规则</div>
+    <div class="nav"><i class="dot"></i>治理成效</div>
+    <div class="grp">系统</div>
+    <div class="nav"><i class="dot"></i>权限与角色</div>
+  </aside>
+
+  <main class="main">
+    <div class="crumb">数据目录 <i>/</i> <b>目录管理</b></div>
+    <div class="head">
+      <div>
+        <h1>数据目录管理</h1>
+        <p class="sub">编制、审核与发布政务数据资源目录，共 1,286 条</p>
+      </div>
+      <div class="right">
+        <button class="btn" id="btn-colset">列设置</button>
+        <button class="btn primary" id="btn-new">新增目录</button>
+      </div>
+    </div>
+
+    <div class="scroll">
+      <!-- 指标条：紧凑一行 -->
+      <section class="strip">
+        <div class="cell" role="button" tabindex="0" data-drill="all" title="点击查看全部目录" aria-label="查看全部目录">
+          <div class="k">目录总数</div>
+          <div class="v num" data-count="1286">0</div>
+          <div class="d up">较上月 +12.5%</div>
+          <div class="spark" title="近 7 个月趋势（左旧右新）">
+            <i style="height:38%"></i><i style="height:52%"></i><i style="height:47%"></i>
+            <i style="height:66%"></i><i style="height:72%"></i><i style="height:68%"></i><b style="height:92%"></b>
+          </div>
+        </div>
+        <div class="cell" role="button" tabindex="0" data-drill="st:已发布" title="点击筛选「已发布共享」" aria-label="筛选已发布共享">
+          <div class="k">已发布共享</div>
+          <div class="v num" data-count="986">0</div>
+          <div class="d up">较上月 +8.3%</div>
+          <div class="spark">
+            <i style="height:44%"></i><i style="height:49%"></i><i style="height:58%"></i>
+            <i style="height:61%"></i><i style="height:70%"></i><i style="height:74%"></i><b style="height:84%"></b>
+          </div>
+        </div>
+        <div class="cell" role="button" tabindex="0" data-drill="st:待审核" title="点击筛选「待审核」" aria-label="筛选待审核">
+          <div class="k">待审核</div>
+          <div class="v num" data-count="156">0</div>
+          <div class="d up">较上月 −3.2%（积压减少）</div>
+          <div class="spark">
+            <i style="height:70%"></i><i style="height:62%"></i><i style="height:55%"></i>
+            <i style="height:48%"></i><i style="height:44%"></i><i style="height:41%"></i><b style="height:36%"></b>
+          </div>
+        </div>
+        <div class="cell" role="button" tabindex="0" data-drill="q:85" title="点击筛选「质量分低于达标线」" aria-label="筛选质量分低于达标线">
+          <div class="k">平均质量分</div>
+          <div class="v num" data-count="92">0</div>
+          <div class="d flat">满分 100 · 达标线 85</div>
+          <div class="spark">
+            <i style="height:56%"></i><i style="height:60%"></i><i style="height:64%"></i>
+            <i style="height:63%"></i><i style="height:69%"></i><i style="height:73%"></i><b style="height:76%"></b>
+          </div>
+        </div>
+      </section>
+
+      <!-- 筛选：默认 3 项 + 可展开高级项 -->
+      <section class="filters">
+        <div class="frow">
+          <div class="f" style="min-width:228px">
+            <label for="q">目录名称 / 编码</label>
+            <input type="text" id="q" placeholder="支持模糊检索">
+          </div>
+          <div class="f">
+            <label for="cate">所属分类</label>
+            <select id="cate"><option>全部</option><option>省直</option><option>自建自用</option></select>
+          </div>
+          <div class="f">
+            <label for="st">状态</label>
+            <select id="st"><option>全部</option><option>已发布</option><option>待审核</option><option>已下线</option></select>
+          </div>
+          <button class="btn primary" id="btn-query">查询</button>
+          <button class="btn" id="btn-reset">重置</button>
+          <button class="btn ghost" id="btn-adv" aria-expanded="false">高级筛选 ▾</button>
+        </div>
+        <div class="adv" id="adv"><div><div class="frow adv-grid">
+          <div class="f"><label for="dept">提供单位</label>
+            <input type="text" id="dept" placeholder="如：省公安厅"></div>
+          <div class="f"><label for="freq">更新频率</label>
+            <select id="freq"><option>全部</option><option>实时</option><option>每日</option><option>每月</option></select></div>
+          <div class="f"><label for="qmin">质量分下限</label>
+            <select id="qmin"><option>不限</option><option>≥ 85</option><option>≥ 95</option></select></div>
+        </div></div></div>
+      </section>
+
+      <!-- 表格 -->
+      <section class="panel">
+        <div class="pbar">
+          <span class="sel" id="selinfo">已选 0 项</span>
+          <span class="fchip" id="fchip" hidden>筛选：<b id="fchiptext"></b><button class="linkb" id="fclear">清除</button></span>
+          <span class="legend">质量分：<i class="g-ok"></i>≥95 优<i class="g-warn"></i>85–94 达标<i class="g-bad"></i>&lt;85 待改进</span>
+          <button class="btn danger" id="btn-batch" disabled style="height:28px;padding:0 11px">批量下架</button>
+          <div class="spacer"></div>
+          <span style="font-size:12.5px;color:var(--ink-3)" class="num">共 1,286 条</span>
+        </div>
+        <div class="twrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:38px"><input type="checkbox" id="ck-all" title="全选本页"></th>
+              <th>目录名称</th>
+              <th>提供单位</th>
+              <th>共享属性</th>
+              <th class="sortable" data-k="q">质量分<span class="arw">▾</span></th>
+              <th>状态</th>
+              <th>更新时间</th>
+              <th style="text-align:right">操作</th>
+            </tr>
+          </thead>
+          <tbody id="tb"></tbody>
+        </table>
+        </div>
+        <div class="pager">
+          <span class="num">共 1,286 条</span>
+          <select id="psize" style="width:92px;height:28px"><option>20 条/页</option><option>50 条/页</option><option>100 条/页</option></select>
+          <div class="spacer"></div>
+          <button class="pg">‹</button>
+          <button class="pg on">1</button><button class="pg">2</button><button class="pg">3</button>
+          <button class="pg">…</button><button class="pg">65</button>
+          <button class="pg">›</button>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="dtitle">
+  <div class="dh"><b id="dtitle">目录详情</b><button class="x" id="dx" aria-label="关闭">✕</button></div>
+  <div class="db" id="dbody"></div>
+  <div class="df">
+    <button class="btn" id="dclose">关闭</button>
+    <button class="btn primary" id="dact">下架该目录</button>
+  </div>
+</aside>
+<div class="scrim" id="cscrim"></div>
+<div class="modal" id="cfm" role="dialog" aria-modal="true" aria-labelledby="cfmt">
+  <div class="mh"><b id="cfmt">确认操作</b></div>
+  <div class="mb" id="cfmb"></div>
+  <div class="mf"><button class="btn" id="cfm-no">取消</button>
+    <button class="btn danger" id="cfm-yes">确认下架</button></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* 高密度数据（编得像真的：真实机构名 + 规律编码 + tabular 数字） */
+const ROWS = [
+  {n:'自然人基本登记信息',c:'R510000TAB20260110001',d:'省公安厅',s:'无条件共享',q:96,st:'已发布',t:'2026-10-09 14:22'},
+  {n:'社会保险参保人员信息',c:'R510000TAB20260110002',d:'省人力资源和社会保障厅',s:'有条件共享',q:91,st:'已发布',t:'2026-10-09 11:05'},
+  {n:'基本医疗保险参保信息',c:'R510000TAB20260110003',d:'省医疗保障局',s:'有条件共享',q:88,st:'待审核',t:'2026-10-10 09:40'},
+  {n:'居民电子健康档案信息',c:'R510000TAB20260110004',d:'省卫生健康委员会',s:'有条件共享',q:84,st:'待审核',t:'2026-10-10 16:12'},
+  {n:'中小学学籍信息',c:'R510000TAB20260110005',d:'省教育厅',s:'无条件共享',q:93,st:'已发布',t:'2026-10-08 17:31'},
+  {n:'市场主体登记信息',c:'R510000TAB20260110006',d:'省市场监督管理局',s:'无条件共享',q:97,st:'已发布',t:'2026-10-08 10:18'},
+  {n:'纳税人资格信息',c:'R510000TAB20260110007',d:'国家税务总局四川省税务局',s:'不予共享',q:79,st:'已下线',t:'2026-09-30 15:47'},
+  {n:'社会救助对象信息',c:'R510000TAB20260110008',d:'省民政厅',s:'有条件共享',q:86,st:'待审核',t:'2026-10-11 08:55'}
+];
+const CHIP = {已发布:'ok',待审核:'wait',已下线:'off'};
+const $ = (s) => document.querySelector(s);
+let VIEW = ROWS.slice();          /* 当前视图；下钻只改变视图，不动数据源 */
+let DRILL = null;                /* {label, fn} */
+
+function fmtQ(q){
+  const cls = q >= 95 ? 'ok' : q >= 85 ? 'wait' : 'bad';
+  return `<div class="qbar num"><span style="width:22px;font-size:12px">${q}</span>
+    <span class="bar"><i data-w="${q}%" style="background:var(${cls === 'ok' ? '--ok' : cls === 'wait' ? '--warn' : '--danger'})"></i></span></div>`;
+}
+function render(){
+  $('#tb').innerHTML = VIEW.map((r, i) => `
+    <tr data-i="${i}">
+      <td><input type="checkbox" class="ck" data-i="${i}"></td>
+      <td><div class="tname">${r.n}</div><div class="tcode num">${r.c}</div></td>
+      <td>${r.d}</td>
+      <td>${r.s}</td>
+      <td>${fmtQ(r.q)}</td>
+      <td><span class="chip ${CHIP[r.st]}">${r.st}</span></td>
+      <td class="num" style="color:var(--ink-3)">${r.t}</td>
+      <td><div class="rowact">
+        <button class="linkb act" data-i="${i}" data-a="view">详情</button>
+        ${r.st === '待审核' ? `<button class="linkb act" data-i="${i}" data-a="audit">审核</button>
+          <button class="linkb act" data-i="${i}" data-a="withdraw">撤回</button>` : ''}
+        ${r.st === '已发布' ? `<button class="linkb act" data-i="${i}" data-a="edit">编辑</button>
+          <button class="linkb act danger" data-i="${i}" data-a="off">下架</button>` : ''}
+        ${r.st === '已下线' ? `<button class="linkb act" data-i="${i}" data-a="restore">申请恢复</button>` : ''}
+      </div></td>
+    </tr>`).join('');
+  // 质量分条：内容默认可见（动效只做增强，不做呈现）
+  requestAnimationFrame(() => {
+    document.querySelectorAll('.qbar .bar i').forEach(el => { el.style.width = el.dataset.w; });
+  });
+}
+function renderTable(){ render(); syncSel(); }
+function applyDrill(label, fn){
+  DRILL = { label, fn };
+  VIEW = fn ? ROWS.filter(fn) : ROWS.slice();
+  const c = $('#fchip');
+  c.hidden = !fn; $('#fchiptext').textContent = label || '';
+  renderTable();
+}
+function clearDrill(){ applyDrill('', null); toast('已清除筛选'); }
+function picked(){ return [...document.querySelectorAll('.ck:checked')].map(c => +c.dataset.i); }
+function syncSel(){
+  const n = picked().length;
+  $('#selinfo').textContent = `已选 ${n} 项`;
+  $('#btn-batch').disabled = n === 0;
+  document.querySelectorAll('#tb tr').forEach(tr => tr.classList.toggle('picked', picked().includes(+tr.dataset.i)));
+}
+/* 指标数字爬升：唯一展示型动效，仅首屏一次；减少动效环境下直接给终值 */
+function countUp(){
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  document.querySelectorAll('.v[data-count]').forEach(el => {
+    const end = +el.dataset.count;
+    if (reduce) { el.textContent = end.toLocaleString(); return; }
+    const t0 = performance.now(), dur = 620;
+    (function step(t){
+      const p = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - p, 3);
+      el.textContent = Math.round(end * e).toLocaleString();
+      if (p < 1) requestAnimationFrame(step);
+    })(t0);
+  });
+}
+function drawer(html, actLabel){
+  $('#dbody').innerHTML = html;
+  $('#dact').textContent = actLabel || '下架该目录';
+  $('#scrim').classList.add('show');
+  const d = $('#drawer'); d.classList.remove('hide'); d.classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+function closeDrawer(){
+  const d = $('#drawer');
+  d.classList.add('hide'); d.classList.remove('show');
+  $('#scrim').classList.remove('show');
+  document.body.style.overflow = '';
+  setTimeout(() => d.classList.remove('hide'), 200);
+}
+function confirmBox(text, okLabel, onOk){
+  $('#cfmb').textContent = text;
+  $('#cfm-yes').textContent = okLabel || '确认';
+  $('#cscrim').classList.add('show');
+  const m = $('#cfm'); m.classList.remove('hide'); m.classList.add('show');
+  confirmBox._ok = onOk;
+}
+function closeConfirm(){
+  const m = $('#cfm');
+  m.classList.add('hide'); m.classList.remove('show');
+  $('#cscrim').classList.remove('show');
+  setTimeout(() => m.classList.remove('hide'), 200);
+}
+function toast(msg){
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2200);
+}
+document.addEventListener('click', e => {
+  const cell = e.target.closest('.cell[data-drill]');
+  if (cell) {
+    const d = cell.dataset.drill;
+    if (d === 'all') { applyDrill('', null); toast('已显示全部 1,286 条目录'); return; }
+    if (d.startsWith('st:')) {
+      const v = d.slice(3);
+      $('#st').value = v;
+      applyDrill(`状态 = ${v}`, r => r.st === v);
+      toast(`已筛选「${v}」，共 ${VIEW.length} 条（当前页示例）`);
+      return;
+    }
+    if (d === 'q:85') {
+      $('#qmin').value = '≥ 85';
+      applyDrill('质量分 < 85', r => r.q < 85);
+      toast(`已筛选「质量分低于达标线」，共 ${VIEW.length} 条（当前页示例）`);
+      return;
+    }
+  }
+  const b = e.target.closest('.act, #btn-new, #btn-export, #btn-help, #btn-colset');
+  if (!b) return;
+  const a = b.dataset.a;
+  if (b.id === 'btn-new')  return toast('已进入新增目录流程');
+  if (b.id === 'btn-export') return toast('导出任务已提交，稍后在下载中心查看');
+  if (b.id === 'btn-help') return toast('帮助中心已在新窗口打开');
+  if (b.id === 'btn-colset') return toast('列设置已打开（可自定义显示列）');
+  const r = ROWS[+b.dataset.i];
+  if (a === 'view') {
+    drawer(`<div class="kv">
+      <div class="k">目录名称</div><div>${r.n}</div>
+      <div class="k">目录编码</div><div class="num">${r.c}</div>
+      <div class="k">提供单位</div><div>${r.d}</div>
+      <div class="k">共享属性</div><div>${r.s}</div>
+      <div class="k">质量分</div><div class="num">${r.q} / 100</div>
+      <div class="k">状态</div><div><span class="chip ${CHIP[r.st]}">${r.st}</span></div>
+      <div class="k">更新时间</div><div class="num">${r.t}</div>
+      <div class="k">数据项</div><div>15 项（基础标识 4 · 数据特征 10 · 范围界定 6 …）</div>
+    </div>`, r.st === '已发布' ? '下架该目录' : '申请变更');
+    return;
+  }
+  if (a === 'edit') { toast(`打开「${r.n}」编辑页`); return; }
+  if (a === 'audit') { toast(`「${r.n}」审核已打开，请在审核页处置`); return; }
+  if (a === 'withdraw') { toast(`「${r.n}」已撤回为草稿`); return; }
+  if (a === 'restore') { toast(`「${r.n}」恢复申请已提交`); return; }
+  if (a === 'off') {
+    confirmBox(`下架后该目录将停止对外共享，已授权单位当日仍可调用。确认下架「${r.n}」？`, '确认下架', () => {
+      toast(`「${r.n}」下架申请已提交，待审核`);
+    });
+    return;
+  }
+});
+$('#ck-all').addEventListener('change', e => {
+  document.querySelectorAll('.ck').forEach(c => { c.checked = e.target.checked; if (e.target.checked) c.closest('tr').classList.add('picked'); else c.closest('tr').classList.remove('picked'); });
+  syncSel();
+});
+document.addEventListener('change', e => { if (e.target.classList.contains('ck')) syncSel(); });
+$('#btn-batch').addEventListener('click', () => {
+  const n = picked().length;
+  if (!n) return;
+  confirmBox(`将对已选 ${n} 个目录发起下架，停止对外共享。确认继续？`, '确认下架', () => {
+    document.querySelectorAll('.ck:checked').forEach(c => { c.checked = false; c.closest('tr').classList.remove('picked'); });
+    syncSel();
+    toast(`已提交 ${n} 个目录的下架申请，待审核`);
+  });
+});
+$('#btn-adv').addEventListener('click', e => {
+  const a = $('#adv'), open = a.classList.toggle('open');
+  e.currentTarget.setAttribute('aria-expanded', String(open));
+  e.currentTarget.textContent = open ? '收起高级筛选 ▴' : '高级筛选 ▾';
+});
+$('#btn-query').addEventListener('click', () => toast('已按当前条件筛选'));
+$('#btn-reset').addEventListener('click', () => {
+  $('#q').value = ''; $('#cate').selectedIndex = 0; $('#st').selectedIndex = 0;
+  toast('已重置筛选条件');
+});
+$('#cfm-no').addEventListener('click', closeConfirm);
+$('#cfm-yes').addEventListener('click', () => { const f = confirmBox._ok; closeConfirm(); if (f) f(); });
+$('#cscrim').addEventListener('click', closeConfirm);
+$('#dx').addEventListener('click', closeDrawer);
+$('#dclose').addEventListener('click', closeDrawer);
+$('#scrim').addEventListener('click', closeDrawer);
+$('#dact').addEventListener('click', () => { closeDrawer(); toast('操作已提交'); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeConfirm(); closeDrawer(); }
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.closest && e.target.closest('.cell[data-drill]')) {
+    e.preventDefault(); e.target.closest('.cell[data-drill]').click();
+  }
+});
+$('#fclear').addEventListener('click', () => { $('#st').value = '全部'; $('#qmin').value = '不限'; clearDrill(); });
+document.querySelectorAll('thead th.sortable').forEach(th => th.addEventListener('click', () => {
+  th.querySelector('.arw').textContent = th.querySelector('.arw').textContent === '▾' ? '▴' : '▾';
+  toast('已按质量分重新排序');
+}));
+
+render(); countUp();
+
+/* 测试接口 */
+window.APP = {
+  rows: ROWS, picked, closeDrawer,
+  get drawerOpen(){ return $('#drawer').classList.contains('show'); },
+  get selected(){ return picked().length; },
+  get toastText(){ return $('#toast').classList.contains('show') ? $('#toast').textContent : ''; },
+  get confirmOpen(){ return $('#cfm').classList.contains('show'); },
+  get visibleRows(){ return VIEW.length; },
+  get drillLabel(){ return DRILL ? DRILL.label : ''; },
+  get q(){ return $('#q').value; }
+};
+</script>
+</body>
+</html>

@@ -70,7 +70,7 @@ Full benchmark data: `references/cross-platform-benchmark-20260618.md`, `referen
 | Hermes Agent main model | DeepSeek official | `deepseek-v4-flash` | **2.0s/tool-call, ¥0.0019/4calls, zero reasoning waste — 13× faster than reasoning models, top-ranked in both 2026-06-19 & 2026-06-27 benchmarks**. Full data: `references/agent-development-benchmark-20260627.md` |
 | Agent fallback | 百炼 (DashScope) | `qwen-plus` | 2026-06-27: **8.8/10, 4.4s, ¥0.0024** — 2nd place, best runner-up for agent tasks |
 | Hermes daily chat | 智谱官方 | `glm-5.2` | Current (user preference). ⚠️ 2026-06-19 benchmark shows deepseek-chat 5× faster (4.5s vs 24.5s) at same cost — pending user decision. Full data: `references/daily-chat-benchmark-20260619.md` |
-| Proposal writing | 硅基流动 | `deepseek-ai/DeepSeek-V4-Pro` | 2.5折 promotion, 56pts, accuracy 8.0/10 |
+| Proposal writing | **DeepSeek 官方** | `deepseek-chat`（主）/ `deepseek-v4-pro`（需要强推理时，环境变量 `PLAN_MODEL` 切换） | 2026-10-10：硅基流动 **HTTP 402 账户欠费**，`deepseek-ai/DeepSeek-V4-Pro` 这条通道作废。方案撰写 benchmark 里 `deepseek-chat` 76 分 🥇、`deepseek-v4-pro` 56 分；且 `deepseek-chat` 是非推理、content 不会静默为空 —— **长文生成默认 `deepseek-chat`，max_tokens ≥16000** |
 | Note enhancement | DeepSeek official | `deepseek-chat` | 98.7pts, 0.43s, ¥0.005/note — 20× faster & 25× cheaper than qwen-max (2026-06-19 benchmark + switched) |
 | OCR (standard) | **百炼 (DashScope)** | `qwen-vl-ocr-latest` | ⚠️ **2026-10-01 修正：主引擎已改为百炼**。硅基流动 PaddleOCR-VL-1.5 会吐 `<|LOC_n|>` 布局 token，曾污染 102 篇笔记 |
 | OCR (photo fallback) | 硅基流动 | `Qwen/Qwen3-VL-8B-Instruct` | 8s/page, ¥0.002/page, high Chinese quality |
@@ -275,4 +275,21 @@ Most tools supporting OpenAI-compatible API can use any of the above endpoints.
   它把脚本从「非推理」推到了「推理」，而推理模型在 `max_tokens` 不够时 `content` 返回**空字符串**。
   **调用脚本（翻译/摘要/打标签/抽 JSON）用 `deepseek-chat`，不要用 `deepseek-v4-flash`。**
   任何时点不确定时，跑一次实测（看返回体的 `model` 字段 + `reasoning_content` 长度），不要靠 docs 或记忆断言。
+
+  **2026-10-10 第三次确认（并踩到"列表≠可用"这个坑）**：`/v1/models` 仍**只列**
+  `deepseek-flash` + `deepseek-v4-pro`，**依然没有 `deepseek-chat`** —— 但同一次探测里
+  `deepseek-chat` 调用**返回 HTTP 200 + 正常内容**。**「模型列表里没有」≠「不能调」**，
+  下次不要再把 `/v1/models` 的输出当成可用模型的全集（本次因此向用户报错了"账户里没有 deepseek-chat"）。
+
+  同日长文生成实测：
+
+  | 模型 | 正文 | completion token | 备注 |
+  |---|---|---|---|
+  | `deepseek-v4-pro` | 2260 字 | 3274 | 34s，`finish_reason=stop` |
+  | `deepseek-flash` | 213 字 | **3733** | reasoning **6856 字** —— 200 字正文烧掉满预算 |
+
+  **长文生成必须把 reasoning 预算算进去**：`max_tokens` 给少了，reasoning 吃光预算、
+  `content` 返回空串（HTTP 200，不报错）。落盘类脚本的两道闸门：
+  ① `content` 为空 → 报错并把 max_tokens 翻倍重试；② `finish_reason == 'length'`（截断）→ 同样重试，
+  **绝不把半截或空正文当成功**。
 - OCR has a free dedicated model: PaddleOCR-VL-1.5 on SiliconFlow is free and 3x faster than general VL models.

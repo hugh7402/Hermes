@@ -218,9 +218,51 @@ Check logs: `~/.hermes/logs/hindsight-embed.log` and `~/.hindsight/profiles/<pro
 
 **daemon 重启后卡死（进程在但端口不监听、日志反复 HF timed out → `Application startup failed. Exiting.`）**：是 `HF_HUB_OFFLINE` 没传给 daemon——`DaemonEmbedManager` 用 `os.environ.copy()` 且只传播 `HINDSIGHT_*` 前缀 key，而 `.env` 不会进 gateway 进程环境（Hermes 按需读 .env，`/proc/<pid>/environ` 里看不到）。修复：在 shim 的 `HindsightEmbedded.__init__` 里、`ensure_running()` 前 `os.environ.setdefault("HF_HUB_OFFLINE","1")` + `HF_HOME`，然后重启 gateway。详见 reference「重启后 daemon 卡死的根因」。
 
-**两套 `.pg0`/`.hindsight` 数据目录（⚡本机踩过最重的一个坑，必须杜绝）**：HOME 变化导致数据分裂（gateway 用 `/opt/data`，任何手动/旧进程用 `/opt/data/home` 就会再造一套）。**铁律：本机 Hindsight 数据只允许存在于 `/opt/data/.hindsight` + `/opt/data/.pg0` + `/opt/data/.cache/huggingface` 三处，出现任何 `/opt/data/home/.hindsight` 或 `/opt/data/home/.pg0` 就是分裂事故，立刻清理。** 任何手动启动 daemon / 写验证脚本，必须显式 `os.environ['HOME'] = '/opt/data'`（不得依赖继承，当前 shell 的 HOME 常是 /opt/data/home）。判定权威：`cat /proc/<gateway_pid>/environ | tr '\0' '\n' | grep HOME`。清理顺序：先 `pkill -9 -f postgres` 杀孤儿 → 删非权威那套 → 模型缓存先 copytree 迁到标准 HF_HOME → 更新 .env 的 HF_HOME。日常自查：`ls -d /opt/data/home/.pg0 /opt/data/home/.hindsight 2>/dev/null` 应无输出。详见 reference「pg0 / .hindsight 数据目录分裂」。
+**两套 `.pg0`/`.hindsight` 数据目录（⚡本机踩过最重的一个坑，必须杜绝）**：HOME 变化导致数据分裂（gateway 用 `/opt/data`，任何手动/旧进程用 `/opt/data/home` 就会再造一套）。**铁律：本机 Hindsight 数据只允许存在于 `/opt/data/.hindsight` + `/opt/data/.pg0` + `/opt/data/.cache/huggingface` 三处，出现任何 `/opt/data/home/.hindsight` 或 `/opt/data/home/.pg0` 就是分裂事故，立刻清理。** 任何手动启动 daemon / 写验证脚本，必须显式 `os.environ['HOME'] = '/opt/data'`（不得依赖继承，当前 shell 的 HOME 常是 /opt/data/home）。判定权威：`cat /proc/<gateway_pid>/environ | tr '\0' '\n' | grep HOME`——**本机 gateway 实测就是 `HOME=/opt/data/home`**，所以插件确实会把 profile（`hermes.env`/`hermes.log`）写到 `/opt/data/home/.hindsight`，别指望 gateway 侧 HOME 是对的。
 
-**daemon 报 `Failed to start embedded PostgreSQL` / PG 起不来**：两个根因，先查再修，**切勿删实例目录重建（会丢全部记忆数据）**。① **缺 `libicuuc.so.70`**（Debian 13 只有 ICU 76，pg0 的 postgres 18.1 二进制加载失败；症状是 daemon 卡在 `Starting embedded PostgreSQL` 无后续、70% CPU、postgres 子进程数为 0）——从 Ubuntu archive 解包 libicu70 到 `/opt/data/.pg0/icu70/`，再用 wrapper 注入 `LD_LIBRARY_PATH`。② **缺 PG 标准目录**（`pg_notify`/`pg_logical/snapshots`/`pg_logical/mappings`/`pg_commit_ts`/`pg_dynshmem`/`pg_replslot`/`pg_serial`/`pg_snapshots`/`pg_stat_tmp`/`pg_tblspc`/`pg_twophase`）——直接 `mkdir -p` 补齐即可，WAL 恢复自动完成、数据无损。孤儿 postgres 进程（带错 HOME 拉起的测试残留）仍须先杀。完整步骤见 reference「hindsight-daemon-recovery」。
+**治本做法：把两个 HOME 焊死到同一份数据（不改 Hermes 插件本体，升级不会被覆盖）**：
+```bash
+# 只在确认它是空骨架（里面只有 profiles/*.env|log、无数据）时才删
+rm -rf /opt/data/home/.hindsight
+ln -s /opt/data/.hindsight /opt/data/home/.hindsight
+ln -s /opt/data/.pg0       /opt/data/home/.pg0
+```
+日常自查改成「**必须是软链**」：`ls -ld /opt/data/home/.hindsight /opt/data/home/.pg0` → 两行都要带 `->`；
+若显示为真目录，说明软链被删、分裂正在发生，立刻清骨架重建软链。
+完整清理/迁移顺序（先杀孤儿 postgres → 删非权威那套 → 迁 HF 缓存）见 reference「pg0 / .hindsight 数据目录分裂」。
+
+**daemon 宕机与「记忆链断了」的表现**：`/health` 返回 **000** = daemon/PG 没起来（数据通常完好，用户侧只感知为“记忆不生效”）；
+daemon 空闲超时（300s）正常退出后，**如果连得上的 supervisor（dashboard）没能把它拉起来，链路会静默断很久**。
+用 `/opt/data/scripts/hindsight_start.sh` 手动拉起（实测 **24 秒**就 healthy，不必死等 60s），启动后必须核对
+`readlink /proc/<pg_pid>/cwd` 指向 `instances/hindsight-embed-hermes/data`（不是空实例 `instances/hindsight`）。
+⚠️ **若某个会话是在 daemon 宕机期间开始的，该会话不会挂上 hindsight 工具**，事后拉起 daemon 也补不上——
+需要重启 gateway / 开新会话才重新注册；汇报时要主动说明这一点，别让用户以为已经复原。
+
+**daemon 报 `Failed to start embedded PostgreSQL` / PG 起不来**：两个根因，先查再修，**切勿删实例目录重建（会丢全部记忆数据）**。① **缺 `libicuuc.so.70`**（Debian 13 只有 ICU 76，pg0 的 postgres 18.1 二进制加载失败；症状是 daemon 卡在 `Starting embedded PostgreSQL` 无后续、70% CPU、postgres 子进程数为 0）——从 Ubuntu archive 解包 libicu70 到 `/opt/data/.pg0/icu70/`，再用 wrapper 注入 `LD_LIBRARY_PATH`。② **缺 PG 标准目录**（`pg_notify`/`pg_logical/snapshots`/`pg_logical/mappings`/`pg_commit_ts`/`pg_dynshmem`/`pg_replslot`/`pg_serial`/`pg_snapshots`/`pg_stat_tmp`/`pg_tblspc`/`pg_twophase`）——直接 `mkdir -p` 补齐即可，WAL 恢复自动完成、数据无损。孤儿 postgres 进程（带错 HOME 拉起的测试残留）仍须先杀。
+
+> 🚨 **2026-10-10 找到「补了又丢、反复发作」的病根：`disk-cleanup` 插件把 PG 的空目录当垃圾删了。**
+>
+> **证据（插件自己的日志 `/opt/data/disk-cleanup/cleanup.log`）**：
+> ```
+> [2026-10-07 12:33:17] DELETED: .../hindsight-embed-hermes/data/pg_commit_ts (empty dir)
+> [2026-10-07 12:33:17] DELETED: .../hindsight-embed-hermes/data/pg_stat_tmp  (empty dir)   ← 13 个一次性删光
+> ```
+> 共 5 轮（2026-08-26、10-07…），时间戳完美吻合：PG 12:31:28 干净关闭 → 12:33:17 目录被删。
+> **因果链**：daemon 空闲退出 → PG 干净关闭、这批目录变空 → disk-cleanup 扫空目录
+> （`disk_cleanup.py` 的 `_EMPTY_DIR_PROTECTED_TOP_LEVEL` 白名单**不含 `.pg0`/`.hindsight`**，
+> 于是从 HERMES_HOME 递归进 PG 数据目录，`rmdir` 所有空目录）→ 下次 daemon 启动报
+> `could not open temporary statistics file "pg_stat/pgstat.tmp"` → `Application startup failed` →
+> retain 卡 420s。**只跑 repair 脚本是治症状，插件每轮清理会再删一次。**
+>
+> **根治（2026-10-10 已验证）**：让这些目录恒非空——插件只删「空」目录。跑
+> `scripts/protect_pg_dirs.py`（幂等）：往 11 个标准目录 + 顺带发现的
+> `pg_wal/archive_status`、`pg_wal/summaries` 各放一个 `.keep` 占位文件。
+> 实测 PG 完全容忍（`/health` 仍 healthy、数据无损），且 `.keep` 不进 `tracked.json`
+> （插件不追踪它）→ 永远删不到。**插件本体 root 只读、也没有配置项能扩展白名单，
+> 所以只能走 .keep 占位这条路。**
+>
+> 自查一条命令：`find /opt/data/.pg0/instances/*/data -type d -empty | wc -l`
+> —— 应为 `0`（非 0 说明占位文件丢了，插件马上又要删目录）。完整步骤见 reference「hindsight-daemon-recovery」。
 
 **daemon 的 supervisor 是 Hermes dashboard**（`ps -o ppid= -p <daemon_pid>` 应为 dashboard/hermes）：它用 `uv tool uvx hindsight-api@0.9.0 --daemon --idle-timeout 300 --port 9177` 自动拉起，环境正确（HOME=/opt/data + 实例 hindsight-embed-hermes）。**恢复流程首选「杀光所有 daemon/postgres → 什么都不做，等 dashboard 重拉」（初始化 40-60s：模型加载→postgres→migration，`/health` 转 healthy）**。别边让 dashboard 活着边手动拉起——dashboard 在 9177 未服务时会反复重拉，多个实例互相 bind 失败、越拉越乱。确需手动拉起（dashboard 不在时）才用脚本，踩三个坑：① 默认 pg0 实例名是 `hindsight`（新建空实例）——必须 `export HINDSIGHT_API_DATABASE_URL=pg0://hindsight-embed-hermes` 才连到真数据（hindsight-embed-hermes）；② 环境里残留 SOCKS 代理变量会让 LiteLLM 初始化失败（`socksio package is not installed`）且 daemon 静默退出——启动前 unset 全部 proxy 变量；③ `--daemon` 标志会 fork 出孤儿进程占住 9177，后续启动报 `address already in use`——先 `ss -tlnp | grep 9177` 清掉再用前台模式（无 `--daemon`）setsid/nohup 跑。已固化启动脚本 `/opt/data/scripts/hindsight_start.sh`（HOME/DATABASE_URL/清代理全内置）。
 
@@ -295,6 +337,7 @@ ps -eo pid,lstart,cmd | grep "[h]ermes gateway"
 ## Reference Files
 
 - `scripts/hindsight_repair.sh` — **retain 超时 / daemon 起不来时第一个跑的脚本**（2026-10-07 实跑通过）：幂等补齐 11 个 PG 标准目录 → 清 daemon+孤儿 postgres → 等 dashboard 重拉至 `/health` 返回 200 → 打印三步验收提示。**永不删实例数据**，可反复跑。
+- `scripts/protect_pg_dirs.py` — **治本脚本（2026-10-10 新增）**：给 PG 数据目录下 13 个易被 disk-cleanup 删除的空目录各放一个 `.keep` 占位文件。**先跑 repair.sh 恢复，再跑本脚本防复发**；跑完用 `find ... -type d -empty | wc -l` 应得 0。
 - `references/bailian-setup.md` — 百炼 (Bailian) API specific setup: endpoints, model pricing, verification commands
 - `references/local-embedded-activation.md` — **local_embedded 从零到 retain/recall 全通实录（2026-08-09 验证）**：只读 venv + lazy-packages 安装、hindsight-embed 替代错误的老 hindsight 包、HF 模型经 hf-mirror 预下载、HindsightEmbedded shim、api_url 端口匹配。配置好但 is_available() False / daemon 不启动时先读这个。
 - `references/hindsight-daemon-recovery.md` — **PG 起不来 / daemon 卡死完整修复实录（2026-08-17）**：libicu70 缺失 + 缺 PG 标准目录的修复（直接补目录，**勿删实例**）、postgres wrapper 注入 LD_LIBRARY_PATH、手动启动 daemon 三必设环境（HOME/DATABASE_URL/unset proxy）、--daemon 孤儿进程占端口。daemon 起不来或 PG 报错时先读这个。

@@ -176,6 +176,24 @@ cannot render PDFs, and layout fidelity requires a real renderer.
   which resets runs in that cell to plain formatting.
 - **Encoding.** All JSON specs/values files are read as UTF-8 explicitly;
   never rely on locale defaults when writing your own glue code.
+- **CJK fonts need `w:eastAsia`.** `run.font.name = '仿宋'` only sets the
+  Latin face; Chinese text keeps the theme fallback unless you also set the
+  east-Asian attribute: `run._element.get_or_add_rPr().rFonts.set(qn('w:eastAsia'), '仿宋')`.
+  Do both, and set `run.font.size` explicitly, when matching a Chinese template.
+- **Filling a sparse template: clone the heading paragraph, insert after it.**
+  `new = copy.deepcopy(anchor._p)`, `anchor._p.addnext(new)`, then drop all runs of the
+  clone and `add_run(text)` — the clone carries the paragraph properties and you only
+  reset the run formatting. **Collect the anchors first and process them in reverse
+  (last heading → first)**: every insert shifts everything below it, so forward
+  iteration with index-based helpers (`docx_edit.py insert --index N`) edits the wrong paragraph.
+- **Strip the template's own instruction lines.** Templates often carry author-facing
+  prompts ("1-2 key products,", "key opportunities (max 5)") in normal body paragraphs.
+  They are instructions, not content — delete those paragraphs before delivery, or they
+  ship as if written by the author.
+- **Layout attributes can be `None`.** `section.top_margin`, `page_width`, `paragraph_format.space_before`,
+  `line_spacing`, `run.font.size` are `None` when inherited from defaults/theme. Format them
+  defensively (`f'{v.mm:.1f}' if v else 'None'`) or you get `AttributeError: 'NoneType' has no
+  attribute 'mm'` while merely reporting a template's format.
 - **Don't unzip-and-sed the XML.** Edit through the scripts (or
   python-docx); raw text substitution in `document.xml` corrupts files
   easily. Use `patch`/`write_file` only for the JSON inputs, never on the

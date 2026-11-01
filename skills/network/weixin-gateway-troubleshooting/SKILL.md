@@ -150,6 +150,44 @@ cronjob(action="create", name="发文件",
   schedule="1m")
 ```
 
+## 入向：用户发来的文件落在哪、怎么确认「到底收到没有」（2026-10-10 实测）
+
+用户说"我把表发给你了"而 agent 看不到附件 —— 本平台高频困惑点，尤其是这个用户经常发投标/工作文档。
+**别急着让用户重发，先做两步确认。**
+
+### 落盘位置
+
+微信发来的文件统一落到 **`/opt/data/cache/documents/doc_<12位hash>_<原文件名>`**（原文件名保留在 hash 后面）。
+可读的文本类会被内联进对话，出现 `[The user sent a document: ...]` 块；
+**没看到那个块就是没进 agent 上下文**，但文件可能已在盘上（此时用 read_file / markitdown 自取）。
+
+### 权威判据：gateway 日志的 `media=` 字段
+
+```bash
+grep "inbound" /opt/data/logs/gateway.log | tail -5
+# [Weixin] inbound from=o9cq807- type=dm media=0   ← 纯文本，没带附件
+# [Weixin] inbound from=o9cq807- type=dm media=1   ← 附件已收到
+```
+
+`media=1` = 平台侧收到了，文件**一定**会在 `cache/documents/` 里；
+`media=0` 才是真没发附件。**这比"我全盘搜不到"更有说服力** —— 能把"用户没发"和"发了但没落盘"分开。
+
+### ⚠️ 文件可能晚几十秒才到 —— 别把"还没到"说成"你没发成功"
+
+本次实测：查完确认没有 → 回复用户"文件没到" → **约 30 秒后文件自己到了**（日志 `media=1` 时间戳 15:29:04）。
+所以：
+- 措辞留余地：说"**目前还没到，我再确认一下**"，并**在下一次工具调用里复查一遍**再下结论。
+- **不要让用户重发、更不要让用户把内容贴成文字** —— 附件往往很大（本次是 8.6MB docx、多个 xlsx），重发成本高。
+
+### 排查顺序
+
+1. `ls -lt /opt/data/cache/documents/ | head` —— 看最新几个文件的 mtime，一眼能判断
+2. `find /opt/data -maxdepth 5 -newermt '-30 minutes' -type f` + 排除噪音目录（`.pg0` / `.venv` / `logs` / `cache/terminal`）
+   —— 确认全盘确实没有新文件，别只在 cache 里找
+3. gateway 日志 `media=` —— 定性，然后决定是等还是让用户重发
+
+> ⚠️ 这两步尽量在**同一个回合**里做完再回复。只查 cache 就下"没收到"的结论，可能刚好落在文件落盘前的空窗里。
+
 ## 微信里每轮出现一段英文（状态气泡）—— 2026-09-22 用户反馈
 
 ### 现象

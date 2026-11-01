@@ -51,7 +51,7 @@ def ocr_page_vlm(pdf_path, page_idx, total):
     try:
         img_b64 = base64.b64encode(open(png, 'rb').read()).decode()
         payload = {
-            "model": "qwen-vl-ocr-latest",
+            "model": "qwen-vl-ocr",  # 2026-10-25: -latest 别名已下线
             "messages": [{"role": "user", "content": [
                 {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img_b64}"}},
                 {"type": "text", "text": "识别图片中所有文字，按阅读顺序输出，保留段落结构。不要输出任何解释。"}

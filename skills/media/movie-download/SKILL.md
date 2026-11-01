@@ -40,6 +40,11 @@ curl -s --noproxy '*' -A "$UA" "https://movie.douban.com/j/subject_suggest?q=<ur
 
 比 `web_search` 干净得多（无影评噪音），**是“这片名到底有哪几版”的最快证据**。
 
+**系列 / 动画 / 有续集的作品，先列全条目再定下哪几个**：一次 suggest 往往会同时返回
+「剧集版（早年）+ 大电影 + 续集 + 番外/学前篇」。用户说「包括电影版」= **剧集与所有电影版都要**，
+不是只要电影；反过来只说片名时，先把「剧集 / 第一二部」列给他确认，不要默认只下最新那部。
+本类内容的“中字”要求还有特殊判定——见「国语原声片不算缺中字」那一条。
+
 **实测案例（2026-10-01）**：用户要「美国片《街头霸王》，2006上映」。suggest 返回：
 1994（尚格·云顿）/ 1994（日本动画）/ 2009（春丽传奇）/ 2014（暗杀拳）/ 2026（未上映）——
 **2006 年根本没有这部片子**（「2006」只出现在 2006-11 卡普空宣布要拍新街霸电影的新闻里，
@@ -196,6 +201,8 @@ PikPak 离线 **60 秒全部完成**，WebDAV 7 并行 **90 MiB/s / 52 分钟**�
 **抖音/磁力熊/悠悠MP4全没中字版时，SeedHub 一次解决。** 本 skill 自带的 `scripts/seedhub_fetch.py` 已封装全部流程。
 
 **域名**：用 `www.seedhub.cc`（直连 200，**无需代理**）。⚠️ `seedhub.icu` 已死（直连/代理均 HTTP 000）。
+**curl 一律带 `-L`**：`/s/<关键词>` 会 **301** 跳到带尾斜杠的地址，不加 `-L` 得到 0 字节 / 空列表，
+看起来像被防了或没结果；`-w '%{http_code} %{url_effective}'` 一眼就能区分 301 和真 403。
 
 | 用途 | 正确写法 |
 |---|---|
@@ -374,6 +381,10 @@ ps -eo pid,cmd | awk '/[r]clone copy/ {print}'
   **device_id 必须沿用旧的**（换新 device_id 可能触发风控）。
 - **🧹 删云端文件夹用 `rclone purge` 一步到位**：`delete` + `rmdir` 两步法在文件夹含**子目录**时 rmdir 会报 `directory not empty`（黑钱胜地案例：残留「封面以及截图」子目录）。直接 `rclone purge "pikpak:/Inbox-JAV/<文件夹>"` 递归删除，一步干净。
 - **🔠 pikpakapi `path_to_id` 大小写敏感（2026-09-16）**：`await client.path_to_id('/inbox-jav')` 返回**空列表** → `r[0]['id']` 抛 `IndexError`；必须写 `/Inbox-JAV`（与云端目录名完全一致）。取不到 folder id 时先核对大小写，别怀疑账号或目录被删。
+- **✏️ 云端改名不要指望 pikpakapi（无 `rename` 方法）**：调 `client.rename(...)` 直接 `AttributeError`。
+  正确做法：`file_batch_move([file_id], 目标folder_id)` 把视频**移到 `/Movie` 根**（保留原英文名），
+  **改名放在本地入库那一步做**（`中文片名.英文片名.年份.ext`）——效果一样，少一次 API 往返。
+  移出后原文件夹用 `delete_to_trash([folder_id])` 删；trash 是异步的，列表里可能还看得到一会儿。
 - **📊 离线进度别用 `offline_list()` 判断**：PikPak 任务**完成后即从 `offline_list()` 列表移除**，常返回 `tasks: []`（看起来像“任务没建成功”）。**可靠判定**：轮询云端目标文件夹 `file_list(parent_id=<folder_id>)` 累计子文件大小，接近预期体积（≥99.5%）或连续 3 次不增长即算离线完成，再启动 WebDAV 拉回（本次 4K 30GB 大片即用此法，另外在线文件夹刚创建时大小显示 0.00GB 属正常）。
 - **🧩 shell cwd 陷阱**：若在 `/tmp/xxx` 里执行过命令又 `rmdir` 了该目录，后续 terminal 调用的 shell cwd 仍是已删目录 → 报 `cd: No such file or directory` / `Exit 126`。**修法**：下一个 terminal 调用显式传 `workdir=/opt/data`。
 - **🚫 `pkill -f '<模式>'` 会杀掉自己（2026-09-15 停黑钱胜地 S02 时）**：`pkill -f` 匹配**整条命令行**，而你的 terminal 命令行里恰好包含那个模式字符串 → 把自己所在的 bash 连同后续命令一起 SIGTERM 掉（表现为 `exit_code: -15`、后半段命令没执行、状态不可信）。**正确做法**：先 `pgrep -af '<模式>'` 看命中哪些 PID 并确认没有自己，再 `kill <精确PID>`；停后台任务优先用 **process 工具的 session_id**（`process(action='kill', session_id='proc_xxx')`），不要用 pkill -f 匹配长模式。
@@ -392,6 +403,11 @@ ps -eo pid,cmd | awk '/[r]clone copy/ {print}'
 - **rclone 删云端源必须 delete + rmdir 两步（2026-08-16 驭风男孩）**：`timeout 120 rclone delete "pikpak:Movie/<目录>/"` 只删文件，**空目录壳仍留在 `lsf` 列表**；补 `timeout 120 rclone rmdir "pikpak:Movie/<目录>/"` 才彻底移除。验证：删除后 `timeout 60 rclone lsf` 目录名应从列表消失。下载到本地验证完整后必须删 PikPak 源（用户规则）。
 - **aria2 显示 0KB/s 但文件已是满大小 ≠ 卡死**：aria2 预分配文件，`stat` 看到完整大小但速度 0 可能是下载已完成、只是 `.aria2` 控制文件残留（进程被杀/异常退出时常见）。**验证法**：杀进程 → `rm .aria2` → 用 `--continue=true` 重启同一 URL，若立即报 `Download has already completed` 说明文件其实完整，直接 ffprobe 校验后入库（2026-08-01 池畔谋杀案案例）。
 - **并发上限 3**：用户明确要求最多同时下 3 个文件（2026-08-02）。批量下载用并发计数循环（`pgrep -fc aria2c` 计数 + 等待槽位）或 `xargs -P3`，不要一次全开。NMSL-011 等大文件挂后台慢慢爬即可。
+- **🗣 国语原声片无字幕轨 ≠ 缺中字**：中文电影/动画（如《罗小黑战记》）的原声就是国语，
+  `ffprobe -select_streams s` 为空**不是缺陷**。判定顺序：先看音轨语言
+  `ffprobe -v error -select_streams a -show_entries stream=index:stream_tags=language,title -of csv=p=0 file`
+  —— 全是 `chi`/`国语` 就把“无字幕轨”如实说成“国语原声，无需字幕”，别再去搜“中字版”白费力，
+  也别因此把片子判为不合格。只有**外语片**才适用“必须有内嵌中字”硬规则。
 - **"中文字幕"磁链标注不可靠**：NMSL-011 磁链名标"中文字幕"但 ffprobe 无字幕流、抽帧也无硬字幕（只有水印）。电影下载后同样要验证内嵌字幕：`ffprobe -select_streams s` 查字幕流；无流时**抽帧 + OCR 查硬字幕**（`ffmpeg -ss <秒> -i file -frames:v 1 -vf scale=480:-1 /tmp/f.jpg` + 本地 RapidOCR `/opt/data/ocr_venv`），多抽几帧（对白多的位置如 600/2400/4200s）。确认无字幕要如实告知用户，别当有中字版入库。
 - **🚨 无字幕流但有"烧录硬字幕" = 也算中字版合格（2026-09-07 知无涯者案例）**：WEB-DL 中字版常是**烧录硬字幕**（中文字幕烧进画面，无音轨字幕流）。`ffprobe -select_streams s` 返回空 ≠ 没中字。必须抽帧 OCR 分辨两态：抽帧出中文对白 = 硬字幕**合格**，可正常入库；抽帧无字/只有水印 = 真无中字，如实告知。知无涯者 PARKHD 版即无字幕流但 OCR 在 1800s/3000s 抽出"起来国王要来了"等中文对白 → 中字确认入库。
 - **假种子/截断种子（2026-08-02 野兽女孩事故）**：磁链标注 720P 完整版，下载后 ffprobe 发现时长只有 **4分45秒**（6840帧）——种子本身是截断/假货，PikPak 离线 + aria2 拉回全程无异常，只有 ffprobe 时长能识破。**每部电影下完必须核对时长是否符合预期**（野兽女孩 108 分钟 vs 实际 4分45秒 → 换另一个磁链 `6115DA56` 拿到 1.31GB 完整版）。不要只看文件大小/有无字幕流就入库。同类坑：小文件（<500MB 的"完整电影"）尤其要怀疑。

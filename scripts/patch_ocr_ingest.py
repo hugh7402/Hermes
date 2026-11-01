@@ -110,7 +110,7 @@ def ocr_available():
         return True, "OK (SiliconFlow)"
     b_ok, b_detail = _probe(
         "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
-        "qwen-vl-ocr-latest", bailian_key())
+        "qwen-vl-ocr", bailian_key())
     if b_ok:
         return True, "OK (百炼兜底)"
     return False, f"SiliconFlow: {detail} | 百炼: {b_detail}"

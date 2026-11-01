@@ -23,7 +23,149 @@ description: 给定番号 → 搜javdb获取磁链 → 按规则选择（字幕�
 下载DASS-977，文件按照规则增加后缀：-彩月七緒-多P轮奸中出 在学校被自己学生轮奸中出的美白黑丝极品尤物女教师
 ```
 
-> 收到后：jav_manager.py --no-sync {番号} → 离线 PikPak → 清理广告 → 按用户给的完整后缀改文件名（不保留 -C 标记，用户后缀优先）。
+> 收到后：jav_manager.py --no-sync {番号} → 离线 PikPak → 清理广告 → 按用户给的完整后缀改文件名。
+>
+> 🚨 **命名规则（2026-10-15 用户确认）**：`{番号}-{版本标签}-{女优名}-{描述}.mp4`，**版本标签紧跟番号**。
+> 例：`DSOD-005-彩月七緖-多P轮奸中出 …`、有内嵌字幕版则 `MIDE-999-C-彩月七緖-…`。
+> 用户给的后缀只补“女优名-描述”部分，**版本标签由我从磁链名提取后插在番号后**（不再是以前的“不保留 -C”）。
+> 片源无 -C/-UC 时（javdb 只有普通版）标签位留空，**并且必须补外挂中文字幕**（否则就是“下了但没字幕”）。
+
+## 开工前 30 秒自检（每次收到番号先跑，缺一项就会中途卡住）
+
+```bash
+# ① 代理：javdb 必须经代理，直连多半不通
+pgrep -f '[s]ing-box run' >/dev/null || bash /opt/data/proxy-skill/proxy.sh start
+curl -s -o /dev/null -w 'javdb %{http_code} %{size_download}B\n' -x http://127.0.0.1:10808 -m 25 \
+  -A "Mozilla/5.0" "https://javdb.com/search?q=<番号>&f=all"     # 期望 200 且 20KB+
+
+# ② 入库目录必须可写（历史上止血时 `chmod a-w` 锁过，忘了解开就会“下了但写不进本地”）
+stat -c '%A %n' /opt/data/PikPak/Inbox-JAV      # 期望 drwxr-xr-x；若是 dr-xr-xr-x → chmod u+w
+
+# ③ Token 与脚本
+ls -l /opt/data/.pikpak_token.json /opt/data/jav_manager.py
+```
+
+汇报口径：选中磁链后要把 **番号 / 体积 / 标签（高清、字幕）/ 是否 `-C` 内嵌字幕** 一并说清；
+内嵌字幕版最终名里 **`-C` 必须紧跟番号保留**（用户会专门核对这一位）。
+
+## 🛠 2026-10-15 已修（下载没字幕/标签的四个根因）
+
+用户反馈“下载的番号视频少了 -C/-UC 标签”，实测排查后确认是**四个独立原因叠加**，已修前三个（都改在
+`jav_manager.py`，已用真实番号实测）：
+
+| # | 原因 | 证据 | 状态 |
+|---|---|---|---|
+| 1 | **片源本身没有 -C 版** | DVMM-411 / MIDA-774 / WAAA-696 在 javdb 上只有普通版 | 靠外挂 srt 补（见下） |
+| 2 | **字幕版判定不严** | 旧代码把磁链后 600 字符**页面上下文**里的“字幕”也算字幕版 → 误判普通版 | ✅ 已改为只认**磁链自身文件名**：`-(UC\|C)(?=[\s._\-]\|$)` |
+| 3 | **`-U` 未过滤**（老 bug） | MIDA-774 无字幕版时会挑 9.21GB 的 `-U.无码破解` 版 | ✅ 已在 `get_magnets` 里 `continue` 跳过 -U/无码破解 |
+| 4 | **广告清理删掉了 `.srt`** | 旧逻辑把非视频文件（含种子自带 .srt）全当广告 `delete_to_trash` | ✅ 已加 `sub_exts` 白名单：字幕保留、随视频一起 batchMove 出、并改与视频同名 |
+
+验收命令（换番号即可重跑）：
+```bash
+/opt/data/.venv/bin/python3 - <<'PY'
+import importlib.util,sys
+s=importlib.util.spec_from_file_location('jm','/opt/data/jav_manager.py')
+jm=importlib.util.module_from_spec(s);sys.modules['jm']=jm;s.loader.exec_module(jm)
+for c in ['DSOD-005','ROE-540','MIDA-774']:
+    ms=jm.get_magnets(jm.search_javdb(c)); sel=jm.select_best(ms)
+    print(c, sel['name'], sel['size_str'])
+PY
+```
+实测期望：DSOD-005 → `DSOD-005-C.torrent` 5.70GB；ROE-540 → `ROE-540-C.torrent` 6.79GB（不是 1.71GB 小字幕版）；
+MIDA-774 → `MIDA-774` 5.24GB（不再选 9.21GB 的 -U）。
+
+**字幕补拽**（Phase 2.5 经常失败）：用 `bash /opt/data/.tmp_tests/fetch_sub_srt.sh <番号>`，它做了 URL 编码；
+实测 WAAA-696 拿到 75KB / 7103 汉字简体。
+
+### PikPak token 被吊销的重登（2026-10-15 实测）
+`refresh_token` 会彻底失效（报 `invalid_grant, error_code 4126, invalidate refresh token token index N not found`），
+此时**不能用 refresh 换新**，直接 `pikpakapi` 登录重拿即可（本次没碰到验证码），且**必须走代理 + JSON body**：
+```bash
+# 刷新（会 400 说明 refresh_token 已死，改走下面重登）
+curl -s --proxy http://127.0.0.1:10808 -X POST https://user.mypikpak.com/v1/auth/token \
+  -H 'Content-Type: application/json' \
+  -d '{"grant_type":"refresh_token","refresh_token":"<RT>","client_id":"YNxT9w7GMdWvEOKa","client_secret":"Db5dI1j67p1OjLd8sH3jxvCjt2eX3n3p"}'
+```
+重登（Python）：`PikPakApi(username=..., password=...)` → `await c.login()` → 把 `access_token/refresh_token/encoded_token`
+写回 `/opt/data/.pikpak_token.json`。
+
+## ⚠️ 写后台脚本时的两个自杀陷阱（2026-10-15 实测）
+
+1. **`pgrep -f "rclone copy pikpak"` 会匹配到脚本自己的命令行** —— bash wrapper 的 cmdline 里包含整段脚本文本，
+   于是“等前一个下载结束”的循环**永远为真**，白等满上限才开始干活（本次白等了 40 分钟）。
+   **正确写法：`pgrep -x rclone`**（按可执行文件名精确匹配），或 `pgrep -f "[r]clone copy"`（中括号技巧）。
+   **同一个坑的第二种形态（静默自杀）：`ps -eo pid,cmd | awk '/<番号>/{print $1}' | xargs kill`** ——
+   当前 shell 的 cmdline 里就含那个番号，于是**把自己也 SIGTERM 了**（命令 exit -15，后续步骤全没执行，
+   而前面的输出已经打印、看起来像正常完成）。本次连中两次（PRWF-016、NSFS-509）。
+   正确写法：`awk '/[N]SFS-509/{print $1}'`（中括号）或显式排除自身 `awk -v me=$$ '$1!=me'`。
+   **凡是“按命令行文本找进程再 kill”都要先排除自己和包装 shell。**
+   **第三种形态（连中括号技巧都失效）**：`grep "[w]atch_pikpak"` 看上去能避开自匹配，但 Hermes 的 bash 包装 shell
+   的 cmdline 里**包含整段脚本文本**，中括号表达式本身就是那段文本的一部分 → 照样匹配到自己（还会连带
+   把自己的 `ps`/子 shell 当成目标 kill 掉）。**根因：只要判断依据是“命令行里出现过这个词”，就一定会自匹配。**
+   可靠写法：遍历 `/proc/<pid>/cmdline`，要求 **argv[0] 的 basename 以 `python` 开头**且**某个参数以目标脚本名结尾**：
+   ```python
+   for p in pathlib.Path('/proc').iterdir():
+       if not p.name.isdigit(): continue
+       argv = [a.decode('utf-8','ignore') for a in (p/'cmdline').read_bytes().split(b'\x00') if a]
+       if not argv: continue
+       if os.path.basename(argv[0]).startswith('python') and any(a.endswith('watch_pikpak.py') for a in argv[1:]):
+           print('REAL', p.name, ' '.join(argv)[:100])
+   ```
+   **汇报前用这个方法复核**：报告“还有 N 个进程在跑”之前先跑一遍，否则会把“我自己的命令行”报成残留进程。
+2. **Phase 2.5 字幕几乎总失败**，不要等它：直接跑 `bash /opt/data/.tmp_tests/fetch_sub_srt.sh <番号>`（实测
+   WAAA-696 75KB/7103 字、HMN-904 92KB/9093 字、PRWF-016 65KB，全是一次成功）。
+
+## ⚠️ 字幕补抓的两个致命细节（2026-10-15 实测）
+
+**① subtitlecat 可以直连，但必须 `--compressed`**。代理出口挂掉时（`proxy.sh status` 显示 `出口 IP: 测试失败`）
+走代理全是不 000；而直连 *不带* 解码只能拿到压缩字节——中文计数会 = 0（我因此误判“未找到字幕”，
+实际只是没解压）。两个都能用的写法：
+```bash
+curl -s --noproxy '*' --compressed -A "Mozilla/5.0 …" \
+  "https://www.subtitlecat.com/index.php?search=<番号>&show=1000" -o /tmp/s.html
+# SRT 直链：路径必须 URL 编码（含 [ ] 与 U+2019）
+curl -s --noproxy '*' --compressed -A "Mozilla/5.0 …" -e "<详情页URL>" \
+  "https://www.subtitlecat.com$(python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))" '<srt 路径>')" -o <输出>.srt
+```
+交付前**校验字符数**：`len(re.findall(r'[\u4e00-\u9fff]', txt))` 应 > 1000（正常 7k~9k）。
+实测截断案例：同一 URL 只得 16,384 字节 / 1736 字（截断），加了 `--retry 3` 与足够 `--max-time` 后拿到 75,438 字节 / 7,103 字。
+**`timeout 45` 包裹 curl 也会造成截断**，大字幕给足 90s。
+
+**①-b 语言后缀会撝谎：不要只认 `zh-CN`，要按汉字数验证并逐个链接试**。
+详情页上标着 `…-zh-CN.srt` 的链接，下来实际可能是**高棉语/其他语种**（实测 117,372 字节、**0 个汉字**）。
+正确做法：把详情页的**全部** `.srt` 链接按「含 zh-cn 的优先」排序，**逐个下载后数汉字**，第一个 >1000 的就用；
+全部都不达标才放弃。只要看到 0 汉字就不是“没字幕”，而是拿错语言版了，换下一个链接。
+
+**①-c jav_manager 与补救脚本会各写一份字幕，注意大小写重复**。
+Phase 2.5 偶尔会成功（写 `NSFS-509.srt`），而 `fetch_sub_srt.sh` 写小写 `nsfs-509.srt` —— 两份都在时只留一份，
+统一改成**与视频同名**；配对校验用 Python `pathlib` + `startswith(番号)`，不要用 `ls | grep` 或 `awk`（见下方 ②）。
+
+**② 不要用 `awk '{print $NF}'` 看含空格的文件名**（本次因此误删了 3 份字幕）。
+`ls -la … | awk '{print $NF}'` 对“番号-女优名-描述 中间带空格.srt”只会打印**最后一段**，让人误以为文件是短名，
+接着就会“清理重复”时把真文件连带误删（或反过来以为文件存在）。
+**铁律：列目录/核对配对一律用 Python（`pathlib.iterdir()` + `startswith()`），任何 `rm` 前先 Python 列出待删清单并人工确认。**
+本次事故：WAAA-696 / HMN-904 / PRWF-016 三份已入库字幕丢失，靠重建才恢复。
+
+## 🚨 入库目录被清空的应急手册（2026-10-15 实战，原因未明）
+
+症状：`/opt/data/PikPak/Inbox-JAV` 的视频在十几分钟内成批消失（21 个/77.4GB → 5 项/3.5GB），
+**只吃 >2GB 的视频、放过 KB 级 `.srt`**，删除时无本地进程持有目录 fd、`ps` 也抓不到新进程。
+
+处置顺序（照做，别跳）：
+1. **先止血**：`chmod a-w <目录>` —— 删除需要父目录写权限，实测 23:47 上锁、23:49:13 删除停止。
+   若环境有 `chattr` 可再叠 `+i`；没有就靠 `chmod a-w`（注意：以**目录属主身份**跑的删除仍可能先 `chmod u+w` 再删，
+   所以上锁后要**盯 10 秒条目数是否继续下降**来验证是否真止住）。
+2. **保底**：把幸存文件 `cp -n` 到 `/opt/data/.safe_media/`（另开目录，别放在同一目录里）。
+3. **取证**：布守夜脚本按 0.1s 采样 `/proc/*/fd`，发现条目数变化就记录持有者 PID+cmdline。
+4. **不要急着恢复写权限重下** —— 原因未定时解开锁等于让删除者再吃一遍。
+5. 先查云端是否还有副本：`rclone lsf pikpak:/ --recursive --files-only` 存成索引，
+   **同时按番号和中文标题片段**搜（云端常以中文描述命名，只搜番号会漏）。
+6. 排除项：disk-cleanup 插件（看 `cleanup.log` 的 mtime 和 `tracked.json` 内容，新鲜日志才说明是它）、
+   Hermes 定时任务（`cron/jobs.json` 里的 OCR/入库类只动知识库 `.md` 和临时图）、
+   自己的流水线（`rclone delete pikpak:/...` 打向 WebDAV 云端，不碰本地）。
+
+推论：只读锁生效 ⇒ 执行者是 `hermes` 用户且不回改权限，像"按体积筛选的清理脚本"；
+大文件/小字幕的区分恰好对上 `disk-cleanup` 的 `_LARGE_FILE_BYTES = 500MB` 常量，但该插件状态文件陈旧、无 PikPak 条目。**根因仍待复现确认。**
 
 ## 用法
 
@@ -203,6 +345,15 @@ Step 4: PikPak下载...
 **技术实现** (`pikpak_cleanup_ads`)：
 
 1. `offline_download()` 添加磁链 → 拿到 `file_id`（可能初始为空，需轮询 20s）
+   🚨 **`file_id` 一直拿不到不等于离线失败**：磁链提交后文件夹往往**已经建在 Inbox 里**，只是
+   `offline_file_info` 还不认。别死等、也别重加磁链，直接回到父目录找：
+   ```python
+   inbox = (await c.path_to_id('/Inbox-JAV'))[0]['id']
+   r = await c.file_list(parent_id=inbox)          # 按番号找 kind=='drive#folder'
+   folder = next(f for f in r['files'] if f['kind']=='drive#folder' and CODE in f['name'].upper())
+   kids = (await c.file_list(parent_id=folder['id']))['files']   # 逐个看 phase
+   ```
+   子文件 `phase` 全部 `PHASE_TYPE_COMPLETE` 说明离线已完成，可以进入清广告 → batchMove → 重命名。
 2. 等待 30s（最多 15 次 × 2s）直到 `offline_file_info(file_id)` 返回 `kind=drive#folder`
 3. 用 `file_list(parent_id=file_id)` 列出子文件
 4. 等待所有子文件 `phase=PHASE_TYPE_COMPLETE`
@@ -752,6 +903,41 @@ ffprobe -v error -select_streams s -show_entries stream=index,codec_name,codec_t
 无论字幕是内嵌还是独立的 .srt 文件，最终自定义文件名（如 `番号-女优名-描述.mp4`）规则不变：
 - 内嵌字幕版 → 只重命名视频文件
 - 独立字幕版 → 视频和 .srt 同名重命名
+
+## 🔍 从截图反查番号 / 女优（用户发来截图问"这是谁"时）
+
+**不要做人脸识别**——没有面部库，且用户明令不许猜名字。走**画面反查**：先定番号，番号定女优。
+
+### 可用的链路（按优先级）
+
+1. **图挂临时图床**（1 小时自动失效，仅在用户明确同意反图搜索时用）：
+   ```bash
+   curl -s --noproxy '*' -F "reqtype=fileupload" -F "time=1h" \
+     -F "fileToUpload=@/path/x.png" https://litterbox.catbox.moe/resources/internals/api.php
+   ```
+2. **Yandex URL 反查——必须走代理 + curl（无 JS 就不弹验证码）**：
+   ```bash
+   ENC=$(python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1],safe=''))" "$PUBURL")
+   curl -s -x http://127.0.0.1:10808 -A "Mozilla/5.0 …" \
+     "https://yandex.com/images/search?rpt=imageview&url=$ENC" -o /tmp/yx.html
+   ```
+   直连会被地理屏蔽成「服务建设中」页；用**无头浏览器**打代理会弹 SmartCaptcha——所以走 curl。
+   从返回 HTML 里统计番号候选：`\b([A-Z]{2,6})[-_ ]?(\d{2,5})\b`，按出现次数排序取前 3–5 个。
+3. **javdb 逐个核实**（`search?q=<番号>&f=all` → 取 `href` → 详情页拿女优/片商/封面），确认番号真实存在且片名/标签对得上画面。
+
+其余引擎的定位：Google Lens 依赖登录态且代理出口 IP 易触发风控、TinEye 不爬这类站、百度识图只返回相似商品——**先走 Yandex，别在这些上面耗时间**。
+
+### 置信度纪律（这一步决定结论能不能出口）
+
+- **命中次数差 2 倍以上才算强信号**（如 29 次 vs 8 次）；几个候选挤在 7–11 次时**不能定案**，只能列为候选。
+- **帧级复核**：下载 javdb 官方样张
+  `https://c0.jdbstatic.com/samples/<封面id前2位>/<封面id>_s_<i>.jpg`（i 从 0 递增，遇 404 停），
+  与截图统一成 320×180 灰度（裁掉四周 6% 去水印）+ 归一化互相关打分：**>0.80 高 / 0.55–0.80 中 / <0.55 不足以定案**。
+  样张通常只有 3–15 张，覆盖不到截图那一帧时分数天然偏低——**低分只说明“未验证”，不等于“番号错”**，别据此否掉 Yandex 的强信号。
+- **画面水印是交叉验证线索**：`IPPA <6 位数字>` 是审查号（**不能反查番号**）；圆形 `M` = Madonna 厂牌；
+  若候选番号全是 JUQ/JUR/JUVR/ROE/SAME 之类 Madonna 系，就与水印对上了，能提高把握。
+- 给用户的交付形态：**每个候选给「番号 + 女优 + 片商 + 发行日 + javdb 链接 + 置信度」**，并明说哪一步是推断、
+  要 100% 定案就让他给番号或授权下载正片抽帧比对。
 
 ## 用户偏好
 

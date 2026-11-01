@@ -29,13 +29,28 @@ metadata:
 
 ## 模型配置
 
-- **主模型**: deepseek-ai/DeepSeek-V4-Pro (硅基流动平台)
-- **优势**: 技术准确度高(8.0/10)、内容质量满分(10/10)、当前2.5折优惠
-- **API**: https://api.siliconflow.cn/v1/chat/completions
-- **Key**: SILICONFLOW_API_KEY（.env 中）
-- **⚠️ 注意**: DeepSeek-V4-Pro 需要 max_tokens ≥ 8000 才能输出完整方案
-- **⚠️ V4-Pro 长文档超时**: 生成超 8000 字的方案时，V4-Pro 可能耗时 300s+ 直至超时。此时降级为同一 API 下的 **V4-Flash**（`deepseek-ai/DeepSeek-V4-Flash`），max_tokens=8000，约 180s 可完成。V4-Flash 质量略有下降但足够用于架构已定的全文本生成，方案生成完成后可手动确认是否需要 V4-Pro 精修
-- **备用模型**: qwen3.7-max（百炼平台），硅基流动不可用时切换。注意延迟较高（~58s）、输出偏简洁，适当调高 temperature 改善
+- **主模型**: `deepseek-v4-pro`（**DeepSeek 官方**，2026-10-10 起）
+- **API**: https://api.deepseek.com/v1/chat/completions
+- **Key**: DEEPSEEK_API_KEY（.env 中，`os.open` 读取）
+- **覆盖方式**: 环境变量 `PLAN_MODEL`（默认 deepseek-v4-pro）
+- **实测基线**（2026-10-10，2260 字正文）：耗时 34s，completion_tokens=3274，finish_reason=stop
+
+### ⚠️ 硅基流动已不可用（2026-10-10 实测）
+
+硅基流动 V4-Pro / V4-Flash 均返回 **HTTP 402 账户余额不足**。旧配置（`deepseek-ai/DeepSeek-V4-Pro` + SILICONFLOW_API_KEY）已作废，不要再切回去。
+
+### ⚠️ 推理型模型的静默陷阱（旧配置踩过）
+
+DeepSeek 官方**没有 `deepseek-chat`**，只有 `deepseek-flash` 与 `deepseek-v4-pro`，两者都会产出 `reasoning_content`，**reasoning 与正文共用 completion 预算**。后果：max_tokens 给少了，reasoning 吃光预算，`content` 返回空字符串——**接口不报错**，脚本会把空文当成成功结果写进 docx（静默毁数据）。实测 `deepseek-flash` 写 200 字就烧掉 3733 completion token，长文场景尤其危险。
+
+`call_llm` 已内置两道闸门（缺任何一道都会静默出空文件）：
+
+1. **正文为空** → `RuntimeError`，并把 max_tokens 翻倍重试（上限 32000）
+2. **finish_reason == 'length'**（被截断）→ 同样翻倍重试，绝不接受半截正文
+
+三轮用尽仍失败则抛错，不会返回空串。call 点预算：第1轮架构 8000，第3轮全文 24000。
+
+- **备用模型**: qwen3.7-max（百炼平台，2026-10-10 实测可用）。延迟较高（~58s）、输出偏简洁，适当调高 temperature 改善
 
 ## 工作流程
 

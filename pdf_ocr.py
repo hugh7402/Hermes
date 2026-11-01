@@ -6,6 +6,7 @@
 示例: python3 pdf_ocr.py report.pdf 0 50   → OCR 第0~49页
 """
 import sys, os, json, base64, urllib.request, time, re
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 API_URL = "https://api.siliconflow.cn/v1/chat/completions"
@@ -13,11 +14,12 @@ MODEL = "PaddlePaddle/PaddleOCR-VL-1.5"
 # 引擎优先级：百炼(阿里云 DashScope)为主 —— 硅基流动账户 2026-09 起余额不足(402)，用户决定不充值；
 # 硅基流动保留为备用，将来充值后会自动可用。
 BAILIAN_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
-BAILIAN_MODEL = "qwen-vl-ocr-latest"
+BAILIAN_MODEL = "qwen-vl-ocr"  # 2026-10-25: -latest 别名已下线(model_not_found)，改用固定名
 _ENGINE_ORDER = ["bailian", "siliconflow"]
 _ENGINE = [_ENGINE_ORDER[0]]
 MAX_OCR_PAGES = 99999  # 不再限制页数
 OCR_BATCH_SIZE = 20  # 每批最多 OCR 20 页，防止超时
+OCR_WORKERS = 6  # 并发路数（6 路约为串行 6 倍速，且不易触发 429）
 
 def _env_key(name):
     fd = os.open("/opt/data/.env", os.O_RDONLY)
@@ -130,45 +132,49 @@ def ocr_pdf_pages(filepath, start=0, end=None):
         pages_to_ocr = batch_end - current_start
         print(f"  📸 OCR 第{current_start+1}~{batch_end}页 ({pages_to_ocr}/{total} 页)")
         
-        pages_text = []
+        # 先在主线程顺序渲染（PyMuPDF 非线程安全），再并发发 OCR 请求
+        imgs = []
         for i in range(current_start, batch_end):
             try:
                 page = doc[i]
             except ValueError as e:
                 print(f"    第 {i+1} 页无法加载: {e}")
-                pages_text.append(f"[第 {i+1} 页：加密保护，无法提取]")
+                imgs.append((i, None))
                 continue
             pix = page.get_pixmap(dpi=200)
-            img_bytes = pix.tobytes("png")
-            img_b64 = base64.b64encode(img_bytes).decode()
-            
-            print(f"    第 {i+1}/{total} 页...", end=" ", flush=True)
-            try:
-                text = ocr_page(img_b64)
-                pages_text.append(text)
-                ok_pages += 1
-                print(f"✓ ({len(text)} 字)")
-            except urllib.request.HTTPError as e:
-                print(f"✗ HTTP {e.code}")
-                fail_pages += 1
-                if e.code == 429:
-                    print(f"    ⏳ 触发限流，等待30秒后重试...")
-                    time.sleep(30)
-                    try:
-                        text = ocr_page(img_b64)
-                        pages_text.append(text)
-                        ok_pages += 1
-                        print(f"    ✓ 重试成功 ({len(text)} 字)")
+            imgs.append((i, base64.b64encode(pix.tobytes("png")).decode()))
+
+        def _ocr_one(item):
+            i, img_b64 = item
+            if img_b64 is None:
+                return i, f"[第 {i+1} 页：加密保护，无法提取]", False
+            for attempt in (1, 2):
+                try:
+                    return i, ocr_page(img_b64), True
+                except urllib.request.HTTPError as e:
+                    if e.code == 429 and attempt == 1:
+                        time.sleep(20)
                         continue
-                    except Exception as e2:
-                        print(f"    ✗ 重试也失败: {e2}")
-                pages_text.append(f"[第 {i+1} 页 OCR 失败: {e}]")
-            except Exception as e:
-                print(f"✗ {e}")
+                    return i, f"[第 {i+1} 页 OCR 失败: {e}]", False
+                except Exception as e:  # noqa: BLE001
+                    if attempt == 1:
+                        time.sleep(3)
+                        continue
+                    return i, f"[第 {i+1} 页 OCR 失败]", False
+            return i, f"[第 {i+1} 页 OCR 失败]", False
+
+        with ThreadPoolExecutor(max_workers=OCR_WORKERS) as ex:
+            results = list(ex.map(_ocr_one, imgs))
+        results.sort(key=lambda r: r[0])
+        pages_text = []
+        for i, text, ok in results:
+            pages_text.append(text)
+            if ok:
+                ok_pages += 1
+                print(f"    第 {i+1}/{total} 页 ✓ ({len(text)} 字)")
+            else:
                 fail_pages += 1
-                pages_text.append(f"[第 {i+1} 页 OCR 失败]")
-            
-            time.sleep(0.5)
+                print(f"    第 {i+1}/{total} 页 ✗ {text[:60]}")
         
         if pages_text:
             all_text.append("\n\n---\n\n".join(pages_text))
