@@ -16,8 +16,10 @@ sleep 2
 
 cd /opt/data || exit 1
 
-# 无变更 → 静默退出
-if [ -z "$(git status --porcelain)" ]; then
+# 无变更且没有待推送提交 → 静默退出
+DIRTY="$(git status --porcelain)"
+AHEAD="$(git rev-list --count origin/main..HEAD 2>/dev/null || echo 0)"
+if [ -z "$DIRTY" ] && [ "$AHEAD" -eq 0 ]; then
   exit 0
 fi
 
