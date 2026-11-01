@@ -1,0 +1,4 @@
+name: hindsight-keepalive
+description: 每轮对话结束后检查 Hindsight 守护进程，未运行则拉起（空闲自动退出的补偿机制）
+events:
+  - agent:end

@@ -180,7 +180,42 @@ LibreOffice or hand the file to the user unconverted.
 - **Dates are datetimes**: Excel stores dates as serial numbers;
   openpyxl returns `datetime`/`date` objects. Dumps here emit ISO
   strings.
-- Sheet names are capped at 31 chars and reject `[ ] : * ? / \`.
+- **Merged cells make most of a column read as empty.** A cell inside a
+  merge is a `MergedCell` on every row except the top-left anchor: its
+  `.value` reads `''`/`None`, and assigning to it raises
+  `AttributeError: 'MergedCell' object attribute 'value' is read-only`.
+  A column like "acceptance criteria" is often one merge spanning dozens
+  of rows (all security subsystems sharing one criteria cell), so a naive
+  per-row scan reports dozens of "missing" rows that are in fact covered.
+  Two consequences, both bite:
+  - **Counting**: build an anchor map first and de-duplicate by anchor, or
+    you will over-report gaps by the merge span.
+  - **Writing**: never assign to a row inside a merge; write to the anchor
+    instead (which means the text applies to every row it spans — mention
+    that to the user, since it may be undesirable).
+
+  ```python
+  wb = load_workbook(p)                    # normal load, NOT read_only
+  anchor = {}
+  for m in ws.merged_cells.ranges:
+      if m.min_col <= COL <= m.max_col:    # only merges covering the target column
+          for r in range(m.min_row, m.max_row + 1):
+              anchor[r] = m.min_row
+  def eff(row):                            # effective value for any row
+      return ws.cell(anchor.get(row, row), COL).value
+  ```
+  Check merge structure on a normal load — `read_only=True` workbooks do
+  not reliably populate `ws.merged_cells`, which is exactly when you are
+  most likely to be reading a big shared-cell table.
+- **Reviewing the user's workbook means producing a change list, not editing
+  their file.** When asked to "check whether anything is missing / inconsistent",
+  the deliverable is a table of **location (cell ref + row + item name) +
+  current item count + the next number + the pasted-ready sentence + why**,
+  plus a separate "nothing to change here, because…" list. Write it to a new
+  workbook (one sheet of items to add, one of deliberate skips, one of upstream
+  gaps) and never touch the original unless the user said to modify it. Same rule
+  applies to any user-supplied document you are auditing.
+- Sheet names are capped at 31 chars and reject `[ ] : * ? / \\.`
 
 ## Verification
 

@@ -182,3 +182,10 @@ subtitles_backup/
 
 # cron 任务定义（须在 *.json 规则之后才能生效）
 !/cron/jobs.json
+
+# ── 大型二进制与工具安装目录（2026-11-01 修复 auto backup 推送被拒时加入）
+# chrome/ 396MB、installs/ 1.8G、tools/ 187M，都超过 GitHub 单文件 100MB 限制
+chrome/
+installs/
+tools/
+*.part

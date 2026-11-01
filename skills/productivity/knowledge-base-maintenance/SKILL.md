@@ -27,13 +27,27 @@ metadata:
 ### 健康巡检
 
 ```bash
-uv run --with pyyaml python3 /opt/data/lint_vault.py
+/opt/data/.venv/bin/python3 /opt/data/lint_vault.py
+```
+
+🚨 **不要用 `uv run --with <pkg>`**：cron 的 PATH 只有 `/usr/bin:/bin`，`uv` 装在
+`/opt/hermes/tools/uv-*` 下、不在 PATH 里 → 脚本以 **exit 127 `uv: command not found`** 失败，
+月度巡检会静默失败一整月（每月 1 号才跑一次，很难发现）。
+`/opt/data/.venv` 已自带 pyyaml 6.0.3 / feedparser / requests，
+**一律用 venv python 的绝对路径**——手动跑、cron 跑、写进 `.sh` 包装脚本都按这条来。
+
+排查这类"cron 说失败了但看不出原因"的姿势：
+
+```bash
+sqlite3 /opt/data/cron/executions.db \
+  "SELECT job_id,status,started_at,error FROM executions WHERE status='failed' ORDER BY started_at DESC LIMIT 10"
+# 事故聚合（含 output_file 路径）在 cron_incidents 表；修好后把对应行 state 置 resolved
 ```
 
 🚨 **lint 只印前 5 条**（`weak_tags` 前 10 条），`*...还有 N 篇*` 是截断——**要完整清单必须导**：
 
 ```bash
-cd /opt/data && uv run --with pyyaml python3 \
+cd /opt/data && /opt/data/.venv/bin/python3 \
   skills/productivity/knowledge-base-maintenance/scripts/vault_lint_dump.py
 # 输出 /opt/data/.tmp_tests/vault_issues.json，含每个问题的 slug/title/path/正文体量/标签数
 ```
@@ -64,7 +78,7 @@ Vault 路径：`/opt/data/Obsidian Vault/Obsidian Vault/`
 
 ```bash
 # 推荐 v2 — 纯文本替换，零 YAML 损伤
-cd /opt/data && uv run python3 skills/productivity/knowledge-base-maintenance/scripts/fix_links_v2.py
+cd /opt/data && /opt/data/.venv/bin/python3 skills/productivity/knowledge-base-maintenance/scripts/fix_links_v2.py
 ```
 
 原理：建立 title→slug 映射表，直接对 frontmatter 原文做 `[[标题]]` → `[[slug]]` 文本替换，**不经过 yaml.safe_load / yaml.dump**。
@@ -80,7 +94,7 @@ cd /opt/data && uv run python3 skills/productivity/knowledge-base-maintenance/sc
 v2 修复后仍有约 40-50 处断链指向**真实不存在的页面**（软件名、外部文档、缺失笔记）。
 
 ```bash
-cd /opt/data && uv run --with pyyaml python3 skills/productivity/knowledge-base-maintenance/scripts/fix_remaining_links.py
+cd /opt/data && /opt/data/.venv/bin/python3 skills/productivity/knowledge-base-maintenance/scripts/fix_remaining_links.py
 ```
 
 策略：
@@ -95,7 +109,7 @@ cd /opt/data && uv run --with pyyaml python3 skills/productivity/knowledge-base-
 
 ```bash
 # 自动扫描并处理所有无标签笔记
-cd /opt/data && uv run --with pyyaml python3 skills/productivity/knowledge-base-maintenance/scripts/batch_enhance.py
+cd /opt/data && /opt/data/.venv/bin/python3 skills/productivity/knowledge-base-maintenance/scripts/batch_enhance.py
 ```
 
 ⚠️ 文件路径含空格时不能用 `$(cat list)` 传参，必须用 Python subprocess 逐批传递。脚本内已处理好此问题。
@@ -115,7 +129,7 @@ cd /opt/data && uv run --with pyyaml python3 skills/productivity/knowledge-base-
 ### RSS 政策监控
 
 ```bash
-uv run --with feedparser --with requests python3 /opt/data/rss_monitor.py
+/opt/data/.venv/bin/python3 /opt/data/rss_monitor.py
 ```
 
 当前可用源（中国政府网站大多无 RSS）：
@@ -459,12 +473,18 @@ vs md 名 `19.《数据安全技术-数据安全风险评估方法》`。
 
 ## 常见陷阱
 
+- **🚨 cron 脚本不能用 `uv`（2026-11-01 月度巡检 exit 127）**：`lint_vault.sh` 原来写 `uv run --with pyyaml ...`，但 `uv` 装在 `/opt/hermes/tools/uv-0.13.5-linux-x64/uv`，不在 cron 的最小 PATH 里。一律改 `/opt/data/.venv/bin/python3`（已带 pyyaml / feedparser / requests）。验证：`env -i PATH=/usr/bin:/bin HOME=/opt/data bash <script>` 必须返回 0。
+- **孤立页面的正常范围**：资料库型 vault（大量批量入库报告/政策）孤立占比 40–50% 属结构性现象，不必强修。真正该修的是「完全孤立（无入链无出链）」和「单向链接」。用 `scripts/kb_relink.py --dry` 看影响面，`--apply` 执行（自动备份到 `/opt/data/.kb_backup/`）。
+- **链接写在 frontmatter 的 `related:` 里，不是正文**：格式 `related:\n  - "[[笔记名]]"`。改完必须 yaml.safe_load 回验，坏 YAML 会让整篇笔记从 Obsidian 消失。
+
 - **🚨 文档读取硬规则（2026-08-09 用户拍板）**：任何 skill 读取 office 文件（Word/Excel/PPT）和 PDF **一律用 markitdown**（`.venv` 已装 markitdown 0.1.6 + pdfminer.six + pymupdf，PDF 转换实测 OK）。例外：xlsx 带损坏样式时 openpyxl 报 `TypeError: Fill`，改用 read_file 提取。不要用 fitz/python-docx/openpyxl 等替代方案做常规文档读取。
 - **🚨 yaml.safe_load + yaml.dump 破坏 wikilink 格式**：不要用 `yaml.safe_load` 解析含 `[[wikilink]]` 的 frontmatter。YAML 将 `[[标题]]` 视为嵌套列表 `[['标题']]`，dump 后变成 `- ['标题']`。修复 v2（scripts/fix_links_v2.py）用纯文本 regex 替换避免此问题。
 - **巡检脚本显示断链数字偏高**：lint_vault.py 在用 `yaml.safe_load` 解析时的显示层问题，不影响文件。
 - **修复脚本修改大量文件**：`fix_links.py` 会重写所有含 related 字段的笔记。跑之前确保没有未提交的修改。
 - **政府网站无标准 RSS**：国家数据局、民政部、发改委等官网均无 RSS 输出。新华网是目前唯一可靠的政策 RSS 源。如需覆盖特定部委，考虑网页爬取方案。
-- **no_agent cron 脚本依赖**：Python 依赖（pyyaml、feedparser 等）未全局安装时，用 shell 包装脚本通过 `uv run --with <pkg>` 解决。脚本放 `/opt/data/scripts/`，**必须是真实文件**不能用符号链接（调度器会解析到外部路径并拦截）。
+- **no_agent cron 脚本依赖**：Python 依赖（pyyaml、feedparser 等）用 **`/opt/data/.venv/bin/python3` 的绝对路径**解决，**不要用 `uv run --with <pkg>`**——`uv` 不在 cron 的 PATH（只有 `/usr/bin:/bin`）里，会 exit 127。包装脚本一律写成 `exec /opt/data/.venv/bin/python3 /opt/data/<script>.py`。脚本放 `/opt/data/scripts/`，**必须是真实文件**不能用符号链接（调度器会解析到外部路径并拦截）。
+- **改完包装脚本必须用 cron 的最小环境复验**，否则本地 shell 里能跑、cron 里还是 127：
+  `env -i PATH=/usr/bin:/bin HOME=/opt/data /bin/bash /opt/data/scripts/<x>.sh`，看退出码应为 0。
 - **OCR 超大 PDF 跳过策略**：`MAX_OCR_PAGES` 已从 30 改为 99999（取消页数限制）。但 >80 页的扫描件 PDF（如培训照片、案例集 >300 页，200 页蓝皮书）会在 400s subprocess timeout 内未完成全部 OCR。这些文件**直接跳过**（hash 写入 `.ingested`），不做截断入库。手动手动处理方案：单独跑 `python3 pdf_ocr.py <path>` 并加更长 timeout，或分段 OCR。
 - **symlink 陷阱**：`ln -sf` 创建的链接在 cron 沙箱中会被解析到真实路径，若超出 `/opt/data/scripts/` 范围则被拦截。用 `cp` 复制真实文件。
 - **WeChat 限流误报**：`last_status: "error"` 可能只是微信发送被 iLink rate limited，脚本本身成功执行了。看 `agent.log` 中 `Job 'X': delivered to weixin` 确认脚本跑完；看 `errors.log` 中 `iLink sendmessage rate limited` 确认是发送层的问题。不要因为 status=error 就重跑脚本。

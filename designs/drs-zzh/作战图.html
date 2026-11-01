@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>四川省数字政府项目作战图</title>
+<style>
+:root{
+  --navy:#1F4E79; --navy2:#2E6CA4; --light:#DDEBF7; --light2:#EFF6FC;
+  --line:#C9D7E4; --ink:#1A1A1A; --grey:#5B6B7B;
+  --done:#2E7D32; --doing:#1565C0; --wait:#8A96A3; --late:#C62828; --pause:#EF6C00;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Microsoft YaHei","Noto Sans SC","PingFang SC",sans-serif;background:#F2F5F9;color:var(--ink);font-size:13px}
+.topbar{background:linear-gradient(90deg,var(--navy),var(--navy2));color:#fff;padding:0 20px;height:56px;display:flex;align-items:center;gap:16px;box-shadow:0 2px 6px rgba(0,0,0,.15)}
+.topbar h1{font-size:17px;font-weight:600;letter-spacing:.5px}
+.topbar .sub{font-size:12px;opacity:.85}
+.topbar .sp{flex:1}
+.btn{background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.45);color:#fff;padding:6px 14px;border-radius:3px;font-size:12px;cursor:pointer}
+.btn:hover{background:rgba(255,255,255,.3)}
+.wrap{padding:14px 18px 60px}
+.panel{background:#fff;border:1px solid var(--line);border-radius:4px;margin-bottom:14px}
+.panel-h{background:var(--light);border-bottom:1px solid var(--line);padding:8px 14px;font-weight:600;color:var(--navy);font-size:13px;display:flex;align-items:center;gap:10px}
+.panel-h .hint{font-weight:400;color:var(--grey);font-size:11px}
+.panel-b{padding:14px}
+/* KPI */
+.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+.kpi{background:var(--light2);border:1px solid var(--line);border-left:3px solid var(--navy2);padding:10px 12px;border-radius:3px}
+.kpi .k{font-size:11px;color:var(--grey)}
+.kpi .v{font-size:22px;font-weight:700;color:var(--navy);margin-top:3px;line-height:1.1}
+.kpi .v small{font-size:12px;font-weight:400;color:var(--grey)}
+/* 里程碑 */
+.ms{display:flex;gap:0;align-items:stretch}
+.ms-item{flex:1;border-right:1px dashed var(--line);padding:8px 12px;position:relative}
+.ms-item:last-child{border-right:none}
+.ms-item .d{font-size:11px;color:var(--grey)}
+.ms-item .n{font-size:14px;font-weight:600;color:var(--navy);margin:2px 0}
+.ms-item .t{font-size:11px;color:var(--grey);line-height:1.5}
+.ms-item .dot{position:absolute;left:0;top:20px;width:8px;height:8px;border-radius:50%;background:var(--navy2)}
+/* 甘特 */
+.gantt-scroll{overflow:auto;max-height:560px;border:1px solid var(--line)}
+table.g{width:100%;border-collapse:separate;border-spacing:0;font-size:12px}
+table.g th,table.g td{border-right:1px solid #E4EAF0;border-bottom:1px solid #E4EAF0;padding:0;vertical-align:middle}
+table.g thead th{background:var(--light);color:var(--navy);font-weight:600;position:sticky;top:0;z-index:5;text-align:center;height:26px;font-size:11px}
+table.g thead tr.m th{top:0}
+table.g thead tr.w th{top:26px;background:#EAF2FA;font-weight:400;color:var(--grey);font-size:10px}
+.col-no{width:38px;min-width:38px;text-align:center;color:var(--grey)}
+.col-cat{width:88px;min-width:88px;padding-left:6px!important;color:var(--grey);font-size:11px}
+.col-task{width:290px;min-width:290px;padding-left:8px!important}
+.col-own{width:86px;min-width:86px;text-align:center}
+.col-dt{width:90px;min-width:90px;text-align:center;font-size:11px;color:var(--grey);white-space:nowrap}
+.col-st{width:62px;min-width:62px;text-align:center}
+.col-w{width:28px;min-width:28px}
+.col-w.today{background:#FFF3CD}
+tr.task-row td{height:26px}
+.bar{position:relative;height:100%;border-radius:2px;overflow:hidden;margin:0}
+.bar .fill{height:100%;position:absolute;left:0;top:0}
+.st-done{background:var(--done)} .st-doing{background:var(--doing)}
+.st-wait{background:#D9DFE6} .st-late{background:var(--late)} .st-pause{background:var(--pause)}
+.tag{display:inline-block;padding:1px 6px;border-radius:2px;font-size:10px;color:#fff}
+.t-done{background:var(--done)} .t-doing{background:var(--doing)} .t-wait{background:#9AA6B2}
+.t-late{background:var(--late)} .t-pause{background:var(--pause)}
+tr.cat-row td{background:#F4F8FC;font-weight:600;color:var(--navy);height:24px;padding-left:8px}
+tr.task-row:hover td{background:#FBFDFF}
+.ms-line{background:#FDE7E7!important;position:relative}
+.ms-line::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:#C62828;opacity:.75}
+.ms-line::after{content:"";position:absolute;left:0;top:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid #C62828}
+/* 表 */
+table.t{width:100%;border-collapse:collapse;font-size:12px}
+table.t th{background:var(--light);color:var(--navy);border:1px solid var(--line);padding:6px 8px;font-weight:600;text-align:left;font-size:11px}
+table.t td{border:1px solid #E4EAF0;padding:6px 8px;vertical-align:top;line-height:1.55}
+table.t tr:nth-child(even) td{background:#FAFCFE}
+.legend{display:flex;gap:14px;font-size:11px;color:var(--grey);padding:8px 14px;border-top:1px solid var(--line);background:#FAFCFE;align-items:center;flex-wrap:wrap}
+.legend i{display:inline-block;width:14px;height:9px;border-radius:1px;margin-right:4px;vertical-align:middle}
+.footer{position:fixed;left:0;right:0;bottom:0;background:var(--navy);color:#fff;font-size:11px;padding:7px 20px;display:flex;gap:20px;align-items:center;z-index:20}
+.footer .sp{flex:1}
+#drop{position:fixed;inset:0;background:rgba(31,78,121,.92);color:#fff;display:none;align-items:center;justify-content:center;font-size:18px;z-index:99}
+.muted{color:var(--grey);font-size:11px}
+.warn{background:#FFF8E1;border:1px solid #FFE082;color:#8D6E00;padding:8px 12px;border-radius:3px;font-size:12px;margin-bottom:12px}
+@media print{
+  body{background:#fff}
+  .footer{position:static}
+  .gantt-scroll{max-height:none!important;overflow:visible!important}
+  table.g thead th{position:static!important}
+  .panel{break-inside:avoid}
+}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <h1>四川省数字政府项目作战图</h1>
+  <span class="sub" id="hs">数据源：作战图数据底盘.xlsx</span>
+  <span class="sp"></span>
+  <span class="sub" id="hdate"></span>
+  <button class="btn" id="btnLoad">载入数据</button>
+  <button class="btn" id="btnReload">重新读取</button>
+  <input type="file" id="file" accept=".xlsx,.xls" style="display:none">
+</div>
+<div class="wrap">
+  <div id="warn" class="warn" style="display:none"></div>
+
+  <div class="panel"><div class="panel-h">总体态势 <span class="hint" id="khint"></span></div>
+    <div class="panel-b"><div class="kpis" id="kpis"></div></div>
+  </div>
+
+  <div class="panel"><div class="panel-h">里程碑节点</div>
+    <div class="panel-b" style="padding:0"><div class="ms" id="ms"></div></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-h">作战进度图 <span class="hint">按周排布｜浅灰底=计划工期｜深色填充=实际进度｜红色竖线=里程碑</span></div>
+    <div class="gantt-scroll"><table class="g" id="gantt"></table></div>
+    <div class="legend">
+      <span><i style="background:#2E7D32"></i>已完成</span>
+      <span><i style="background:#1565C0"></i>进行中</span>
+      <span><i style="background:#D9DFE6"></i>计划工期（未开始）</span>
+      <span><i style="background:#C62828"></i>已超期</span>
+      <span><i style="background:#EF6C00"></i>已暂停</span>
+      <span><i style="background:#FFF3CD;border:1px solid #E0C97F"></i>本周</span>
+      <span><i style="background:#C62828;width:3px;height:14px"></i>里程碑所在周</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-h">责任分工与投入 <span class="hint">按责任组汇总</span></div>
+    <div class="panel-b" style="padding:0"><table class="t" id="duty"></table></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-h">验收成效指标 <span class="hint">三个节点目标值｜数据来自「运营成效指标」工作表</span></div>
+    <div class="panel-b" style="padding:0"><table class="t" id="ops"></table></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-h">平台建设与验收标准 <span class="hint">共 <span id="pfN">0</span> 项</span></div>
+    <div class="panel-b" style="padding:0"><table class="t" id="pf"></table></div>
+  </div>
+</div>
+<div class="footer">
+  <span>数据来源：项目作战图 Excel（2026-10-24）、验收成效指标（2026-11-01）、项目组织架构</span>
+  <span class="sp"></span>
+  <span id="fstat"></span>
+</div>
+<div id="drop">松开鼠标载入 Excel</div>
+
+<script src="xlsx.full.min.js"></script>
+<script>
+const STATE={tasks:[],ms:[],org:[],ops:[],pf:[],weeks:[],loaded:false};
+const today=new Date();
+const DAY=86400000;
+const fdate=d=>d.toISOString().slice(0,10);
+const wdiff=(a,b)=>Math.round((new Date(b)-new Date(a))/DAY/7);
+
+function calcWeeks(tasks){
+  let s=null,e=null;
+  tasks.forEach(t=>{const a=t.start,b=t.end;if(a&&(!s||a<s))s=a;if(b&&(!e||b>e))e=b;});
+  if(!s||!e)return [];
+  let d=new Date(s); const d0=d.getDay(); d=new Date(d.getTime()-((d0+6)%7)*DAY); // 对齐到周一
+  const out=[];
+  while(d<=new Date(e)){out.push(fdate(d));d=new Date(d.getTime()+7*DAY);}
+  return out;
+}
+
+function readWB(wb){
+  const toJSON=(name)=>{
+    const sh=wb.Sheets[name]; if(!sh)return [];
+    return XLSX.utils.sheet_to_json(sh,{defval:'',raw:false});
+  };
+  const T=toJSON('任务台账').map(r=>{
+    const st=String(r['状态']||'').trim()||'未开始';
+    let pg=parseFloat(String(r['当前进度%']||'').replace('%',''));
+    if(isNaN(pg))pg=(st==='已完成'?100:0);
+    return {no:r['序号'],cat:r['工作分类'],name:r['工作任务'],grp:r['责任组'],own:r['责任人'],
+            mem:r['执行成员'],start:nrm(r['计划开始']),end:nrm(r['计划完成']),
+            link:r['关联运营指标主线'],pg:pg,st:st,risk:r['问题与风险']};
+  });
+  const M=toJSON('里程碑').map(r=>({code:r['节点'],date:nrm(r['目标日期']),name:r['节点名称'],
+            deliver:r['交付内容'],crit:r['验收标准'],st:r['当前状态']||'未开始'}));
+  const O=toJSON('组织架构').map(r=>({unit:r['部门/组'],role:r['角色'],name:r['姓名'],note:r['说明']}));
+  const ops=toJSON('运营成效指标').map(r=>({no:r['序号'],main:r['运营主线'],task:r['运营任务'],
+            item:r['验收指标（建成要件）'],a:r['2026年底目标值'],b:r['2027年2月初验目标值'],
+            c:r['2027年5月终验目标值'],coop:r['需协同条件'],basis:r['依据条款/标准'],verify:r['验证方法']}));
+  const pf=toJSON('平台建设指标').map(r=>({no:r['序号'],cls:r['分类'],blk:r['板块'],sys:r['系统'],
+            sub:r['子系统'],ctn:r['建设内容'],scene:r['应用场景'],ev:r['评价与验收标准']}));
+  return {T,M,O,ops,pf};
+}
+function nrm(v){
+  if(v===null||v===undefined||v==='')return '';
+  if(typeof v==='number'){const d=new Date(Date.UTC(1899,11,30)+v*DAY);return fdate(d);}
+  const s=String(v).trim();
+  const m=s.match(/(\d{4})[-/年](\d{1,2})[-/月](\d{1,2})/);
+  if(m)return `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
+  const d=new Date(s); return isNaN(d)?'':fdate(d);
+}
+
+async function loadAuto(){
+  try{
+    const r=await fetch('作战图数据底盘.xlsx',{cache:'no-store'});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const buf=await r.arrayBuffer();
+    apply(XLSX.read(buf,{type:'array'}),'作战图数据底盘.xlsx（自动读取）');
+  }catch(e){ showWarn('未能自动读取 Excel（用浏览器直接打开时属于正常现象）。请点右上角「载入数据」选择 作战图数据底盘.xlsx，或把这两个文件放在启动包里通过 http://localhost 打开。'); }
+}
+function loadFile(f){
+  const rd=new FileReader();
+  rd.onload=ev=>{ apply(XLSX.read(new Uint8Array(ev.target.result),{type:'array'}),f.name); };
+  rd.readAsArrayBuffer(f);
+}
+function apply(wb,label){
+  const d=readWB(wb);
+  STATE.tasks=d.T;STATE.ms=d.M;STATE.org=d.O;STATE.ops=d.ops;STATE.pf=d.pf;
+  STATE.weeks=calcWeeks(d.T); STATE.loaded=true;
+  document.getElementById('hs').textContent='数据源：'+label;
+  document.getElementById('warn').style.display='none';
+  render();
+}
+function showWarn(t){const w=document.getElementById('warn');w.textContent=t;w.style.display='block';}
+
+function stClass(s){
+  s=(s||'').trim();
+  if(s==='已完成')return 'done';
+  if(s==='进行中')return 'doing';
+  if(s==='已超期')return 'late';
+  if(s==='已暂停')return 'pause';
+  return 'wait';
+}
+function calcStat(t){
+  let st=t.st;
+  if(st!=='已完成'&&t.end&&new Date(t.end)<today)st='已超期';
+  return st;
+}
+
+function render(){
+  const T=STATE.tasks, W=STATE.weeks, MS=STATE.ms;
+  /* KPI */
+  const done=T.filter(t=>calcStat(t)==='已完成').length;
+  const late=T.filter(t=>calcStat(t)==='已超期').length;
+  const doing=T.filter(t=>calcStat(t)==='进行中').length;
+  const avg=T.length?Math.round(T.reduce((a,t)=>a+(t.pg||0),0)/T.length):0;
+  const opDone=STATE.ops.filter(o=>o.c).length;
+  const personSum=203+22;
+  document.getElementById('kpis').innerHTML=[
+    ['工作任务',T.length+' <small>项</small>'],
+    ['已完成',done+' <small>项</small>'],
+    ['进行中',doing+' <small>项</small>'],
+    ['已超期',late+' <small>项</small>'],
+    ['总体进度',avg+' <small>%</small>'],
+    ['一线投入',personSum+' <small>人</small>'],
+  ].map(([k,v])=>`<div class="kpi"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+  document.getElementById('khint').textContent='进度按任务平均计算｜今日 '+fdate(today);
+  /* 里程碑 */
+  document.getElementById('ms').innerHTML=MS.map(m=>`
+    <div class="ms-item"><span class="dot"></span>
+      <div class="d">${m.code} · ${m.date||''}</div>
+      <div class="n">${m.name}</div>
+      <div class="t">${(m.deliver||'').slice(0,80)}</div>
+    </div>`).join('')||'<div style="padding:14px" class="muted">未读取到里程碑数据</div>';
+
+  /* 甘特 */
+  const msWeeks={};
+  MS.forEach(m=>{const i=W.findIndex(w=>m.date&&m.date>=w&&m.date<=fdate(new Date(new Date(w).getTime()+6*DAY)));if(i>=0)msWeeks[i]=m;});
+  const todayIdx=W.findIndex(w=>{const s=new Date(w),e=new Date(s.getTime()+6*DAY);return today>=s&&today<=e;});
+  let h1='<thead><tr class="m"><th class="col-no" rowspan="2">序号</th><th class="col-cat" rowspan="2">工作分类</th><th class="col-task" rowspan="2">工作任务</th><th class="col-own" rowspan="2">责任人</th><th class="col-dt" rowspan="2">开始</th><th class="col-dt" rowspan="2">完成</th><th class="col-st" rowspan="2">状态</th>';
+  // 月份行：连续同月合并成一个 th，避免每周重复写月份
+  const mGroups=[];
+  W.forEach((w,i)=>{
+    const mo=new Date(w).getMonth()+1;
+    if(mGroups.length && mGroups[mGroups.length-1].mo===mo) mGroups[mGroups.length-1].n++;
+    else mGroups.push({mo,n:1,start:i});
+  });
+  h1+=mGroups.map((g,gi)=>{
+    const yr=new Date(W[g.start]).getFullYear();
+    const showYr=(gi===0||g.mo===1);
+    const label=showYr?(yr+'年'+g.mo+'月'):(g.mo+'月');
+    return `<th class="col-w${g.start<=todayIdx&&todayIdx<g.start+g.n?' today':''}" colspan="${g.n}">${label}</th>`;
+  }).join('');
+  h1+='</tr><tr class="w">'+W.map((w,i)=>`<th class="col-w${i===todayIdx?' today':''}">${new Date(w).getDate()}</th>`).join('')+'</tr></thead>';
+  let lastCat=null, body='<tbody>';
+  T.forEach(t=>{
+    if(t.cat&&t.cat!==lastCat){
+      lastCat=t.cat;
+      body+=`<tr class="cat-row"><td colspan="${7+W.length}">${t.cat}</td></tr>`;
+    }
+    const st=calcStat(t), cls=stClass(st);
+    const pg=(st==='已完成')?100:(t.pg||0);
+    body+=`<tr class="task-row"><td class="col-no">${t.no}</td><td class="col-cat">${t.cat||''}</td>`;
+    body+=`<td class="col-task" title="${esc(t.mem||'')}">${esc(t.name)}</td>`;
+    body+=`<td class="col-own">${esc(t.own||'')}</td><td class="col-dt">${t.start||''}</td><td class="col-dt">${t.end||''}</td>`;
+    body+=`<td class="col-st"><span class="tag t-${cls}">${st}</span></td>`;
+    W.forEach((w,i)=>{
+      const ws=new Date(w), we=new Date(ws.getTime()+6*DAY);
+      const inBar=t.start&&t.end&&new Date(t.end)>=ws&&new Date(t.start)<=we;
+      const isMs=msWeeks[i];
+      let cell='';
+      if(inBar){
+        cell=`<div class="bar st-${cls}"><div class="fill" style="width:${pg}%;background:rgba(255,255,255,.45)"></div></div>`;
+      }
+      const bg=isMs?' ms-line':(i===todayIdx?' today':'');
+      const tip=isMs?` title="${esc(isMs.code+' '+isMs.date+' '+isMs.name)}"`:'';
+      body+=`<td class="col-w${bg}"${tip}>${cell}</td>`;
+    });
+    body+='</tr>';
+  });
+  body+='</tbody>';
+  document.getElementById('gantt').innerHTML=h1+body;
+
+  /* 责任分工 */
+  const g={};
+  T.forEach(t=>{const k=t.grp||'未指定';g[k]=g[k]||{n:0,own:new Set(),items:[]};g[k].n++;if(t.own)g[k].own.add(t.own);g[k].items.push(t.name);});
+  const orgMap={};STATE.org.forEach(o=>{orgMap[o.unit.trim()]=o;});
+  let dh='<tr><th style="width:130px">责任组</th><th style="width:110px">责任人</th><th style="width:60px">任务数</th><th>承担任务</th><th style="width:250px">人员构成</th></tr>';
+  Object.entries(g).sort((a,b)=>b[1].n-a[1].n).forEach(([k,v])=>{
+    const o=orgMap[k]||{};
+    dh+=`<tr><td><b>${esc(k)}</b></td><td>${[...v.own].join('、')||'—'}</td><td style="text-align:center">${v.n}</td>`
+      + `<td class="muted">${v.items.map(esc).join('；')}</td><td class="muted">${esc(o.note||'')}</td></tr>`;
+  });
+  document.getElementById('duty').innerHTML=dh;
+
+  /* 运营指标 */
+  let oh='<tr><th style="width:44px">序号</th><th style="width:130px">运营主线</th><th style="width:150px">运营任务</th><th>验收指标（建成要件）</th><th style="width:210px">2026年底</th><th style="width:210px">2027年2月（初验）</th><th style="width:210px">2027年5月（终验）</th></tr>';
+  let lastM=null;
+  STATE.ops.forEach(o=>{
+    oh+=`<tr><td>${o.no??''}</td><td>${o.main===lastM?'':esc(o.main||'')}</td><td>${esc(o.task||'')}</td>`
+      + `<td>${esc((o.item||'').slice(0,120))}</td><td class="muted">${esc((o.a||'').slice(0,150))}</td>`
+      + `<td class="muted">${esc((o.b||'').slice(0,150))}</td><td class="muted">${esc((o.c||'').slice(0,150))}</td></tr>`;
+    lastM=o.main;
+  });
+  document.getElementById('ops').innerHTML=oh;
+
+  /* 平台建设 */
+  let ph='<tr><th style="width:44px">序号</th><th style="width:110px">板块</th><th style="width:170px">系统</th><th style="width:90px">子系统</th><th>建设内容</th><th style="width:280px">评价与验收标准</th></tr>';
+  STATE.pf.forEach(p=>{
+    const ev=(p.ev||'').replace(/\n/g,'；');
+    ph+=`<tr><td>${p.no}</td><td class="muted">${esc((p.blk||'').replace('应用系统建设-',''))}</td>`
+      + `<td>${esc(p.sys||'')}</td><td class="muted">${esc(p.sub||'')}</td>`
+      + `<td class="muted">${esc((p.ctn||'').slice(0,120))}</td>`
+      + `<td class="muted">${esc(ev.slice(-190))}</td></tr>`;
+  });
+  document.getElementById('pf').innerHTML=ph;
+  document.getElementById('pfN').textContent=STATE.pf.length;
+
+  document.getElementById('hdate').textContent='数据日期 '+fdate(today);
+  document.getElementById('fstat').textContent=`任务 ${T.length} 项 · 指标 ${STATE.ops.length} 条 · 平台建设 ${STATE.pf.length} 项 · 周轴 ${W.length} 周`;
+}
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+document.getElementById('btnLoad').onclick=()=>document.getElementById('file').click();
+document.getElementById('file').onchange=e=>{if(e.target.files[0])loadFile(e.target.files[0]);};
+document.getElementById('btnReload').onclick=()=>{ if(STATE.loaded){render();} else {loadAuto();} };
+window.addEventListener('dragover',e=>{e.preventDefault();document.getElementById('drop').style.display='flex';});
+window.addEventListener('dragleave',e=>{if(e.clientX<=0||e.clientY<=0)document.getElementById('drop').style.display='none';});
+window.addEventListener('drop',e=>{e.preventDefault();document.getElementById('drop').style.display='none';
+  if(e.dataTransfer.files[0])loadFile(e.dataTransfer.files[0]);});
+loadAuto();
+</script>
+</body>
+</html>

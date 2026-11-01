@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>四川省数字政府项目 · 作战指挥驾驶舱</title>
+<style>
+:root{
+  --navy:#0F3A63; --navy2:#1B5E96; --accent:#2196F3;
+  --light:#E8F1FA; --line:#C9D9E8; --ink:#16232E; --grey:#61758A;
+  --ok:#2E7D32; --warn:#EF6C00; --bad:#C62828; --none:#8A96A3; --done:#1565C0;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Microsoft YaHei","Noto Sans SC","PingFang SC",sans-serif;background:#EEF3F8;color:var(--ink);font-size:13px}
+/* 顶栏 */
+.top{background:linear-gradient(100deg,#0F3A63,#1B5E96 60%,#2874B8);color:#fff;padding:0 22px;height:54px;display:flex;align-items:center;gap:14px;box-shadow:0 2px 8px rgba(15,58,99,.25)}
+.top h1{font-size:16.5px;font-weight:600;letter-spacing:.5px}
+.top .src{font-size:11.5px;opacity:.82}
+.top .sp{flex:1}
+.top .clock{font-size:11.5px;opacity:.9;font-variant-numeric:tabular-nums}
+.btn{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.4);color:#fff;padding:5px 13px;border-radius:3px;font-size:12px;cursor:pointer;transition:.15s}
+.btn:hover{background:rgba(255,255,255,.3)}
+.btn.on{background:#FFB300;border-color:#FFB300;color:#3E2700;font-weight:600}
+.wrap{padding:14px 18px 70px;max-width:1920px;margin:0 auto}
+/* 面板 */
+.p{background:#fff;border:1px solid var(--line);border-radius:5px;margin-bottom:13px;box-shadow:0 1px 3px rgba(15,58,99,.06)}
+.ph{background:linear-gradient(90deg,var(--light),#F7FBFF);border-bottom:1px solid var(--line);padding:8px 15px;font-weight:600;color:var(--navy);font-size:13px;display:flex;align-items:center;gap:10px}
+.ph .n{background:var(--navy);color:#fff;width:19px;height:19px;border-radius:3px;display:inline-flex;align-items:center;justify-content:center;font-size:11px}
+.ph .h{font-weight:400;color:var(--grey);font-size:11.5px}
+.pb{padding:14px}
+/* 健康度区 */
+.hero{display:grid;grid-template-columns:250px 1fr 300px;gap:14px}
+.ring-box{text-align:center;padding:4px}
+.ring{width:170px;height:170px;margin:0 auto;border-radius:50%;display:flex;align-items:center;justify-content:center;position:relative;background:conic-gradient(var(--accent) 0deg,#D7E2EC 0deg)}
+.ring .in{width:132px;height:132px;background:#fff;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ring .v{font-size:34px;font-weight:700;color:var(--navy);line-height:1}
+.ring .u{font-size:11px;color:var(--grey);margin-top:4px}
+.ring-box .lab{font-size:12px;color:var(--grey);margin-top:9px}
+.vert{display:flex;flex-direction:column;gap:10px}
+.judge{flex:1;border-radius:5px;padding:14px 16px;display:flex;flex-direction:column;justify-content:center;border-left:5px solid var(--none)}
+.judge.ok{background:linear-gradient(90deg,#EBF7EC,#F7FDF8);border-color:var(--ok)}
+.judge.warn{background:linear-gradient(90deg,#FFF6E5,#FFFCF5);border-color:var(--warn)}
+.judge.bad{background:linear-gradient(90deg,#FDECEC,#FFF8F8);border-color:var(--bad)}
+.judge.none{background:linear-gradient(90deg,#F2F5F8,#FAFCFD);border-color:var(--none)}
+.judge .t{font-size:11.5px;color:var(--grey);letter-spacing:1px}
+.judge .r{font-size:24px;font-weight:700;margin:4px 0}
+.judge.ok .r{color:var(--ok)} .judge.warn .r{color:var(--warn)} .judge.bad .r{color:var(--bad)} .judge.none .r{color:var(--none)}
+.judge .d{font-size:12px;color:#3D4E5E;line-height:1.65}
+.mini{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.mcard{background:#F6FAFD;border:1px solid var(--line);border-radius:4px;padding:9px 11px}
+.mcard .k{font-size:11px;color:var(--grey)}
+.mcard .v{font-size:20px;font-weight:700;color:var(--navy);line-height:1.15;margin-top:2px}
+.mcard .v small{font-size:11px;font-weight:400;color:var(--grey)}
+.mcard.bad{background:#FEF5F5;border-color:#F3C9C9} .mcard.bad .v{color:var(--bad)}
+.mcard.warn{background:#FFFBF2;border-color:#F3E0B8} .mcard.warn .v{color:var(--warn)}
+/* 偏差条 */
+.bars{display:flex;flex-direction:column;gap:7px}
+.bar-row{display:grid;grid-template-columns:150px 1fr 128px;gap:10px;align-items:center;font-size:12px}
+.bar-row .nm{color:#2A3D4E;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-track{position:relative;height:20px;background:#FAFCFE;border:1px solid #EDF2F7;border-radius:3px;overflow:hidden}
+.bar-track .plan{position:absolute;top:0;bottom:0;background:#B7CFE4;border-radius:3px}
+.bar-track .real{position:absolute;top:4px;bottom:4px;background:var(--accent);border-radius:2px}
+.bar-track .gap{position:absolute;top:7px;bottom:7px;background:repeating-linear-gradient(45deg,#F4C7C7,#F4C7C7 3px,#FBE4E4 3px,#FBE4E4 6px);border-radius:1px}
+.bar-row .val{text-align:right;font-variant-numeric:tabular-nums;color:var(--grey);font-size:11.5px}
+.bar-row .val b{color:var(--navy)}
+/* 里程碑 */
+.ms-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:0}
+.ms-item{padding:10px 13px;border-right:1px dashed var(--line);position:relative}
+.ms-item:last-child{border-right:none}
+.ms-item .hd{display:flex;align-items:center;gap:7px}
+.ms-item .code{background:var(--navy);color:#fff;font-size:10px;padding:1px 6px;border-radius:2px}
+.ms-item .dt{font-size:11px;color:var(--grey)}
+.ms-item .nm{font-size:13.5px;font-weight:600;color:var(--navy);margin:5px 0 6px}
+.ms-item .sub{font-size:11px;color:var(--grey);line-height:1.55;margin-bottom:7px}
+.ms-item .risk{font-size:11px;padding:2px 7px;border-radius:2px;display:inline-block}
+.r-ok{background:#E7F4E8;color:var(--ok)} .r-warn{background:#FFF3E0;color:var(--warn)} .r-bad{background:#FDECEC;color:var(--bad)} .r-none{background:#EFF2F5;color:var(--none)}
+/* 下钻表 */
+table.d{width:100%;border-collapse:collapse;font-size:12px}
+table.d th{background:var(--light);color:var(--navy);border:1px solid var(--line);padding:7px 9px;font-weight:600;text-align:left;font-size:11.5px;white-space:nowrap}
+table.d td{border:1px solid #E2ECF4;padding:7px 9px;vertical-align:middle}
+table.d tr.lv1{cursor:pointer}
+table.d tr.lv1:hover td{background:#F4F9FE}
+table.d tr.lv1.open td{background:#E9F3FC;font-weight:600}
+table.d tr.lv2 td{background:#FBFDFF;font-size:11.5px}
+table.d tr.lv2:hover td{background:#F3F9FF;cursor:pointer}
+table.d tr.lv3 td{background:#F7FAFD;color:#33475B}
+.badge{display:inline-block;padding:1.5px 8px;border-radius:10px;font-size:10.5px;font-weight:600;white-space:nowrap}
+.b-ok{background:#E7F4E8;color:var(--ok)} .b-warn{background:#FFF3E0;color:var(--warn)}
+.b-bad{background:#FDECEC;color:var(--bad)} .b-none{background:#EFF2F5;color:var(--none)}
+.b-done{background:#E3F0FD;color:var(--done)}
+.minibar{display:inline-block;width:88px;height:9px;background:#EDF2F7;border-radius:2px;position:relative;vertical-align:middle;overflow:hidden}
+.minibar i{position:absolute;left:0;top:0;bottom:0;background:var(--accent);border-radius:2px}
+.minibar em{position:absolute;top:0;bottom:0;width:2px;background:#7A8FA6}
+.caret{display:inline-block;width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid var(--navy2);margin-right:6px;transition:.15s;vertical-align:middle}
+tr.open .caret{transform:rotate(-180deg)}
+/* 抽屉 */
+#drawer{position:fixed;top:0;right:-460px;width:450px;height:100vh;background:#fff;box-shadow:-4px 0 20px rgba(15,58,99,.2);z-index:60;transition:right .22s;display:flex;flex-direction:column}
+#drawer.open{right:0}
+#drawer .dh{background:var(--navy);color:#fff;padding:12px 16px;display:flex;align-items:center;gap:10px}
+#drawer .dh .t{font-size:14px;font-weight:600;flex:1}
+#drawer .dh .x{cursor:pointer;font-size:18px;opacity:.85;line-height:1}
+#drawer .db{padding:14px 16px;overflow:auto;flex:1}
+#drawer .sec{margin-bottom:15px}
+#drawer .sec h4{font-size:12px;color:var(--navy);border-left:3px solid var(--accent);padding-left:7px;margin-bottom:7px}
+#drawer .kv{display:grid;grid-template-columns:78px 1fr;gap:5px 9px;font-size:12px}
+#drawer .kv .k{color:var(--grey)}
+#drawer .kv .v{color:#22303C;word-break:break-all}
+#drawer .ind{background:#F7FAFD;border:1px solid var(--line);border-radius:4px;padding:9px 11px;margin-bottom:8px;font-size:11.5px;line-height:1.65}
+#drawer .ind .nm{font-weight:600;color:var(--navy);margin-bottom:3px}
+#drawer .ind .goal{color:var(--grey)}
+.ov{position:fixed;inset:0;background:rgba(15,58,99,.28);z-index:55;display:none}
+.ov.open{display:block}
+/* 通用 */
+.muted{color:var(--grey);font-size:11.5px}
+.warn-box{background:#FFF8E1;border:1px solid #FFE082;color:#7A5C00;padding:9px 13px;border-radius:4px;font-size:12px;margin-bottom:12px;line-height:1.6}
+.warn-box b{color:#5C4400}
+.foot{position:fixed;left:0;right:0;bottom:0;background:var(--navy);color:#fff;font-size:11px;padding:7px 22px;display:flex;gap:20px;align-items:center;z-index:30}
+.foot .sp{flex:1}
+#drop{position:fixed;inset:0;background:rgba(15,58,99,.9);color:#fff;display:none;align-items:center;justify-content:center;font-size:18px;z-index:99}
+.legend{display:flex;gap:16px;font-size:11px;color:var(--grey);padding:8px 15px;border-top:1px solid var(--line);background:#FAFCFE;flex-wrap:wrap;align-items:center}
+.legend i{display:inline-block;width:15px;height:9px;border-radius:2px;margin-right:5px;vertical-align:middle}
+@media print{.foot{position:static}#drawer{display:none}}
+</style>
+</head>
+<body>
+<div class="top">
+  <h1>四川省数字政府项目 · 作战指挥驾驶舱</h1>
+  <span class="src" id="src">数据源：作战图数据底盘.xlsx</span>
+  <span class="sp"></span>
+  <span class="clock" id="clock" style="display:flex;align-items:center;gap:6px">数据日期
+    <input type="date" id="asof" style="background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:3px;padding:3px 7px;font-size:12px;color-scheme:dark">
+  </span>
+  <button class="btn" id="bSim">示例数据</button>
+  <button class="btn" id="bLoad">载入数据</button>
+  <button class="btn" id="bReload">刷新</button>
+  <input type="file" id="file" accept=".xlsx,.xls" style="display:none">
+</div>
+<div class="wrap">
+  <div id="warnBox" class="warn-box" style="display:none"></div>
+
+  <!-- 一、总体健康度 -->
+  <div class="p">
+    <div class="ph"><span class="n">1</span>项目总体健康度<span class="h" id="h1"></span></div>
+    <div class="pb">
+      <div class="hero">
+        <div class="ring-box">
+          <div class="ring" id="ring"><div class="in"><div class="v" id="ringV">–</div><div class="u">总体实际进度（%）</div></div></div>
+          <div class="lab" id="ringLab"></div>
+        </div>
+        <div class="vert">
+          <div class="judge none" id="judge">
+            <div class="t">项目健康度判定</div>
+            <div class="r" id="judgeR">待填报</div>
+            <div class="d" id="judgeD"></div>
+            <div id="keyFind" style="margin-top:10px;padding-top:9px;border-top:1px dashed #C9D9E8;font-size:12px;line-height:1.9;color:#33475B"></div>
+          </div>
+        </div>
+        <div class="mini" id="mini"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 二、进度偏差分析 -->
+  <div class="p">
+    <div class="ph"><span class="n">2</span>进度偏差分析<span class="h">蓝灰实条=按计划应完成，蓝色实条=实际完成，斜纹区=进度缺口</span></div>
+    <div class="pb">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:22px">
+        <div><div style="font-size:12px;color:var(--navy);font-weight:600;margin-bottom:9px">按工作分类</div><div class="bars" id="barCat"></div></div>
+        <div><div style="font-size:12px;color:var(--navy);font-weight:600;margin-bottom:9px">按责任组</div><div class="bars" id="barGrp"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 三、里程碑风险 -->
+  <div class="p">
+    <div class="ph"><span class="n">3</span>里程碑达成风险<span class="h">按节点日期应完成的计划进度 vs 当前实际</span></div>
+    <div class="pb" style="padding:0"><div class="ms-grid" id="msGrid"></div></div>
+  </div>
+
+  <!-- 四、系统级下钻 -->
+  <div class="p">
+    <div class="ph"><span class="n">4</span>系统级下钻（PMO 进度把控）<span class="h">点分类展开系统，点系统展开任务，点任务看责任人与指标</span></div>
+    <div class="pb" style="padding:0;overflow:auto">
+      <table class="d" id="drill"></table>
+    </div>
+  </div>
+
+  <!-- 五、问题清单 -->
+  <div class="p">
+    <div class="ph"><span class="n">5</span>问题清单<span class="h">自动生成：延期 / 预警 / 未填报 / 无系统承载</span></div>
+    <div class="pb" style="padding:0;overflow:auto"><table class="d" id="issues"></table></div>
+  </div>
+
+  <!-- 六、指标看板 -->
+  <div class="p">
+    <div class="ph"><span class="n">6</span>验收成效指标看板<span class="h" id="h6"></span></div>
+    <div class="pb" style="padding:0;overflow:auto"><table class="d" id="kpi2"></table></div>
+  </div>
+
+  <!-- 七、甘特 -->
+  <div class="p">
+    <div class="ph"><span class="n">7</span>作战进度图<span class="h">按周排布｜红色竖线=里程碑所在周</span></div>
+    <div class="pb" style="padding:0;overflow:auto;max-height:600px"><table class="d" id="gantt"></table></div>
+    <div class="legend" id="legend"></div>
+  </div>
+</div>
+<div class="foot"><span>数据来源：项目作战图（2026-10-24）· 验收成效指标（1101-1206）· 项目组织架构</span><span class="sp"></span><span id="fstat"></span></div>
+<div id="drop">松开鼠标载入 Excel</div>
+<div class="ov" id="ov"></div>
+<div id="drawer"><div class="dh"><span class="t" id="dTitle">任务详情</span><span class="x" id="dClose">×</span></div><div class="db" id="dBody"></div></div>
+
+<script src="xlsx.full.min.js"></script>
+<script>
+/* 说明：本页所有 innerHTML 写入的数据都经过 esc() 转义，Excel 内容不会被当 HTML 执行 */
+const S={tasks:[],ms:[],org:[],ops:[],pf:[],weeks:[],loaded:false,sim:false,openCat:{},openSys:{}};
+let TODAY=new Date(); TODAY.setHours(0,0,0,0);
+function setAsOf(v){ const d=v?new Date(v):new Date(); if(isNaN(d))return; d.setHours(0,0,0,0); TODAY=d; }
+const DAY=86400000;
+const fd=d=>{const x=new Date(d);return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0')};
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num=v=>{const n=parseFloat(String(v).replace('%',''));return isNaN(n)?null:n};
+
+function planPct(t){
+  if(!t.start||!t.end)return null;
+  const s=new Date(t.start), e=new Date(t.end);
+  if(e<=s)return TODAY>=e?100:0;
+  const p=((TODAY-s)/(e-s))*100;
+  return Math.max(0,Math.min(100,Math.round(p)));
+}
+function realPct(t){ return t.rp; }
+function health(t){
+  if(t.st==='已完成')return 'ok';
+  const p=planPct(t), r=realPct(t);
+  if(r===null)return 'none';
+  const dev=r-p;
+  if(dev>=0)return 'ok';
+  if(dev>=-15)return 'warn';
+  return 'bad';
+}
+const HLAB={ok:'正常',warn:'预警',bad:'延期',none:'未填报'};
+const HCLS={ok:'b-ok',warn:'b-warn',bad:'b-bad',none:'b-none',done:'b-done'};
+
+function nrm(v){
+  if(v===null||v===undefined||v==='')return '';
+  if(typeof v==='number'){return fd(new Date(Date.UTC(1899,11,30)+v*DAY));}
+  const s=String(v).trim();
+  const m=s.match(/(\d{4})[-/年](\d{1,2})[-/月](\d{1,2})/);
+  if(m)return m[1]+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[3]).padStart(2,'0');
+  const d=new Date(s); return isNaN(d)?'':fd(d);
+}
+function loadWB(wb,label){
+  const get=n=>wb.Sheets[n]?XLSX.utils.sheet_to_json(wb.Sheets[n],{defval:'',raw:false}):[];
+  S.tasks=get('任务台账').map(r=>({
+    no:r['序号'],cat:r['工作分类'],name:r['工作任务'],sys:r['所属系统']||'',grp:r['责任组'],own:r['责任人'],
+    mem:r['执行成员'],start:nrm(r['计划开始']),end:nrm(r['计划完成']),
+    plan:num(r['计划进度%']),rp:num(r['实际进度%']),st:String(r['状态']||'未开始').trim(),
+    link:r['关联运营主线']||'',plink:r['关联建设项']||'',risk:r['问题与风险']||''
+  }));
+  S.ms=get('里程碑').map(r=>({code:r['节点'],date:nrm(r['目标日期']),name:r['节点名称'],
+    deliver:r['交付内容'],crit:r['验收标准'],own:r['责任人'],st:r['当前状态']||'未开始'}));
+  S.org=get('组织架构').map(r=>({unit:String(r['部门/组']||'').trim(),role:r['角色'],name:r['姓名'],
+    cnt:num(r['人数']),note:r['说明']}));
+  S.ops=get('运营成效指标').map(r=>({no:r['序号'],main:r['运营主线'],task:r['运营任务'],item:r['验收指标（建成要件）'],
+    a:r['2026年底目标值'],b:r['2027年2月初验目标值'],c:r['2027年5月终验目标值'],
+    cur:r['当前完成情况']||'',coop:r['需协同条件'],basis:r['依据条款/标准'],verify:r['验证方法']}));
+  S.pf=get('平台建设指标').map(r=>({no:r['序号'],cls:r['分类'],blk:r['板块'],sys:r['系统'],sub:r['子系统'],
+    ctn:r['建设内容'],scene:r['应用场景'],ev:r['评价与验收标准'],cur:r['当前完成情况']||''}));
+  S.weeks=calcWeeks(S.tasks);
+  S.loaded=true;S.sim=false;
+  document.getElementById('src').textContent='数据源：'+label;
+  document.getElementById('warnBox').style.display='none';
+  document.getElementById('bSim').classList.remove('on');
+  render();
+}
+function calcWeeks(T){
+  let s=null,e=null;
+  T.forEach(t=>{if(t.start&&(!s||t.start<s))s=t.start;if(t.end&&(!e||t.end>e))e=t.end;});
+  if(!s||!e)return [];
+  let d=new Date(s);d=new Date(d.getTime()-((d.getDay()+6)%7)*DAY);
+  const out=[];
+  while(d<=new Date(e)){out.push(fd(d));d=new Date(d.getTime()+7*DAY);}
+  return out;
+}
+/* 示例数据：只用于看驾驶舱效果，不影响真实数据 */
+function simulate(){
+  if(S.sim){S.sim=false;document.getElementById('bSim').classList.remove('on');render();return;}
+  let seed=20261101;
+  const rnd=()=>{seed=(seed*1103515245+12345)&0x7fffffff;return seed/0x7fffffff;};
+  S.tasks.forEach(t=>{
+    const p=planPct(t);
+    if(t.st==='已完成'){t.rp=100;return;}
+    if(p===null){t.rp=null;return;}
+    const r=rnd();
+    let v;
+    if(r<0.18)v=Math.min(100,p+Math.round(rnd()*12));           // 略超前
+    else if(r<0.62)v=Math.max(0,p-Math.round(rnd()*10));         // 正常
+    else if(r<0.85)v=Math.max(0,p-Math.round(12+rnd()*14));      // 预警
+    else v=Math.max(0,p-Math.round(26+rnd()*30));                // 延期
+    t.rp=Math.round(v);
+  });
+  S.sim=true;document.getElementById('bSim').classList.add('on');
+  render();
+}
+async function autoLoad(){
+  try{
+    const r=await fetch('作战图数据底盘.xlsx',{cache:'no-store'});
+    if(!r.ok)throw 0;
+    loadWB(XLSX.read(await r.arrayBuffer(),{type:'array'}),'作战图数据底盘.xlsx（自动读取）');
+  }catch(e){
+    warn('<b>未自动读取到 Excel。</b>用浏览器直接双击打开 HTML 时这是正常现象。请点右上角「载入数据」选择 <b>作战图数据底盘.xlsx</b>，或通过启动包 <b>http://localhost:8080</b> 打开。');
+  }
+}
+function warn(t){const w=document.getElementById('warnBox');w.innerHTML=t;w.style.display='block';}
+
+function agg(list){
+  let sp=0,sr=0,np=0,nr=0,cnt=0,done=0,bad=0,warnN=0,none=0;
+  list.forEach(t=>{
+    cnt++;
+    const h=health(t), p=planPct(t), r=realPct(t);
+    if(t.st==='已完成')done++;
+    if(h==='bad')bad++; if(h==='warn')warnN++; if(h==='none')none++;
+    if(p!==null){sp+=p;np++;}
+    if(r!==null){sr+=r;nr++;}
+  });
+  return {cnt,done,bad,warn:warnN,none,
+    plan:np?Math.round(sp/np):null, real:nr?Math.round(sr/nr):null,
+    filled:nr, total:cnt};
+}
+
+function render(){
+  if(!S.loaded)return;
+  const T=S.tasks;
+  /* clock 里含日期输入框，不能整体改 textContent */
+  /* ── 一、健康度 */
+  const a=agg(T);
+  const byCatObj={},byGrpObj={};
+  T.forEach(t=>{(byCatObj[t.cat||'未分类']=byCatObj[t.cat||'未分类']||[]).push(t);
+                (byGrpObj[t.grp||'未指定']=byGrpObj[t.grp||'未指定']||[]).push(t);});
+  const dev=(a.real!==null&&a.plan!==null)?a.real-a.plan:null;
+  const ring=document.getElementById('ring');
+  const rv=a.real===null?0:a.real;
+  const deg=rv*3.6;
+  const col=dev===null?'#8A96A3':(dev>=0?'#2E7D32':(dev>=-15?'#EF6C00':'#C62828'));
+  ring.style.background=`conic-gradient(${col} 0deg ${deg}deg,#D7E2EC ${deg}deg 360deg)`;
+  document.getElementById('ringV').textContent=a.real===null?'–':a.real+'%';
+  document.getElementById('ringLab').innerHTML=
+    `计划 <b style="color:#0F3A63">${a.plan===null?'–':a.plan+'%'}</b>｜已填报 <b>${a.filled}</b> 项（共 ${a.total} 项）`;
+  const j=document.getElementById('judge');
+  let jc='none',jr='待填报',jd='';
+  if(a.real===null){jd='当前没有任务填报实际进度，无法判定整体健康度。请在「任务台账」填「实际进度%」后刷新。';}
+  else if(dev>=0){jc='ok';jr='按计划进行';jd=`实际进度 <b>${a.real}%</b>，按计划应完成 ${a.plan}%，领先或持平 <b>${dev>0?'+':''}${dev}</b> 个百分点。`;}
+  else if(dev>=-15){jc='warn';jr='轻度滞后';jd=`实际进度 <b>${a.real}%</b>，按计划应完成 ${a.plan}%，滞后 <b>${-dev}</b> 个百分点，处于预警区间。`;}
+  else {jc='bad';jr='明显滞后';jd=`实际进度 <b>${a.real}%</b>，按计划应完成 ${a.plan}%，滞后 <b>${-dev}</b> 个百分点，已超出预警线。`;}
+  if(a.none>0)jd+=`<br><span class="muted">另有 ${a.none} 项未填报（未计入进度计算）。</span>`;
+  // 过期里程碑强制提示
+  const overdueMS=S.ms.filter(m=>m.date&&new Date(m.date)<TODAY);
+  if(overdueMS.length){
+    jd+=`<br><span style="color:#C62828;font-weight:600">注意：${overdueMS.map(m=>m.code+'（'+m.name+'）').join('、')} 节点日期已过，需确认是否已达成。</span>`;
+    if(jc==='ok'){jc='warn';jr='节点已过期';}
+  }
+  // 关键结论：拖后腿的分类与组
+  const rank=(obj)=>{
+    const arr=Object.entries(obj).map(([k,v])=>{const g=agg(v);
+      const dv=(g.real!==null&&g.plan!==null)?g.real-g.plan:null;
+      return {k,g,dv};}).filter(x=>x.dv!==null);
+    arr.sort((x,y)=>x.dv-y.dv);
+    return arr;
+  };
+  const catRank=rank(byCatObj), grpRank=rank(byGrpObj);
+  let kf='';
+  if(catRank.length){
+    const w=catRank[0];
+    kf+=`▸ 最需关注的工作分类：<b style="color:#C62828">${esc(w.k)}</b>（计划 ${w.g.plan}% / 实际 ${w.g.real}%，偏差 ${w.dv>0?'+':''}${w.dv}，延期 ${w.g.bad} 项）`;
+  }
+  if(grpRank.length){
+    const w=grpRank[0];
+    kf+=`<br>▸ 最需关注的责任组：<b style="color:#C62828">${esc(w.k)}</b>（计划 ${w.g.plan}% / 实际 ${w.g.real}%，偏差 ${w.dv>0?'+':''}${w.dv}）`;
+  }
+  if(a.bad||a.warn){
+    kf+=`<br>▸ 当前延期 <b style="color:#C62828">${a.bad}</b> 项、预警 <b style="color:#EF6C00">${a.warn}</b> 项，详见下方「问题清单」`;
+  }
+  document.getElementById('keyFind').innerHTML=kf;
+  j.className='judge '+jc;document.getElementById('judgeR').textContent=jr;document.getElementById('judgeD').innerHTML=jd;
+  const dcolor=dev===null?'#0F3A63':(dev>=0?'#2E7D32':(dev>=-15?'#EF6C00':'#C62828'));
+  document.getElementById('ringV').style.color=dcolor;
+  document.getElementById('mini').innerHTML=[
+    ['任务总数',a.total+' <small>项</small>',''],
+    ['已完工任务',a.done+' <small>项</small>',''],
+    ['延期',a.bad+' <small>项</small>',a.bad?'bad':''],
+    ['预警',a.warn+' <small>项</small>',a.warn?'warn':''],
+    ['未填报',a.none+' <small>项</small>',a.none?'warn':''],
+    ['偏差',(dev===null?'–':(dev>0?'+':'')+dev+' <small>%</small>'),dev===null?'':(dev>=0?'':'bad')],
+  ].map(([k,v,c])=>`<div class="mcard ${c}"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+  document.getElementById('h1').textContent='判定口径：偏差=实际−计划｜≥0 正常 · −1~−15 预警 · <−15 延期';
+
+  /* ── 二、偏差分析 */
+  const byCat=byCatObj,byGrp=byGrpObj;
+  const barHtml=obj=>Object.entries(obj).map(([k,v])=>{
+    const g=agg(v);
+    const pl=g.plan===null?0:g.plan, re=g.real===null?0:g.real;
+    const gap=Math.max(0,pl-re);
+    const d=(g.real!==null&&g.plan!==null)?g.real-g.plan:null;
+    const c=d===null?'#8A96A3':(d>=0?'#2E7D32':(d>=-15?'#EF6C00':'#C62828'));
+    return `<div class="bar-row" title="${esc(k)}：${g.cnt} 项任务，已填 ${g.filled} 项">
+      <div class="nm">${esc(k)}</div>
+      <div class="bar-track"><div class="plan" style="width:${pl}%"></div>
+        <div class="real" style="width:${re}%"></div>
+        ${gap>0?`<div class="gap" style="left:${re}%;width:${gap}%"></div>`:''}</div>
+      <div class="val">计划 <b>${g.plan===null?'–':g.plan+'%'}</b> ｜ <span style="color:${c}">${g.real===null?'未填报':g.real+'%'}</span></div>
+    </div>`;
+  }).join('')||'<div class="muted">无数据</div>';
+  document.getElementById('barCat').innerHTML=barHtml(byCat);
+  document.getElementById('barGrp').innerHTML=barHtml(byGrp);
+
+  /* ── 三、里程碑风险 */
+  document.getElementById('msGrid').innerHTML=S.ms.map(m=>{
+    const dd=new Date(m.date);
+    const left=Math.round((dd-TODAY)/DAY);
+    const before=T.filter(t=>t.end&&t.end<=m.date);
+    const g=agg(before);
+    let risk,cls;
+    if(left<0){risk='已过期 '+(-left)+' 天';cls='r-bad';}
+    else if(g.real===null){risk='剩 '+left+' 天 · 待填报';cls='r-none';}
+    else{
+      const dv=g.real-g.plan;
+      if(dv>=0){risk='剩 '+left+' 天 · 按计划';cls='r-ok';}
+      else if(dv>=-15){risk='剩 '+left+' 天 · 滞后 '+(-dv)+'%';cls='r-warn';}
+      else {risk='剩 '+left+' 天 · 滞后 '+(-dv)+'%';cls='r-bad';}
+    }
+    return `<div class="ms-item">
+      <div class="hd"><span class="code">${esc(m.code)}</span><span class="dt">${esc(m.date)}</span></div>
+      <div class="nm">${esc(m.name)}</div>
+      <div class="sub">${esc((m.deliver||'').slice(0,54))}</div>
+      <div><span class="risk ${cls}">${risk}</span></div>
+      <div class="muted" style="margin-top:6px">节点前应完成 ${g.cnt} 项｜计划 ${g.plan===null?'–':g.plan+'%'}｜实际 ${g.real===null?'未填报':g.real+'%'}</div>
+    </div>`;
+  }).join('')||'<div class="muted" style="padding:14px">未读取到里程碑</div>';
+
+  /* ── 四、系统级下钻 */
+  renderDrill();
+  /* ── 五、问题清单 */
+  renderIssues();
+  /* ── 六、指标看板 */
+  renderKpi();
+  /* ── 七、甘特 */
+  renderGantt();
+
+  document.getElementById('fstat').textContent=
+    `任务 ${T.length} 项 · 运营指标 ${S.ops.length} 条 · 平台建设 ${S.pf.length} 项 · 周轴 ${S.weeks.length} 周`+(S.sim?' · ⚠ 示例数据视图':'');
+}
+
+function renderDrill(){
+  const T=S.tasks;
+  const cats={};
+  T.forEach(t=>{(cats[t.cat||'未分类']=cats[t.cat||'未分类']||[]).push(t);});
+  let h='<thead><tr><th style="width:30px"></th><th>层级</th><th>任务数</th><th>计划进度</th><th>实际进度</th><th>偏差</th><th>延期/预警</th><th>责任人</th><th>状态</th></tr></thead><tbody>';
+  Object.entries(cats).forEach(([cat,list])=>{
+    const g=agg(list);
+    const dev=(g.real!==null&&g.plan!==null)?g.real-g.plan:null;
+    const open=!!S.openCat[cat];
+    h+=`<tr class="lv1 ${open?'open':''}" data-cat="${esc(cat)}">
+      <td><span class="caret"></span></td><td><b>${esc(cat)}</b> <span class="muted">（工作分类）</span></td>
+      <td>${g.cnt}</td><td>${g.plan===null?'–':g.plan+'%'}</td>
+      <td>${g.real===null?'<span class="muted">未填报</span>':g.real+'%'}</td>
+      <td>${dev===null?'–':`<span style="color:${dev>=0?'#2E7D32':(dev>=-15?'#EF6C00':'#C62828')};font-weight:600">${dev>0?'+':''}${dev}</span>`}</td>
+      <td>${g.bad?`<span class="badge b-bad">延期 ${g.bad}</span> `:''}${g.warn?`<span class="badge b-warn">预警 ${g.warn}</span>`:''}${(!g.bad&&!g.warn)?'<span class="muted">—</span>':''}</td>
+      <td class="muted">${esc([...new Set(list.map(t=>t.own).filter(Boolean))].join('、'))}</td>
+      <td>${statusCell(g)}</td></tr>`;
+    if(open){
+      // 系统层
+      const syss={};
+      list.forEach(t=>{
+        const key=(t.sys||'未指定系统').split(/\s*\/\s*/)[0].trim();
+        (syss[key]=syss[key]||[]).push(t);
+      });
+      Object.entries(syss).forEach(([sys,sl])=>{
+        const sg=agg(sl);
+        const sdev=(sg.real!==null&&sg.plan!==null)?sg.real-sg.plan:null;
+        const sopen=!!S.openSys[cat+'|'+sys];
+        h+=`<tr class="lv2 ${sopen?'open':''}" data-cat="${esc(cat)}" data-sys="${esc(sys)}">
+          <td></td><td style="padding-left:22px"><span class="caret"></span>${esc(sys)}</td>
+          <td>${sg.cnt}</td><td>${sg.plan===null?'–':sg.plan+'%'}</td>
+          <td>${sg.real===null?'<span class="muted">未填报</span>':sg.real+'%'}</td>
+          <td>${sdev===null?'–':`<span style="color:${sdev>=0?'#2E7D32':(sdev>=-15?'#EF6C00':'#C62828')};font-weight:600">${sdev>0?'+':''}${sdev}</span>`}</td>
+          <td>${sg.bad?`<span class="badge b-bad">延期 ${sg.bad}</span> `:''}${sg.warn?`<span class="badge b-warn">预警 ${sg.warn}</span>`:''}</td>
+          <td class="muted">${esc([...new Set(sl.map(t=>t.own).filter(Boolean))].join('、'))}</td>
+          <td>${statusCell(sg)}</td></tr>`;
+        if(sopen){
+          sl.forEach(t=>{
+            const p=planPct(t),r=realPct(t),hd=health(t);
+            const dv=(r!==null&&p!==null)?r-p:null;
+            h+=`<tr class="lv3" data-task="${t.no}">
+              <td></td><td style="padding-left:44px">${esc(t.name)}</td><td>—</td>
+              <td>${p===null?'–':p+'%'}</td>
+              <td>${r===null?'<span class="muted">—</span>':r+'%'}</td>
+              <td>${dv===null?'–':`<span style="color:${dv>=0?'#2E7D32':(dv>=-15?'#EF6C00':'#C62828')}">${dv>0?'+':''}${dv}</span>`}</td>
+              <td><span class="badge ${HCLS[hd]}">${HLAB[hd]}</span></td>
+              <td>${esc(t.own||'')}</td>
+              <td class="muted">${esc(t.start||'')} ~ ${esc(t.end||'')}</td></tr>`;
+          });
+        }
+      });
+    }
+  });
+  h+='</tbody>';
+  const el=document.getElementById('drill');
+  el.innerHTML=h;
+  el.querySelectorAll('tr.lv1').forEach(tr=>tr.onclick=()=>{
+    const c=tr.dataset.cat;S.openCat[c]=!S.openCat[c];renderDrill();});
+  el.querySelectorAll('tr.lv2').forEach(tr=>tr.onclick=e=>{
+    e.stopPropagation();
+    const k=tr.dataset.cat+'|'+tr.dataset.sys;S.openSys[k]=!S.openSys[k];renderDrill();});
+  el.querySelectorAll('tr.lv3').forEach(tr=>tr.onclick=e=>{
+    e.stopPropagation();
+    const no=tr.dataset.task;
+    const t=S.tasks.find(x=>String(x.no)===String(no));
+    if(t)openDrawer(t);});
+}
+function statusCell(g){
+  if(g.done===g.cnt&&g.cnt)return '<span class="badge b-done">全部完成</span>';
+  if(g.bad)return '<span class="badge b-bad">有延期</span>';
+  if(g.warn)return '<span class="badge b-warn">有预警</span>';
+  if(g.none===g.cnt)return '<span class="badge b-none">未填报</span>';
+  return '<span class="badge b-ok">正常</span>';
+}
+
+function renderIssues(){
+  const T=S.tasks;
+  const bad=T.filter(t=>health(t)==='bad').sort((a,b)=>{
+    const da=(realPct(a)??0)-(planPct(a)??0), db=(realPct(b)??0)-(planPct(b)??0);
+    return da-db;});
+  const warnL=T.filter(t=>health(t)==='warn');
+  const none=T.filter(t=>health(t)==='none');
+  const nosys=T.filter(t=>!t.sys||t.sys.indexOf('缺口')>=0);
+  let h='<thead><tr><th style="width:62px">类型</th><th>任务</th><th style="width:150px">所属系统</th><th style="width:96px">责任人</th><th style="width:78px">计划</th><th style="width:78px">实际</th><th style="width:64px">偏差</th><th>建议动作</th></tr></thead><tbody>';
+  const row=(type,cls,t,advice)=>{
+    const p=planPct(t),r=realPct(t);
+    const dv=(r!==null&&p!==null)?r-p:null;
+    return `<tr data-task="${t.no}" style="cursor:pointer">
+      <td><span class="badge ${cls}">${type}</span></td>
+      <td>${esc(t.name)}<div class="muted">${esc(t.cat||'')}</div></td>
+      <td class="muted">${esc(t.sys||'—')}</td><td>${esc(t.own||'')}</td>
+      <td>${p===null?'–':p+'%'}</td><td>${r===null?'<span class="muted">未填报</span>':r+'%'}</td>
+      <td style="color:#C62828;font-weight:600">${dv===null?'–':(dv>0?'+':'')+dv}</td>
+      <td class="muted">${esc(advice)}</td></tr>`;
+  };
+  bad.slice(0,8).forEach(t=>{h+=row('延期','b-bad',t,'约谈责任人，确认是否需增派资源或调计划');});
+  warnL.slice(0,6).forEach(t=>{h+=row('预警','b-warn',t,'本周内跟进，避免转为延期');});
+  nosys.forEach(t=>{h+=row('无系统承载','b-none',t,'该任务对应的平台建设内容缺失，需补建设项');});
+  if(none.length){h+=`<tr><td><span class="badge b-none">未填报</span></td><td colspan="7" class="muted">还有 ${none.length} 项任务未填报实际进度（${esc(none.slice(0,6).map(t=>t.name).join('、'))}${none.length>6?' 等':''}），进度判定不完整</td></tr>`;}
+  if(!bad.length&&!warnL.length&&!nosys.length&&!none.length){
+    h+='<tr><td colspan="8" class="muted" style="padding:14px">当前没有问题项</td></tr>';
+  }
+  h+='</tbody>';
+  const el=document.getElementById('issues');
+  el.innerHTML=h;
+  el.querySelectorAll('tr[data-task]').forEach(tr=>tr.onclick=()=>{
+    const t=S.tasks.find(x=>String(x.no)===String(tr.dataset.task));
+    if(t)openDrawer(t);});
+}
+
+function renderKpi(){
+  const m={};
+  S.ops.forEach(o=>{(m[o.main]=m[o.main]||[]).push(o);});
+  document.getElementById('h6').textContent=`共 ${S.ops.length} 条运营指标，${Object.keys(m).length} 条主线｜点主线看明细`;
+  let h='<thead><tr><th style="width:30px"></th><th>运营主线</th><th style="width:66px">指标数</th><th style="width:120px">关联任务</th><th style="width:200px">三节点目标摘要</th><th style="width:120px">填报情况</th></tr></thead><tbody>';
+  Object.entries(m).forEach(([main,list])=>{
+    const relT=S.tasks.filter(t=>(t.link||'').indexOf(main)>=0);
+    const g=agg(relT);
+    const filled=list.filter(o=>String(o.cur||'').trim()).length;
+    const open=!!S.openCat['K|'+main];
+    const dev=(g.real!==null&&g.plan!==null)?g.real-g.plan:null;
+    h+=`<tr class="lv1 ${open?'open':''}" data-k="${esc(main)}">
+      <td><span class="caret"></span></td><td><b>${esc(main)}</b></td><td>${list.length}</td>
+      <td>${relT.length?relT.length+' 项'+(g.real===null?'':' · 实际 '+g.real+'%'):'<span class="muted">无关联任务</span>'}</td>
+      <td class="muted">${esc((list[0].a||'').slice(0,40))}</td>
+      <td>${filled}/${list.length}</td></tr>`;
+    if(open){
+      list.forEach(o=>{
+        h+=`<tr class="lv3"><td></td><td style="padding-left:24px">${esc(o.task||'')}</td><td>—</td>
+          <td class="muted">—</td>
+          <td class="muted" title="${esc(o.item||'')}">${esc((o.item||'').slice(0,44))}</td>
+          <td>${esc(o.cur||'未填报')}</td></tr>`;
+      });
+    }
+  });
+  h+='</tbody>';
+  const el=document.getElementById('kpi2');
+  el.innerHTML=h;
+  el.querySelectorAll('tr.lv1').forEach(tr=>tr.onclick=()=>{
+    const k='K|'+tr.dataset.k;S.openCat[k]=!S.openCat[k];renderKpi();});
+}
+
+function renderGantt(){
+  const T=S.tasks,W=S.weeks,MS=S.ms;
+  const msW={};
+  MS.forEach(m=>{const i=W.findIndex(w=>m.date&&m.date>=w&&m.date<=fd(new Date(new Date(w).getTime()+6*DAY)));if(i>=0)msW[i]=m;});
+  const tIdx=W.findIndex(w=>{const s=new Date(w),e=new Date(s.getTime()+6*DAY);return TODAY>=s&&TODAY<=e;});
+  const mg=[];
+  W.forEach((w,i)=>{const mo=new Date(w).getMonth()+1;
+    if(mg.length&&mg[mg.length-1].mo===mo)mg[mg.length-1].n++;else mg.push({mo,n:1,start:i});});
+  let h='<thead><tr><th rowspan="2" style="width:34px">序号</th><th rowspan="2" style="width:220px">任务</th><th rowspan="2" style="width:78px">责任人</th><th rowspan="2" style="width:56px">状态</th>';
+  h+=mg.map(g=>{const yr=new Date(W[g.start]).getFullYear();
+    return `<th colspan="${g.n}" style="text-align:center;width:${g.n*26}px">${(g.start===0||g.mo===1)?yr+'年':''}${g.mo}月</th>`;}).join('');
+  h+='</tr><tr>'+W.map((w,i)=>`<th style="text-align:center;font-size:9px;padding:2px;${i===tIdx?'background:#FFF3CD':''}">${new Date(w).getDate()}</th>`).join('')+'</tr></thead><tbody>';
+  let lastCat=null;
+  T.forEach(t=>{
+    if(t.cat!==lastCat){lastCat=t.cat;
+      h+=`<tr><td colspan="${4+W.length}" style="background:#F1F7FC;font-weight:600;color:#0F3A63;padding:5px 9px">${esc(t.cat)}</td></tr>`;}
+    const hd=health(t),p=planPct(t),r=realPct(t);
+    const pg=(t.st==='已完成')?100:(r??0);
+    h+=`<tr data-task="${t.no}" style="cursor:pointer">
+      <td>${t.no}</td><td>${esc(t.name)}</td><td class="muted">${esc(t.own||'')}</td>
+      <td><span class="badge ${HCLS[hd]}">${HLAB[hd]}</span></td>`;
+    W.forEach((w,i)=>{
+      const ws=new Date(w),we=new Date(ws.getTime()+6*DAY);
+      const inb=t.start&&t.end&&new Date(t.end)>=ws&&new Date(t.start)<=we;
+      const isMs=msW[i];
+      let bg='';
+      if(inb)bg=pg>=100?'#1565C0':(hd==='bad'?'#C62828':(hd==='warn'?'#EF6C00':'#7FB3D5'));
+      const st=isMs?`background:#FDE7E7;border-left:2px solid #C62828;`:((i===tIdx)?'background:#FFF3CD;':'');
+      h+=`<td style="padding:0;height:19px;${st}${bg?'background:'+bg+';':''}" ${isMs?'title="'+esc(isMs.code+' '+isMs.date+' '+isMs.name)+'"':''}></td>`;
+    });
+    h+='</tr>';
+  });
+  h+='</tbody>';
+  const el=document.getElementById('gantt');
+  el.innerHTML=h;
+  el.querySelectorAll('tr[data-task]').forEach(tr=>tr.onclick=()=>{
+    const t=S.tasks.find(x=>String(x.no)===String(tr.dataset.task));
+    if(t)openDrawer(t);});
+  document.getElementById('legend').innerHTML=
+    '<span><i style="background:#7FB3D5"></i>正常推进</span><span><i style="background:#EF6C00"></i>预警</span>'+
+    '<span><i style="background:#C62828"></i>延期</span><span><i style="background:#1565C0"></i>已完成</span>'+
+    '<span><i style="background:#FFF3CD;border:1px solid #E0C97F"></i>本周</span>'+
+    '<span><i style="background:#C62828;width:3px;height:14px"></i>里程碑所在周</span>';
+}
+
+function openDrawer(t){
+  const p=planPct(t),r=realPct(t),hd=health(t);
+  const dv=(r!==null&&p!==null)?r-p:null;
+  document.getElementById('dTitle').textContent='任务 '+t.no+'｜'+t.name;
+  const org=S.org.find(o=>o.unit===t.grp)||{};
+  const relOps=S.ops.filter(o=>(t.link||'').indexOf(o.main)>=0);
+  const relPf=S.pf.filter(x=>{
+    const s=String(t.plink||'');
+    if(!s||s==='—')return false;
+    if(/^\d+-\d+$/.test(s)){const [a,b]=s.split('-').map(Number);return x.no>=a&&x.no<=b;}
+    return s.split(',').some(v=>v.trim()===String(x.no));
+  });
+  let h='';
+  h+=`<div class="sec"><h4>任务状态</h4><div class="kv">
+    <div class="k">工作分类</div><div class="v">${esc(t.cat||'')}</div>
+    <div class="k">所属系统</div><div class="v">${esc(t.sys||'—')}</div>
+    <div class="k">责任组</div><div class="v">${esc(t.grp||'')}${org.cnt?'（'+org.cnt+' 人）':''}</div>
+    <div class="k">责任人</div><div class="v"><b>${esc(t.own||'—')}</b></div>
+    <div class="k">执行成员</div><div class="v">${esc(t.mem||'—')}</div>
+    <div class="k">计划工期</div><div class="v">${esc(t.start||'')} ~ ${esc(t.end||'')}</div>
+    <div class="k">计划进度</div><div class="v">${p===null?'–':p+'%'}</div>
+    <div class="k">实际进度</div><div class="v">${r===null?'<span style="color:#EF6C00">未填报</span>':r+'%'}</div>
+    <div class="k">偏差</div><div class="v" style="color:${dv===null?'#61758A':(dv>=0?'#2E7D32':(dv>=-15?'#EF6C00':'#C62828'))};font-weight:600">${dv===null?'–':(dv>0?'+':'')+dv+' 个百分点'}</div>
+    <div class="k">健康度</div><div class="v"><span class="badge ${HCLS[hd]}">${HLAB[hd]}</span></div>
+    <div class="k">问题风险</div><div class="v">${esc(t.risk||'未填写')}</div>
+  </div></div>`;
+  if(relOps.length){
+    h+='<div class="sec"><h4>关联运营成效指标（'+relOps.length+' 条）</h4>';
+    relOps.slice(0,10).forEach(o=>{
+      h+=`<div class="ind"><div class="nm">${esc(o.main)} / ${esc(o.task||'')}</div>
+        <div class="goal">2026底：${esc((o.a||'–').slice(0,70))}</div>
+        <div class="goal">初验：${esc((o.b||'–').slice(0,70))}</div>
+        <div class="goal">终验：${esc((o.c||'–').slice(0,70))}</div>
+        <div style="margin-top:4px">当前：<b>${esc(o.cur||'未填报')}</b></div></div>`;
+    });
+    if(relOps.length>10)h+=`<div class="muted">另有 ${relOps.length-10} 条…</div>`;
+    h+='</div>';
+  }else{
+    h+='<div class="sec"><h4>关联运营成效指标</h4><div class="muted">该任务没有挂运营指标主线</div></div>';
+  }
+  if(relPf.length){
+    h+='<div class="sec"><h4>关联平台建设项（'+relPf.length+' 项）</h4>';
+    relPf.slice(0,8).forEach(x=>{
+      h+=`<div class="ind"><div class="nm">#${x.no} ${esc(x.sys)}${x.sub&&x.sub!=='/'?' / '+esc(x.sub):''}</div>
+        <div class="goal">${esc((x.ctn||'').slice(0,80))}</div>
+        <div class="goal" style="margin-top:3px">验收：${esc((x.ev||'').replace(/\n/g,'；').slice(-90))}</div></div>`;
+    });
+    h+='</div>';
+  }
+  document.getElementById('dBody').innerHTML=h;
+  document.getElementById('drawer').classList.add('open');
+  document.getElementById('ov').classList.add('open');
+}
+function closeDrawer(){document.getElementById('drawer').classList.remove('open');document.getElementById('ov').classList.remove('open');}
+document.getElementById('dClose').onclick=closeDrawer;
+document.getElementById('ov').onclick=closeDrawer;
+document.getElementById('bLoad').onclick=()=>document.getElementById('file').click();
+document.getElementById('file').onchange=e=>{const f=e.target.files[0];if(!f)return;
+  const rd=new FileReader();rd.onload=ev=>loadWB(XLSX.read(new Uint8Array(ev.target.result),{type:'array'}),f.name);rd.readAsArrayBuffer(f);};
+document.getElementById('bReload').onclick=()=>{if(S.loaded){if(S.sim)simulate();else render();}else autoLoad();};
+document.getElementById('bSim').onclick=()=>{if(!S.loaded)return;simulate();};
+window.addEventListener('dragover',e=>{e.preventDefault();document.getElementById('drop').style.display='flex';});
+window.addEventListener('dragleave',e=>{if(e.clientX<=0||e.clientY<=0)document.getElementById('drop').style.display='none';});
+window.addEventListener('drop',e=>{e.preventDefault();document.getElementById('drop').style.display='none';
+  const f=e.dataTransfer.files[0];if(f)loadFileObj(f);});
+function loadFileObj(f){const rd=new FileReader();rd.onload=ev=>loadWB(XLSX.read(new Uint8Array(ev.target.result),{type:'array'}),f.name);rd.readAsArrayBuffer(f);}
+const asofEl=document.getElementById('asof');
+asofEl.value=fd(TODAY);
+asofEl.onchange=()=>{ setAsOf(asofEl.value); if(S.sim){S.sim=false;} render(); };
+document.getElementById('clock').addEventListener('dblclick',()=>{ setAsOf(''); asofEl.value=fd(TODAY); if(S.sim)S.sim=false; render(); });
+autoLoad();
+</script>
+</body>
+</html>

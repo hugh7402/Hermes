@@ -109,6 +109,43 @@ WeasyPrint 静态出图的坑）看 `ui-prototype` 与 `china-gov-ui-standards`�
 排查顺序：包内 `index.html` MD5 → 交付目录 HTML MD5 → 两者是否相等 → 再比字节数。
 **同一构建的多份副本字节数应当一致；不一致才是真打错包，一致就是缓存。**
 
+### 🚨 对外服务的文件名一律用 ASCII（中文名会 404，而且报错长得像启动失败）
+
+症状：`启动.command` 跑了、浏览器开了，页面显示 Python 自带的
+`Error code: 404 / Message: File not found / HTTPStatus.NOT_FOUND – Nothing matches the given URI`。
+用户会把它当成「启动脚本报错」，实际**服务已经起来了**——这是 Python 静态服务的 404 页。
+
+根因：macOS 解压时把中文文件名的 Unicode 规范化成 **NFD（分解式）**存盘，
+而浏览器/`webbrowser.open()` 请求的是 **NFC（合成式）**；`SimpleHTTPRequestHandler` 按字节比对路径，
+两者字节不同 → 文件明明在那儿也 404。同一份包在 Linux 上完全正常，只在 Mac 上炸。
+
+**解法：凡是浏览器要按 URL 取的文件，文件名只用 ASCII。**
+
+```
+index.html            页面（不要叫 驾驶舱.html / 作战图.html）
+data.xlsx             数据（不要叫 作战图数据底盘.xlsx）
+xlsx.full.min.js      依赖库
+```
+
+连带三件事：
+
+1. `serve.py` 打开的是**根路径** `http://localhost:{port}/`（`index.html` 自动命中），URL 里一个非 ASCII 字符都没有。
+2. 页面里 `fetch('data.xlsx')` 同样用 ASCII；HTML 里的提示文案、说明文档同步改成新文件名。
+3. 使用说明加一条：「文件名不要改成中文，改了页面就找不到数据」。
+
+用户自己编辑的那份 Excel 中文名很好，但他改的必须就是被 `fetch` 的那份——**别为了好看留两份副本**
+（一份中文名给编辑、一份 ASCII 给服务），两份会不同步，用户改了没生效比 404 更难查。
+
+**先起服务再开浏览器**，别 `webbrowser.open()` 之后再进 `serve_forever()`——开机瞬间点开有抢跑风险：
+
+```python
+with socketserver.TCPServer(('127.0.0.1', port), Handler) as httpd:
+    try: webbrowser.open(url)
+    except Exception: pass
+    try: httpd.serve_forever()
+    except KeyboardInterrupt: print('\n已停止。')
+```
+
 ## 三、启动脚本与编码（不处理就是一堆乱码）
 
 | 文件 | 编码 | 原因 |
@@ -121,6 +158,15 @@ WeasyPrint 静态出图的坑）看 `ui-prototype` 与 `china-gov-ui-standards`�
 - mac：`templates/launch-mac.command`——找空端口（`lsof -nP -iTCP:$PORT -sTCP:LISTEN` 循环 +1）
   → `python3 serve.py $PORT &` + `trap 'kill $SRV' EXIT INT TERM` → `sleep 1` → Chrome 开窗 → `wait`。
   无 python3 回落 `file://`，无 Chrome 回落 `open`。
+- 🚨 **`启动.command` 必须带兜底链且出错不闪退**——用户报「双击报错」时，若窗口一闪就没，等于零信息：
+  1) 按 `/opt/homebrew/bin/python3` → `/usr/local/bin/python3` → `/usr/bin/python3` → `python3` 依次找解释器
+  （新 Mac 上只有 `/usr/bin/python3` 这个 stub，直接调 `python3` 可能弹 Xcode 命令行工具安装框或报
+  `xcrun: error: invalid active developer path`）；
+  2) 一个都找不到 → `open index.html` 直接开页面，并提示「点『载入数据』选 Excel，功能一样」；
+  3) `serve.py` 非零退出 → 同样 `open index.html`；
+  4) 每条失败分支末尾都 `read -n 1 -s -r -p "按任意键关闭此窗口..."`，让用户能截图给你。
+  这条「不需要脚本也不需要 python 的零依赖路径」要让用户从一开始就知道：**double-click index.html +
+  点『载入数据』选数据文件**——多一层启动包只是省一步，不是必要条件。
 - Windows：`templates/launch-windows.bat`——校验同目录 `index.html`/`serve.ps1`、`where powershell` 存在，
   再**前台**跑 `powershell -NoProfile -ExecutionPolicy Bypass -File serve.ps1 -Port 8080`（Ctrl+C 即停）。
 - 使用说明必须覆盖：双击被 Gatekeeper / SmartScreen / 「解除锁定」拦住的三种处理，
@@ -162,6 +208,12 @@ WeasyPrint 静态出图的坑）看 `ui-prototype` 与 `china-gov-ui-standards`�
    断言两者都带 `Cache-Control: no-store`。**`--noproxy '*'` 必加**——本机代理会把回环请求也拦走、白得一个 000。
 6. 交付说明里写**「老实话」**：本机无法真跑的部分（Windows 的 Chrome 路径探测、`.bat` 控制台、
    SmartScreen 提示、真 macOS 的 Gatekeeper）要讲明，并请用户首次报错时回传窗口文字。
+7. **用户只发一张报错截图、没说原文时，两件事同时做**：一边请他回传屏幕上那行原文（不要只问不改），
+   一边把最可能的几种原因一次性全修好再重新交付（权限/Gatekeeper、缺 python3、`xcrun` 命令行工具、
+   端口占用、中文文件名）。报错图能提供的最关键信息是**它属于哪一层**：
+   浏览器/静态服务自带的错误页 = 服务已起、问题在路径或资源；终端窗口里的 traceback = 服务没起；
+   `xcrun: error` = python3 是 stub。分清这三类再去查，不要拿「启动脚本报错」一句话就重写脚本。
+   同时把**零依赖路径**（双击 `index.html` → 点按钮选数据文件）直接告诉用户，他能当场自救。
 
 ## 六、可选增强（写进说明，不默认做）
 

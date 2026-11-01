@@ -238,6 +238,39 @@ daemon 空闲超时（300s）正常退出后，**如果连得上的 supervisor�
 ⚠️ **若某个会话是在 daemon 宕机期间开始的，该会话不会挂上 hindsight 工具**，事后拉起 daemon 也补不上——
 需要重启 gateway / 开新会话才重新注册；汇报时要主动说明这一点，别让用户以为已经复原。
 
+**想让 daemon「空闲退出后自动补起」（用户提“每次对话后启动 Hindsight”这类要求时）——用 gateway hook，别用 cron**：
+
+1. 目录是 `get_hermes_home()/hooks/<name>/`（本机 = **`/opt/data/hooks/`**，不是 `~/.hermes/hooks`），两个文件：
+   ```yaml
+   # HOOK.yaml
+   name: hindsight-keepalive
+   events:
+     - agent:end          # 每轮对话处理完就触发（发射点 gateway/run_turn_persistence.py）
+   ```
+2. `handler.py` 必须定义 `handle(event_type, context)`，且**首行起后台线程就立刻返回**（实测 0.001s）。
+   健康检查带 2s 超时、拉起走 `hindsight_start.sh`，都放进线程里——直接同步做会把每轮对话的收尾拖慢 1–2 秒。
+   再加个冷却（如 180s）防连续对话时堆出多个启动进程。已 healthy 就直接 return。
+3. **校验 HOOK.yaml 格式只用 Hermes 自己的加载器**（`/opt/data/.venv` 缺 ruamel，import gateway 会直接 ModuleNotFoundError）：
+   ```bash
+   /opt/hermes/.venv/bin/python3 -c "\
+   import sys; sys.path.insert(0,'/opt/hermes') \
+   ;from gateway.hooks import _load_hook_dir; from pathlib import Path \
+   ;print(_load_hook_dir(Path('/opt/data/hooks/hindsight-keepalive')))"
+   ```
+   返回 `(name, events, handle_fn, description)` 才算格式对。
+4. ⚠️ **gateway hooks 只在 gateway 启动时加载**（`gateway/run_startup.py` 的 `discover_and_load`），装完不重启 = 不生效。
+   重启会中断当前会话（历史在库里不丢），所以在回复里说清「已装好、需重启才触发」并让用户点头，别默认替人重启。
+5. ⚠️ `hindsight_start.sh` 里的 `pgrep -f "hindsight_api.main --idle-timeout"` 守卫**匹配不到真实进程**
+   （真实 argv 是 `.../bin/hindsight-api --idle-timeout 300`），等于守卫失效 —— 重复调用会重复拉起，冷却只能由调用方兜。
+6. 端到端验证（别只验格式就宣布完成）：`kill <daemon_pid>` → `/health` 变 `000` → 触发一次 `handle('agent:end', {})`
+   → 40–90s 内 `/health` 应回到 200，日志写一行到 `/opt/data/.hindsight/keepalive.log`。
+   ⚠️ 用一次性脚本测时，`threading.Thread(daemon=True)` 会随进程退出被掐掉，**测拉起逻辑要同步调用内部函数**，
+   否则会误判成「hook 没起作用」。
+
+**判断 daemon 上次什么时候活着**：看 `/opt/data/.hindsight/daemon.log` 尾部时间戳（本机曾出现“上次运行停在两个月前”），
+比问“现在在跑吗”更有信息量：不在跑 + 数据目录（`.pg0` / `instances/hindsight-embed-hermes`）完好 = 只是没人拉起，
+不需要修数据。
+
 **daemon 报 `Failed to start embedded PostgreSQL` / PG 起不来**：两个根因，先查再修，**切勿删实例目录重建（会丢全部记忆数据）**。① **缺 `libicuuc.so.70`**（Debian 13 只有 ICU 76，pg0 的 postgres 18.1 二进制加载失败；症状是 daemon 卡在 `Starting embedded PostgreSQL` 无后续、70% CPU、postgres 子进程数为 0）——从 Ubuntu archive 解包 libicu70 到 `/opt/data/.pg0/icu70/`，再用 wrapper 注入 `LD_LIBRARY_PATH`。② **缺 PG 标准目录**（`pg_notify`/`pg_logical/snapshots`/`pg_logical/mappings`/`pg_commit_ts`/`pg_dynshmem`/`pg_replslot`/`pg_serial`/`pg_snapshots`/`pg_stat_tmp`/`pg_tblspc`/`pg_twophase`）——直接 `mkdir -p` 补齐即可，WAL 恢复自动完成、数据无损。孤儿 postgres 进程（带错 HOME 拉起的测试残留）仍须先杀。
 
 > 🚨 **2026-10-10 找到「补了又丢、反复发作」的病根：`disk-cleanup` 插件把 PG 的空目录当垃圾删了。**
