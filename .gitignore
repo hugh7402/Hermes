@@ -189,3 +189,6 @@ chrome/
 installs/
 tools/
 *.part
+
+# 知识库改动前的自动备份目录（116MB，属临时回退用，不进 git）
+.kb_backup/
