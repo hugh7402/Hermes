@@ -20,8 +20,10 @@ if [ ! -x "$BIN" ]; then
   [ -n "$BIN" ] || { echo "hindsight-api binary not found"; exit 1; }
 fi
 
-# 已运行则跳过
-if pgrep -f "hindsight_api.main --idle-timeout" >/dev/null 2>&1; then
+# 已运行则跳过（原来用 pgrep -f "hindsight_api.main --idle-timeout"，
+# 但真实 argv 是 .../bin/hindsight-api --idle-timeout 300，永远匹配不上，
+# 会导致重复拉起。改为直接探测端口。）
+if curl -s -m 3 --noproxy '*' http://127.0.0.1:9177/health 2>/dev/null | grep -q '"status":"healthy"'; then
   echo "hindsight daemon already running"
   exit 0
 fi

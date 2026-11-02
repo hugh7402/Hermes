@@ -471,11 +471,50 @@ vs md 名 `19.《数据安全技术-数据安全风险评估方法》`。
 症状：stdout 看着完全正常，但 `json.dump` 没执行。
 **一律 `python3 x.py > /tmp/x.log 2>&1; echo exit=$?; tail -40 /tmp/x.log`**。
 
+### 孤立页面与链接网络修复（`scripts/kb_relink.py`）
+
+巡检报的「孤立页面」里，只有两类值得动：**完全孤立**（既无入链也无出链）与**单向链接**（有出链、没人链回）。
+资料库型 vault 里批量入库的报告/政策文件本来就不该互相链接，孤立占比 40–50% 是结构性的，
+**不要为了把数字做小而硬连**。判断先看历史趋势（历次巡检的孤立数序列），在好转就不要大动。
+
+```bash
+cd /opt/data && /opt/data/.venv/bin/python3 \
+  skills/productivity/knowledge-base-maintenance/scripts/kb_relink.py --dry    # 先看影响面
+# 再加 --apply 写入（脚本先整目录备份到 /opt/data/.kb_backup/）
+```
+
+两个动作：
+
+1. **反向补链**：扫出所有 A→B 的单向对，给 B 的 `related:` 追加 `[[A]]`。
+2. **主题索引页**：把完全孤立的笔记按标签聚成 `索引-<标签>.md`，每篇得到唯一条入链；
+   再建 `00-知识库主题索引` 汇总，并让各索引页回链到它（否则总索引自己就是孤立页）。
+
+四条参数决定这一步是「见效」还是「制造垃圾」：
+
+- **分组用「能命中的最大标签组」，不是第一个标签**。按首标签分组只覆盖 283 篇里的 77 篇；
+  改成归入其标签中孤立篇数最多的那一组，覆盖到 207。
+- **每组 ≥5 篇才建索引页**，长尾单篇不建——一个索引页只收一篇，等于又造一堆空页。
+  剩下的长尾靠标签与全文搜索能找到，不需要链接。
+- **反向补链每篇上限 ≤12 条**，超了就跳过（枢纽页）。往枢纽页塞几十条反向链接只会变噪音，
+  真正相关的反而看不见。
+- **索引页自己要有 ≥8 个标签**，否则下一次巡检把它判成「标签不足」，自己造问题。
+
+安全边界（这类脚本一次改上百个文件，没有 git 兜底）：
+
+- 改前整目录备份，**写进脚本里**，不要靠人记得（vault 不在 .gitignore 之外，没有版本可回滚）。
+- 链接一律写进 frontmatter 的 `related:`，**不动正文**（正文是 OCR 产物，改它风险高）。
+- 每篇写完立即 `yaml.safe_load` 回验；一篇坏 YAML 会让整篇笔记从 Obsidian 里消失。
+- 给「无 frontmatter」的 RSS 新笔记补 fm 时：标题取正文首个 `# `，摘要取首个非标题非空行截 40 字，
+  标签给通用值（如 `政策动态` / `技术`）——这些笔记是自动入库的，没有人给它写过元数据。
+
+实测（952 篇的 vault）：孤立 476→133、总问题 488→145；反向补 891 条、索引页 13 个。
+
 ## 常见陷阱
 
-- **🚨 cron 脚本不能用 `uv`（2026-11-01 月度巡检 exit 127）**：`lint_vault.sh` 原来写 `uv run --with pyyaml ...`，但 `uv` 装在 `/opt/hermes/tools/uv-0.13.5-linux-x64/uv`，不在 cron 的最小 PATH 里。一律改 `/opt/data/.venv/bin/python3`（已带 pyyaml / feedparser / requests）。验证：`env -i PATH=/usr/bin:/bin HOME=/opt/data bash <script>` 必须返回 0。
-- **孤立页面的正常范围**：资料库型 vault（大量批量入库报告/政策）孤立占比 40–50% 属结构性现象，不必强修。真正该修的是「完全孤立（无入链无出链）」和「单向链接」。用 `scripts/kb_relink.py --dry` 看影响面，`--apply` 执行（自动备份到 `/opt/data/.kb_backup/`）。
-- **链接写在 frontmatter 的 `related:` 里，不是正文**：格式 `related:\n  - "[[笔记名]]"`。改完必须 yaml.safe_load 回验，坏 YAML 会让整篇笔记从 Obsidian 消失。
+- **🚨 cron 脚本不能用 `uv`**（cron 的最小 PATH 里没有它，venv 里已有 pyyaml/feedparser/requests）：
+  包装脚本一律 `exec /opt/data/.venv/bin/python3 /opt/data/<script>.py`。
+  这类「手敲能跑、cron 里 127」的坑的系统排法见 `cron-job-reliability` skill。
+- **链接写在 frontmatter 的 `related:` 里，不是正文**：格式 `related:\n  - "[[笔记名]]"`（库里已有 450+ 篇都是这个格式，别另创一个小节）。改完必须 yaml.safe_load 回验。
 
 - **🚨 文档读取硬规则（2026-08-09 用户拍板）**：任何 skill 读取 office 文件（Word/Excel/PPT）和 PDF **一律用 markitdown**（`.venv` 已装 markitdown 0.1.6 + pdfminer.six + pymupdf，PDF 转换实测 OK）。例外：xlsx 带损坏样式时 openpyxl 报 `TypeError: Fill`，改用 read_file 提取。不要用 fitz/python-docx/openpyxl 等替代方案做常规文档读取。
 - **🚨 yaml.safe_load + yaml.dump 破坏 wikilink 格式**：不要用 `yaml.safe_load` 解析含 `[[wikilink]]` 的 frontmatter。YAML 将 `[[标题]]` 视为嵌套列表 `[['标题']]`，dump 后变成 `- ['标题']`。修复 v2（scripts/fix_links_v2.py）用纯文本 regex 替换避免此问题。
