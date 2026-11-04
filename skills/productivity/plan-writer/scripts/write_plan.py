@@ -169,11 +169,15 @@ _HUMANIZE_PROMPT = """下面是一份政务方案的正文。请做「去AI味�
 5. **字数不得低于原文的 90%**，不得缩写概括。
 
 要改的是这些句式毛病：
-- 空心状语开头：「在……背景下，」「随着……的深入，」「当前，」——不是简单删掉，而是把状语信息并入主句或后置
+- 空心状语开头：「在……背景下，」「随着……的深入，」——**必须把状语信息并入主句或后置成完整分句，绝不能拆成一个孤立短句**。
+  反例（严禁）：「在数字政府建设不断深入的背景下，X是Y。」→「数字政府建设不断深入。X是Y。」← 两句断开、逻辑关系丢失、读起来磕巴
+  正例（照这个来）：「在数字政府建设不断深入的背景下，X是Y。」→「X是Y，这项工作在数字政府建设持续深化的进程中推进。」
 - 无主语的拔高收尾：「展望未来，必将……」「前景广阔」——补上明确主语，或换成事实性表述
 - 机械排比：连续三个以上同构短句，打散节奏
 - 段落一律用「首先/其次/最后」「一方面/另一方面」硬套结构
 - 空转同义反复：把一句话拆成两句说的
+
+**句读要求**：不要制造大量以句号结尾的超短句（少于 12 字）。原文是长句就保持长句，只调整内部结构，不要靠断句来"显得简洁"。
 
 只输出改写后的正文，不要任何解释、标题、前言、后记。"""
 
@@ -208,9 +212,26 @@ def _humanize_guard(original, rewritten):
     lost_terms = [t for t in _GOV_TERMS if t in original and t not in rewritten]
     if lost_terms:
         return False, f"丢失政务术语 {lost_terms}"
-    # 病句粗检：段落开头直接是「必将/将为/必须/应当/需要」而无主语的残句
+    # 病句粗检：段落开头直接是「必将/将为/必须/应当」而无主语的残句
     if re.search(r'(?m)^(必将|将为|将会|必须|应当|需要进一步)', rewritten):
         return False, "改写后出现无主语残句"
+    # 断句过度：把状语拆成孤立短句（「数字政府建设不断深入。X是Y」这种），句读会变碎
+    def _short_ratio(t):
+        sents = [s for s in re.split(r'[。！？；]', t) if len(s.strip()) > 1]
+        if not sents:
+            return 0.0
+        return sum(1 for s in sents if len(s.strip()) < 12) / len(sents)
+    if _short_ratio(rewritten) > max(0.15, _short_ratio(original) + 0.15):
+        return False, "断句过碎（短句占比明显上升，疑似把状语拆成孤立短句）"
+    # 段落首句过短：中文政务段落极少以 15 字以内的短句起头，
+    # 出现即强烈提示「把状语降格成独立短句」
+    for para in re.split(r'\n{2,}', rewritten):
+        para = para.strip()
+        if not para:
+            continue
+        first = re.split(r'[。！？]', para)[0].strip()
+        if 0 < len(first) < 15 and len(para) > len(first) + 20:
+            return False, f"段落首句过短「{first}」，疑似把状语拆成了孤立短句"
     return True, "ok"
 
 
