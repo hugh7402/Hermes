@@ -11,7 +11,7 @@ When the user asks which model to use for a task (note-taking, coding, summariza
 
 ## Mandatory Usage Rule (2026-07-29)
 
-**When developing or updating any Hermes skill** (via agent-smart-development or otherwise), any decision that involves choosing a model **must** load this skill first and follow its methodology. Do not hardcode model names from memory or preference — run the benchmark methodology here. This rule is enforced by `agent-smart-development` (see its `references/model-selection-rule.md`).
+**When developing or updating any Hermes skill** (via agent-smart-development or otherwise), any decision that involves choosing a model **must** load this skill first and follow its methodology. Do not hardcode model names from memory or preference — run the benchmark methodology here. This rule is enforced by the `agent-smart-development` skill (the file lives in that skill's own `references/`, not in this one).
 
 ## Methodology
 
@@ -40,9 +40,30 @@ For each candidate, measure:
 
 Use the benchmark template in `scripts/benchmark_providers.py`.
 
+**比之前先关思考（`"enable_thinking": false`）。** 现在主流 flash 模型默认带推理，不关就等于在测"谁想得久"，不是测能力：实测同一量政务写作任务，Qwen3.8-Flash 输出 11,383 token 里 11,172 是 reasoning（正文只剩 211，耗时 202 秒），DeepSeek-V4.1-Flash 把 3,000 的 `max_tokens` 全烧在 reasoning 上、**正文为空**。两边关掉思考后变成 4.6s/204 token 和 6.5s/323 token。
+
+`enable_thinking: false` 是**百炼 dashscope**的请求体参数（放在 body 顶层，不是 header）；官方 DeepSeek 不认这个参数，只有 `deepseek-chat` 这个别名等效于关思考。所以「关思考」要按平台选写法，写错平台会报错或静默无效。
+
+**必须按目标任务的真实输出长度测，不能用短任务代替。** 短任务只暴露参数问题，长任务才暴露真实的产能与成本结构：第一轮 A/B 里，Qwen 在 2000 字政务写作任务上输出 11,383 token、其中 **11,172 全是 reasoning**，正文只剩 211、耗时 201.9 秒；DeepSeek 的 3,000 token **全部**是 reasoning、正文为空直接撞上 `max_tokens`。这个失效模式在任何简短问答测试里都看不到。做选型测试时把 `max_tokens` 给到目标规模的 2 倍，否则测出来的是截断而非能力。**但输出字数本身不能当作质量指标——单次样本的字数波动可达 ±20%，必须各跑 3 次取中位数看全距（教训见 `references/qwen-vs-deepseek-flash-ab.md` 的「复核」节）。**
+
+**正文为空不等于模型不行。** 读结果前先看 `usage.completion_tokens_details.reasoning_tokens` 占了多少，占比接近 100% 就是参数问题，不是能力问题。
+
 ### 4. Cost calculation
 Compute real cost: `(input_tokens × input_price + output_tokens × output_price) / 1,000,000`
 Always use per-token pricing, never monthly estimates alone. Some models are verbose (high output tokens) making them 8x more expensive than their per-token price suggests.
+
+**定价不要靠记忆、文档或网页搜索——百炼的模型列表 API 直接回价格、上下文、模态、特性**（同一把 `BAILIAN_API_KEY`）：
+
+```bash
+curl -s --noproxy '*' -H "Authorization: Bearer $BAILIAN_API_KEY" \
+  "https://dashscope.aliyuncs.com/api/v1/models?page_size=200" -o /tmp/models.json
+```
+
+返回里每个模型带 `prices`（按 `time_band` 分 standard/peak/offpeak，含输入/输出/缓存命中/batch 价）、`model_info`（context_window / max_output_tokens）、`inference_metadata.request_modality`、`features`（是否支持 batch、prefix-completion、function-calling）。**模型是否存在也用这个接口验，不要靠猜名字。**
+
+**按真实用量校准，不要按单价选。** 先跑 `hermes insights --days 30` 拿用户实际 token 量，再乘单价。实测某用户 30 天只有 ¥1–15/月 的量级——这种规模下模型差价是四舍五入误差，应该完全按效果和场景选。反过来，若单价差 3 倍但月耗 ¥0.9 vs ¥1.2，那就是伪决策点。
+
+**峰谷计价**：同一模型不同时段价可差 2 倍（DeepSeek 系列闲时=峰时一半）。若用户的工作时段正好落在峰时（如政务岗白天 9:00–12:00/14:00–18:00），拿闲时价做对比等于自欺欺人——要么按峰时算，要么只推荐无峰谷价的模型。
 
 ### 5. Configuration guidance
 Once the model is chosen, provide the exact configuration strings:
@@ -51,6 +72,12 @@ API 地址: <endpoint URL>
 API Key:  <key name from .env>
 模型 ID:  <model ID string>
 ```
+
+When the choice has to survive a vendor outage, wire it as a provider chain rather than a
+single model id: ordered list of `{url, model, key_env}`, per-provider retry budget, switch
+logged to stderr, `enable_thinking` gated by host. Full recipe plus the verification that
+actually proves the fallback works (break the primary on purpose — the happy path never
+touches that branch): `references/multi-provider-fallback.md`.
 
 ## Model Selection Principles (User 2026-06-18)
 
@@ -65,12 +92,14 @@ Full benchmark data: `references/cross-platform-benchmark-20260618.md`, `referen
 
 ### Current Production Matrix
 
+逐条比性能/价格前先读 `references/qwen-vs-deepseek-flash-ab.md`（同一 user 场景下 Qwen3.8-Flash 与 DeepSeek-V4.1-Flash-1017 的完整 A/B，含定价表、峰谷时段、关思考前后的实测差异、可复用的请求体写法）。
+
 | Task | Platform | Model | Rationale |
 |------|------|------|------|
 | Hermes Agent main model | DeepSeek official | `deepseek-v4-flash` | **2.0s/tool-call, ¥0.0019/4calls, zero reasoning waste — 13× faster than reasoning models, top-ranked in both 2026-06-19 & 2026-06-27 benchmarks**. Full data: `references/agent-development-benchmark-20260627.md` |
-| Agent fallback | 百炼 (DashScope) | `qwen-plus` | 2026-06-27: **8.8/10, 4.4s, ¥0.0024** — 2nd place, best runner-up for agent tasks |
+| Agent fallback | 百炼 (DashScope) | `qwen3.8-flash` | 2026-11-04 起的实际配置（`fallback_providers`）。¥0.8/¥2.7 无峰谷价、支持视频输入、batch 半价。⚠️ **复杂嵌套指令会误读结构**（把三阶段×每段三段的嵌套当成三个维度），只作兜底不作主力。选跨厂商备用而非同系：同一家全线故障时同系备用会一起倒。完整对比：`references/qwen-vs-deepseek-flash-ab.md` |
 | Hermes daily chat | 智谱官方 | `glm-5.2` | Current (user preference). ⚠️ 2026-06-19 benchmark shows deepseek-chat 5× faster (4.5s vs 24.5s) at same cost — pending user decision. Full data: `references/daily-chat-benchmark-20260619.md` |
-| Proposal writing | **DeepSeek 官方** | `deepseek-chat`（主）/ `deepseek-v4-pro`（需要强推理时，环境变量 `PLAN_MODEL` 切换） | 2026-10-10：硅基流动 **HTTP 402 账户欠费**，`deepseek-ai/DeepSeek-V4-Pro` 这条通道作废。方案撰写 benchmark 里 `deepseek-chat` 76 分 🥇、`deepseek-v4-pro` 56 分；且 `deepseek-chat` 是非推理、content 不会静默为空 —— **长文生成默认 `deepseek-chat`，max_tokens ≥16000** |
+| Proposal writing | **DeepSeek 官方（主）+ 百炼（备）** | `deepseek-flash`（主）→ `deepseek-v4.1-flash-1017`（自动切换） | 用户 2026-11-04 定：主用官方 DeepSeek-V4.1-Flash，备用百炼同代，脚本内已实现「主通道 3 次失败自动切备用」（实测打日志并接住）。质量维度四家平手（均未编造数字、无套话、均含分阶段收口）；差异只在耗时与输出 token 效率——`qwen3.8-max` 贵 13.5 倍、慢 10 倍却无质量优势。**字数差异不可靠（单次采样噪声），详见 `references/qwen-vs-deepseek-flash-ab.md`** |
 | Note enhancement | DeepSeek official | `deepseek-chat` | 98.7pts, 0.43s, ¥0.005/note — 20× faster & 25× cheaper than qwen-max (2026-06-19 benchmark + switched) |
 | OCR (standard) | **百炼 (DashScope)** | `qwen-vl-ocr-latest` | ⚠️ **2026-10-01 修正：主引擎已改为百炼**。硅基流动 PaddleOCR-VL-1.5 会吐 `<|LOC_n|>` 布局 token，曾污染 102 篇笔记 |
 | OCR (photo fallback) | 硅基流动 | `Qwen/Qwen3-VL-8B-Instruct` | 8s/page, ¥0.002/page, high Chinese quality |
@@ -244,10 +273,11 @@ Most tools supporting OpenAI-compatible API can use any of the above endpoints.
 - deepseek-v4-pro on Bailian returns empty: Confirmed twice (9.7s, 11.6s latency, zero output). Avoid entirely.
 - Model suffix lies: v4-flash (3-5s) is slower than v3-chat (1.6s) for simple tasks. Benchmark, don't infer from names.
 - Newer is not better: qwen-max (older gen) beats qwen3.7-max (newer gen) by 9x on latency with better output.
-- **Cross-platform same-model differs**: deepseek-chat on official API (1.6s) vs SiliconFlow proxy (4.4s).
+- **Cross-platform same-model differs**: deepseek-chat on official API (1.6s) vs SiliconFlow proxy (4.4s). 同名同代模型换个平台，**延迟与 token 效率都会变**：写出同样约 380 汉字正文，百炼 `deepseek-v4.1-flash` 用 1849 输出 token、`-1017` 快照用 2517、官方 `deepseek-flash` 用 3081——**官方要多烧 67% 的思考 token**。这是平台 serving 差异，不是模型能力差异；**质量维度测不出区别**（各 3 次、字数全距重叠、思考占比都在 79~91%）。换平台必须重测成本，但别把单次的字数差当能力差。
 - **百炼模型名不一致** ⚠️: 百炼的 DashScope 兼容模式使用**去横线**的模型名。实测：`qwen3.7-max`（✅ 正常），`qwen-3.7-max`（❌ 404）。如果模型名带横线报 404，先去掉横线试试（如 `qwen3.7-max`、`qwen3.7-plus`、`ds-v4-pro` → 去横线适配）。
 - **Reasoning models fail format tasks**: deepseek-v4-pro/flash scored 65.3 on note enhancement (vs 98.7 for non-reasoning deepseek-chat) because thinking tokens consume the output budget and the model reasons about what to produce instead of just producing it in the required format. For any task with strict output format (YAML, JSON, template-filling), use non-reasoning models.
-- **Two-round validation**: When benchmarking models, always validate top candidates on a second sample to confirm rankings aren't sample-specific. First-round outliers (good or bad) may not generalize.
+- **Sampling discipline — one run is not a result**: benchmark each candidate ≥3 times and compare **medians and full ranges**, not single values. First-round outliers (good or bad) do not generalize, and two runs can still straddle opposite extremes. **If the ranges overlap, the difference is noise — do not write it into the skill as a finding.** Real case: one-shot long-form runs showed a 27% output-length gap between two deployments of the same model generation; three runs each gave ranges 367–411 vs 368–383, i.e. total overlap, and the only stable difference was output-token efficiency (1849 / 2517 / 3081 tokens to produce the same ~380 characters). Report speed and cost differences as findings; report single-sample length differences as noise.
+- **Correcting a benchmark claim means correcting every copy of it**: a wrong figure propagates fast — by the time it is caught it may already sit in the SKILL.md selection matrix, a `references/` table, and a script's comment block, across two or more skills. Grep the skills tree for the **literal number** (not the topic) and fix every hit; otherwise the library contradicts itself depending on which file a future session opens. Scope that grep to `*/SKILL.md` and `*/references/*.md` — a bare content grep over the whole skills directory also walks vendored minified assets (bundled `babel.min.js`, inline SVG path data) and dumps megabytes of noise into context for nothing.
 - **urllib timing bug** ⚠️: `urlopen()` returns when HTTP **headers** arrive, but `resp.read()` blocks until the full **body** is transferred. Always measure latency AFTER `resp.read()`, not between `urlopen()` and `read()`. Initial daily-chat benchmark showed 0.1s for DeepSeek when actual latency was 3-4s — a 30× measurement error that completely invalidated rankings. Correct pattern:
   ```python
   t0 = time.time()
@@ -258,7 +288,6 @@ Most tools supporting OpenAI-compatible API can use any of the above endpoints.
 - **max_tokens too small for reasoning models** ⚠️: When max_tokens < 2048, reasoning models (glm-5.2, v4-pro) consume ALL tokens on internal reasoning and return **EMPTY content**. First daily-chat benchmark with max_tokens=300-800 showed glm-5.2 producing 0-character responses across all 5 scenarios. Always use max_tokens ≥ 2048 for reasoning models, or better yet, don't use them for tasks where latency matters.
 - **Reasoning models are bad for ALL real-time tasks, not just format tasks**: Previously documented that thinking models fail format-compliance (note enhancement). 2026-06-19 daily-chat benchmark extends this: reasoning models are equally bad for casual conversation. They burn 500-800 tokens "thinking" about a simple greeting (18-37s latency). The rule: **non-reasoning models (deepseek-chat) for anything interactive; reasoning models only for async deep analysis.**
 - **Reasoning models multiply latency in Agent tool-call loops** ⚠️: In Hermes Agent, a single task may trigger 5+ model calls (tool selection → execution → interpretation → next action). Reasoning models "think" before EACH call: 5×glm-5.2(9.5s)=47.5s vs 5×ds-chat(1.1s)=5.5s. The user perceives this as the agent being "slow" or "hung". **Never use reasoning models as the Agent main model.** Use deepseek-v4-flash (non-reasoning, 2.0s/call, ¥0.0019/4calls). Route deep-analysis tasks to reasoning models via skills or auxiliary slots instead.
-- **Bailian model name hyphen gotcha** ⚠️: Alibaba DashScope API uses different model name formats depending on the model. `qwen-3.7-max` (with hyphen) → **HTTP 404**. `qwen3.7-max` (without hyphen) → ✅ **Works**. Always verify the exact model ID string before benchmarking. The same applies: `qwen-max` (works), `qwen-plus` (works), `qwen3.7-max` (no hyphen), but `qwen-3.7-max` fails.
 - **Function-calling test methodology**: When evaluating models for Agent use, test with OpenAI-style `tools` parameter (not just text prompts). Measure: (1) tool selection accuracy (correct function chosen?), (2) argument correctness (right params extracted?), (3) per-call latency (not just first-token), (4) reasoning token waste. Simple tool calls ("搜索X") are easy for all models; contextual judgment ("新建笔记" → should call create_note, not search) separates good from great. See `references/agent-function-calling-benchmark-20260619.md` for the test script pattern.
 - **`deepseek-chat` 别名仍然可用，而且它是「关推理」的那一个（2026-10-01 实测定案，覆盖早前"已于 2026-07-24 弃用"的说法）** 🔴
   官方 docs 曾预告 2026-07-24 删掉 `deepseek-chat`/`deepseek-reasoner` 别名；**实际至 2026-10-01 仍可用**，
