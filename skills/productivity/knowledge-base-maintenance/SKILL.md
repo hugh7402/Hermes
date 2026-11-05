@@ -511,6 +511,9 @@ cd /opt/data && /opt/data/.venv/bin/python3 \
 
 ## 常见陷阱
 
+- **落盘目录按来源分（2026-11-03 用户拍板）**：微信直接发的附件（`/opt/data/cache/documents/native-inputs/`）→ `01-WeiXin/`；WebChat 备份文档（`/opt/data/WebChat BackUp/文档/`）→ `concepts/`。`ingest_docs.py` 已按 `WECHAT_DIR` / `WECHAT_VAULT` 路由，`save_note(fname, text, dest_dir)` 带目标目录，`note_enhance.py` 必须 `cwd=dest`。
+- **入库生成的 `title` 不可信**：docx 转 md 抓的是正文第一个标题，同一套文档的多个分册会全变成同一个 title（如都成「项目背景」）。入库后应用文件名批量校正 `title:`。
+
 - **🚨 cron 脚本不能用 `uv`**（cron 的最小 PATH 里没有它，venv 里已有 pyyaml/feedparser/requests）：
   包装脚本一律 `exec /opt/data/.venv/bin/python3 /opt/data/<script>.py`。
   这类「手敲能跑、cron 里 127」的坑的系统排法见 `cron-job-reliability` skill。

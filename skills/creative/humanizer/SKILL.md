@@ -51,6 +51,27 @@ When given text to humanize:
 6. **Do a final anti-AI pass.** Ask yourself: "What makes the below so obviously AI generated?" Answer briefly with any remaining tells, then revise one more time.
 
 
+## Two ways this goes wrong
+
+**Deleting words instead of rewriting sentences.** The patterns above are sentence diseases, not vocabulary diseases. Cutting a lead-in clause or a modifier in place leaves a subjectless fragment or a stilted stub. "展望未来，必将为X提供支撑" cut to "必将为X提供支撑" has no subject left at all; "有效提升A" cut to "提升A" reads stiffer than what you started with. Every fix restructures the sentence: fold the clause's information into the main clause, supply the missing subject, or split the pile-up. If the fix reads worse than the original, you deleted instead of rewriting.
+
+**Stripping the register's own vocabulary.** A word is an AI-ism when it is filler, not when it is the standard term for the field. Chinese government and policy writing uses 赋能, 抓手, 协同, 闭环, 深耕, 彰显, 体现, 标志着 the way engineering writing uses "deploy" or "rollback"; removing them makes the text read like an outsider wrote it, which is a worse tell than the AI flavor you removed. Before cutting a flagged word, ask whether the intended reader would use it themselves. The same caution applies to ordinary written adverbs such as 有效, 深入, 切实, and to English "significantly" or "substantially" when a number backs them up. Keep the register; remove only the emptiness.
+
+**When you humanize programmatically** — a regex pass, or a model rewrite step in a pipeline — gate the output against the original before accepting it:
+
+- Numbers, years, percentages, and standard numbers (for example `DB51/T 2441-2018`) all still present
+- Domain terminology still present
+- Length at least ~90% of the original; a large drop means information was summarized away
+- No sentence beginning with a bare predicate (必将, 将为, 必须, 应当, or an English fragment like "Will provide support for..."), which signals a lost subject
+- No over-chopping: the share of very short sentences (under ~12 characters) must not climb noticeably, and no paragraph may open with a stub of under ~15 characters. A lead-in folded away by *splitting it into its own short sentence* (「在数字政府建设不断深入的背景下，X 是 Y」 rewritten as 「数字政府建设不断深入。X 是 Y。」) passes every check above — length holds, facts hold, terms hold — yet reads choppy and severs the logical link. Government and policy paragraphs almost never open on a short sentence, so a short paragraph-opener is a strong tell of a demoted adverbial
+
+If any check fails, keep the original. A piece with some AI flavor beats a piece with a broken sentence or a missing fact. Splitting the work into two layers works well: a zero-risk structural pass that only removes self-contained lead-ins and surplus blank lines, then a model rewrite pass that restructures sentences, with the checks above deciding per chunk whether the rewrite is accepted.
+
+**Solve rewrite latency with concurrency, not by degrading the model.** Chunk the text on paragraph boundaries (roughly 2500 characters per chunk), run several chunks in parallel, and gate each chunk independently so one rejected chunk falls back to its original while the rest land. Turning the model's thinking off to speed a rewrite pass costs quality in a way that is easy to miss: it drops register vocabulary and skips restructuring the adverbial altogether, so the checks reject it and the work is wasted. A serial rewrite of a long document is slow because of the per-chunk latency, and parallelism fixes exactly that.
+
+**These 34 patterns are English-centric.** For Chinese prose the equivalents are the空心状语开头 (在……背景下 / 随着……的深入), the 空洞引导句 (值得注意的是 / 需要指出的是), the 拔高收尾 (展望未来 / 综上所述 / 前景广阔), and mechanical 首先/其次/最后 parallelism applied to every section. Match on the pattern, not on the literal English word list.
+
+
 ## Voice Calibration (optional)
 
 If the user provides a writing sample (their own previous writing), analyze it before rewriting:

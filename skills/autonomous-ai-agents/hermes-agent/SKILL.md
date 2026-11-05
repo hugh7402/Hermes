@@ -836,6 +836,23 @@ and logs — avoids shell-escaping backslashes in bash.
 3. Load explicitly: `/skill name` or `hermes -s name`
 
 ### Gateway issues
+
+**A restart looks like it failed but actually worked (or vice versa).** In the Docker image Hermes runs under s6. The process you find with `ps -ef | grep main-wrapper` (a low PID, days of uptime) is the s6 *container init* — it never restarts by design. The real gateway worker is a child of `s6-supervise gateway-default` and is what `hermes gateway status` prints. Judge a restart by that worker PID / start time, never by the init PID, or you'll report a successful restart as a failure.
+
+**Restarting from inside a Hermes session is blocked by design** (SIGTERM would kill the restarting command mid-flight). Run it from an external shell. In the s6 image the binary is at `/command/s6-svc`, NOT on `$PATH` — a bare `s6-svc` exits 127 and the restart silently does nothing:
+```bash
+/command/s6-svc -r /run/service/gateway-default
+```
+`s6-svc -r` only writes to the s6 control fifo and returns immediately, so the actual restart is performed by s6 (container init) and survives the caller dying.
+
+**Hooks load only at gateway startup** (`gateway/run_startup.py`). A hook directory dropped into `$HERMES_HOME/hooks/` does nothing until the gateway restarts — an un-restarted hook looks installed but is dead, and its log stays empty. Verify rather than assume:
+```bash
+grep -i "\[hooks\] Loaded" $HERMES_HOME/logs/gateways/default/current
+```
+Because agent hooks only fire on agent events, a `no_agent` cron job running a health-check script (empty stdout = silent) is the more reliable keep-alive: it runs on schedule whether or not anyone is chatting. Two traps when verifying: a hook subscribed to `agent:end` writes its log only when a turn *ends*, so an empty log right after a restart proves nothing; and `hermes config set` values only reach the gateway at startup, so validate a config change out-of-band first (`hermes chat -q "..." --model X --provider Y`) instead of spending a restart to discover a typo.
+
+Full recipe — exact guard message, the two-process table, s6 control path, hook-load verification: `references/gateway-restart-verification.md`.
+
 Check logs first:
 ```bash
 grep -i "failed to send\|error" ~/.hermes/logs/gateway.log | tail -20
