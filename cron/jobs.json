@@ -20,15 +20,15 @@
       "schedule_display": "0 8 * * *",
       "repeat": {
         "times": null,
-        "completed": 152
+        "completed": 156
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-16T21:38:59.096552+08:00",
-      "next_run_at": "2026-11-06T08:00:00+08:00",
-      "last_run_at": "2026-11-05T08:05:42.107172+08:00",
+      "next_run_at": "2026-11-10T08:00:00+08:00",
+      "last_run_at": "2026-11-09T08:02:24.685678+08:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -48,13 +48,13 @@
       "fire_claim": null,
       "failure_streak": 0,
       "last_dispatch": {
-        "scheduled_at": "2026-11-05T08:00:00+08:00",
-        "dispatched_at": "2026-11-05T08:00:55.060026+08:00",
-        "lateness_seconds": 55.1,
+        "scheduled_at": "2026-11-09T08:00:00+08:00",
+        "dispatched_at": "2026-11-09T08:00:54.989013+08:00",
+        "lateness_seconds": 55.0,
         "kind": "on_time"
       },
       "canonical_completions": [
-        "ba936cf5055c45a4b149bbe802909041"
+        "8dda429c20834f05b2b1ddaf4d5127e7"
       ]
     },
     {
@@ -134,18 +134,18 @@
       "schedule_display": "5 12 * * *",
       "repeat": {
         "times": null,
-        "completed": 142
+        "completed": 146
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T22:31:48.412387+08:00",
-      "next_run_at": "2026-11-06T12:05:00+08:00",
-      "last_run_at": "2026-11-05T12:06:26.928961+08:00",
-      "last_status": "ok",
+      "next_run_at": "2026-11-10T12:05:00+08:00",
+      "last_run_at": "2026-11-09T12:06:16.551205+08:00",
+      "last_status": "delivery_failed",
       "last_error": null,
-      "last_delivery_error": null,
+      "last_delivery_error": "live adapter send failed: iLink sendmessage session not ready: ret=-2 errcode=None errmsg=prepare failed — the user must send the bot a message first (or re-pair); live adapter delivery to weixin:o9cq807-R1vQ2rE1tVqRjIack5QA@im.wechat failed: iLink sendmessage session not ready: ret=-2 errcode=None errmsg=prepare failed — the user must send the bot a message first (or re-pair); delivery error: Weixin send failed: iLink sendmessage session not ready: ret=-2 errcode=None errmsg=prepare failed — the user must send the bot a message first (or re-pair) (target weixin:o9cq807-R1vQ2rE1tVqRjIack5QA@im.wechat)",
       "deliver": "origin",
       "origin": {
         "platform": "weixin",
@@ -162,13 +162,13 @@
       "fire_claim": null,
       "failure_streak": 0,
       "last_dispatch": {
-        "scheduled_at": "2026-11-05T12:05:00+08:00",
-        "dispatched_at": "2026-11-05T12:05:55.029390+08:00",
+        "scheduled_at": "2026-11-09T12:05:00+08:00",
+        "dispatched_at": "2026-11-09T12:05:54.974422+08:00",
         "lateness_seconds": 55.0,
         "kind": "on_time"
       },
       "canonical_completions": [
-        "ea4f5d2749bb4b5a81aa537065b0f369"
+        "6bb76c23a7624be38070d7a3e4d6d0a5"
       ]
     },
     {
@@ -193,15 +193,15 @@
       "schedule_display": "5 18 * * 1,4",
       "repeat": {
         "times": null,
-        "completed": 32
+        "completed": 33
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-07-29T11:24:16.842788+08:00",
-      "next_run_at": "2026-11-09T18:05:00+08:00",
-      "last_run_at": "2026-11-02T18:05:43.901436+08:00",
+      "next_run_at": "2026-11-12T18:05:00+08:00",
+      "last_run_at": "2026-11-05T18:06:02.097085+08:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -218,13 +218,13 @@
       ],
       "workdir": "/opt/data",
       "fire_claim": {
-        "at": "2026-11-05T18:05:55.137103+08:00",
-        "by": "hermes:294362:c96e18462ccf42429d60116095befbce"
+        "at": "2026-11-09T18:05:55.077611+08:00",
+        "by": "hermes:294362:e231a6232bd142b5810ef633f315abd6"
       },
       "failure_streak": 0,
       "last_dispatch": {
-        "scheduled_at": "2026-11-05T18:05:00+08:00",
-        "dispatched_at": "2026-11-05T18:05:55.040800+08:00",
+        "scheduled_at": "2026-11-09T18:05:00+08:00",
+        "dispatched_at": "2026-11-09T18:05:54.984827+08:00",
         "lateness_seconds": 55.0,
         "kind": "on_time"
       },
@@ -258,15 +258,15 @@
       "schedule_display": "*/30 * * * *",
       "repeat": {
         "times": null,
-        "completed": 2086
+        "completed": 2278
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-09-23T08:19:40.068078+08:00",
-      "next_run_at": "2026-11-05T18:30:00+08:00",
-      "last_run_at": "2026-11-05T18:00:56.717531+08:00",
+      "next_run_at": "2026-11-09T18:30:00+08:00",
+      "last_run_at": "2026-11-09T18:00:56.789082+08:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -277,12 +277,12 @@
       "workdir": null,
       "fire_claim": null,
       "last_dispatch": {
-        "scheduled_at": "2026-11-05T18:00:00+08:00",
-        "dispatched_at": "2026-11-05T18:00:55.034939+08:00",
+        "scheduled_at": "2026-11-09T18:00:00+08:00",
+        "dispatched_at": "2026-11-09T18:00:54.971405+08:00",
         "lateness_seconds": 55.0,
         "kind": "on_time"
       }
     }
   ],
-  "updated_at": "2026-11-05T18:05:55.137961+08:00"
+  "updated_at": "2026-11-09T18:05:55.078277+08:00"
 }

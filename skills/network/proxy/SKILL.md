@@ -138,6 +138,34 @@ bash /opt/data/proxy-skill/proxy.sh log | tail -20
 
 **⚠️ 判断 IP 是否被封**：javdb 返回 `403` + 内容含 "The owner of this website has banned your access" + 显示出口 IP = 该节点 IP 被封（3-7天自动解除）。**换节点是唯一即时解法**，不要反复重试同一节点。
 
+### 节点能通但被限速（几百 KB/s / 大文件中途归零）—— 出口配额打光
+
+第三种故障态，既不是 403 也不是超时：`proxy.sh status` 一切正常、`curl` 探测返回 204、目标站也能连，**但大流量下载卡在几百 KB/s，或者跑到一半进度直接归零**。
+
+**根因**：节点出口带宽/配额被打光。同一个节点连续拉几个 GB 之后就会进这个状态（本次：新加坡节点上午拉了 1.33GB 后，下一批就掉到 566KB/s 并中途停住）。此时**加代理和不加代理一样慢**——因为你已经在走代理了，慢的是代理那一侧。
+
+**误判警示**：这种状态很容易被当成「单个文件被限速」去反复换片源/换版本，**白耗时间**。判据很干脆：
+
+> **同期别的文件快不快？** 快 → 是该文件被限速；**不快/都慢 → 是节点配额，换版本没用，换节点。**
+
+**解法**：换节点（不是重启代理，重启同一个节点没用）：
+
+```bash
+bash /opt/data/proxy-skill/proxy.sh status                      # 看当前出口 IP，记住它
+bash /opt/data/proxy-skill/proxy_auto_switch.sh --node us05     # 换成另一个节点
+bash /opt/data/proxy-skill/proxy.sh status                      # 确认出口 IP 已变
+```
+
+实测：同一批 2.85GB 文件，旧节点 566KB/s 且中途归零，切到圣何塞05 后**立刻 25MB/s**。
+
+**大流量下载的用法**：命令行工具要把代理**显式传给它**（而不是只靠环境变量），例如 rclone 的 webdav 后端：
+
+```bash
+rclone copy "pikpak:/Movie" /tmp/dest --http-proxy "http://127.0.0.1:10808" ...
+```
+
+**用量预算**：一个节点大约能跑几个 GB 的大流量下载。**不要拿同一个节点连续跑十几 GB**，分批换节点比中途发现限速再重试划算。
+
 ### Cloudflare 403/503
 REALITY 节点不走 CF，如果 REALITY 也不通，换其他协议配置：
 ```bash

@@ -1,7 +1,7 @@
 ---
 name: movie-download
-title: 影视资源下载（BT磁链 → PikPak → aria2）
-description: 下载电影/剧集（含内嵌中文字幕版）：从 BT 影视资源站找磁链 → PikPak 离线 → aria2 拉回本地 → ffprobe 校验重命名入库。适用于任何非番号影视内容。
+title: 影视资源下载（BT磁链 → PikPak → WebDAV）
+description: 下载电影/剧集（含内嵌中文字幕版）：从 BT 影视资源站找磁链 → PikPak 离线 → WebDAV 15 并发拉回本地（aria2 已废，CDN 直连 08-27 起封）→ ffprobe 校验重命名入库。适用于任何非番号影视内容。
 version: 1.0.0
 tags: [下载, 磁力, 磁链, BT, 电影, 剧集, 中文字幕, PikPak, aria2, movie, torrent, magnet]
 trigger: 用户要求下载某部电影/剧集/纪录片，或提到"下载XX片"、"找中字版"、"内嵌字幕"、资源站清单
@@ -148,6 +148,66 @@ Apple TV+ 独家的自然纪录片（《史前星球》系列等）**有完整�
 选 HDH 系压制组（SSDSSE / DreamHD / MiniHD）的「国英多音轨+简繁中字」4K 版，7 部共 **236.5GB**，
 PikPak 离线 **60 秒全部完成**，WebDAV 7 并行 **90 MiB/s / 52 分钟**拉完。
 
+### 🚨 PikPak 限速的三层判定：直连 / 代理 / 换节点（PikPak 拉回必读）
+
+拉回慢或停滞时**不要靠调线程数解决**——`--transfers` / `--multi-thread-streams` / 重试次数对这个限制无效。按下面三层依次判，**每层排除再往下**：
+
+**第 0 层：先排除自己造成的假象。**两个 rclone 进程写同一个目标目录时，进度会互相覆盖——症状是体积**来回跳**（涨到 3.35G 又掉回 2.06G）、partial 数量反复变化、进程数 >1。先杀掉多余的，只留一个再谈速度。
+
+**第 1 层：直连慢 → 加 `--http-proxy`。**webdav 后端是纯 HTTP，rclone 支持这个 flag：
+
+```bash
+/opt/data/bin/rclone copy "pikpak:/Movie" /tmp/dest \
+  --include "<片名>*" \
+  --http-proxy "http://127.0.0.1:10808" \
+  --transfers 15 --buffer-size 32M \
+  --multi-thread-streams 8 --multi-thread-cutoff 50M \
+  --timeout 180s --contimeout 60s --retries 5
+```
+
+实测：同一 1.33GB 文件，直连 6 分钟爬到 34% 后掉到 25KB/s（ETA 十几小时），走代理 **66 秒拉完 / 25-31 MiB/s**。
+
+**第 2 层：代理也慢（几百 KB/s 或同样停滞）→ 换代理节点，不要换文件版本。**
+代理**节点自身的出口配额也会被打光**——用同一个节点连续下几个 GB 之后，该节点就掉到 500KB/s 级别，这时加代理和直连一样没用。判据：`bash /opt/data/proxy-skill/proxy.sh status` 看出口 IP，然后换节点：
+
+```bash
+bash /opt/data/proxy-skill/proxy_auto_switch.sh --node us05
+bash /opt/data/proxy-skill/proxy.sh status   # 确认出口 IP 已变
+```
+
+实测：同一批 2.85GB 文件，旧节点（新加坡）566KB/s 且中途归零，切到圣何塞05 后**立刻 25MB/s**，8.27GB 六分钟拉完。
+
+**第 3 层：只有「同期别的文件快、唯独这个文件慢」时才换版本。**这才是真正的**单文件限速**；如果换小版本/换磁链之后速度依旧，说明问题在第 2 层（节点配额），换版本是白费功夫。
+
+代理端口用前先探：`curl -s -x http://127.0.0.1:10808 -o /dev/null -w '%{http_code}' -m 15 https://www.google.com/generate_204`，返回 204 才可用。
+
+**别把「慢」误判成「坏」**：进度虽慢但 partial 一直在长 → 只是限速，不是断源，别急着重下；**连续两轮体积完全不变**才是真的停。
+
+#### 三级限速诊断表（2026-11-08 小黄人三连扑实战，三种撞上两种）
+
+| 症状 | 根因 | 解法 |
+|---|---|---|
+| 进度**卡在固定百分比不动**，体积不涨，进程还在 | 出口 **IP 配额**用尽 | 加 `--http-proxy` |
+| **几百 KB/s 但一直在爬**（如39-566 KiB/s） | **单文件**被限 | 换小体积版本 |
+| 加了代理、换了小版本**依旧几百 KB/s** | **代理节点**配额也用尽 | **换节点**（`proxy_auto_switch.sh`） |
+
+关键教训：**小版本也慢 ≠ 文件大小问题**。本次大版本（4.9/6.39/8.13G）被限后换成小版本（2.6-2.85G）依旧只有 39-566 KB/s，真正原因是当天早上已用同一代理节点下了 1.33GB，节点额度耗尽。切到另一个节点（us05）后立刻回到 25MB/s，8.27GB 六分钟拉完。
+
+**换节点命令**（前提：加载 `proxy` skill）：
+```bash
+bash /opt/data/proxy-skill/proxy_auto_switch.sh --node us05
+bash /opt/data/proxy-skill/proxy.sh status   # 确认新出口 IP
+```
+注意 `proxy_auto_switch.sh` 用 javdb 做连通性测试，javdb 被封的节点不代表 PikPak 也不可用——只要能连上就先拿 PikPak 测速度，别只看 javdb 结果就排除节点。
+
+**大文件优先换版本而不是硬爬**：被限速的 4.9G 文件 ETA 显示 14 周～13 年（速度掉到 11-571 B/s），这种就别等了，直接换源。小版本（2.6-2.9G / 1080P / 内嵌中字）画质上区别不大，动画片尤其能接受。
+
+### 🚨 `pkill -f` / `ps | awk` 杀 rclone 时别把匹配串写进同一条命令
+
+本 skill 已记过 `pkill -f` 自匹配，但**用 `ps -eo pid,cmd | awk '/rclone/ {print $1}'` 同样会自杀**——因为执行这条命令的 `bash -c` 命令行里就含着 `rclone` 字样，awk 把它自己也匹进去了，结果 `kill -9` 干掉当前 shell，表现为 `exit_code: -9` 且后续命令全没执行。
+
+**安全做法**：把匹配串换成**不含字面量的形式**，或者**分两次调用**——第一次只 `ps` 看 PID，第二次单独 `kill <精确PID>`，两次命令里都不要再出现 `rclone` 这个字面串。
+
 ### 🚨 跨文件系统 mv 的坑：`stat -f -c %d` 会返回 0！
 
 本机 **`/tmp` 在 overlay，`/opt/data` 在 zfsv3**，是两个文件系统。但用
@@ -231,6 +291,8 @@ bWFnbmV0Oj94dD11cm46YnRpaDo3YTgyNmIwYTk3NzU1M2RiZDkwMWM2NDFhMDk1ZjM5ODU4NDlkMWVk
 
 **先数 `seed_id=` 的个数再动手**。实测《变形金刚：起源》(2024) 整页 96 个 link_start **全是 `pan_id_`** → 该片在 SeedHub 拿不到 BT 磁链，要去别处（该片至今只有网盘渠道）。
 
+**⚠️ `seedhub_fetch.py magnet` 偶发解析失败 → 重试 2-3 次即可**：同一 `movie_id` + `seed_id` 第一次报「❌ 解析失败」，隔几秒重跑就出磁链（link_start 页面偶发返回空壳）。**不要因为一次失败就换版本**，先原地重试；连续 3 次都失败才说明这个 seed 真没种子。同理 `/s/<kw>` 搜索偶发 HTTP 000 / 0 字节，`-m` 给足 + 重试。
+
 **实测命中率**：变形金刚系列 **7/8 部**一次拿到 `[国英多音轨+简繁中字]` 的 4K UHD 磁链（HDH 系压制组 **SSDSSE / DreamHD / MiniHD**），单部 25-39GB；每部影片页 56-133 个版本，其中带中文字样的 7-35 个。
 
 **版本挑选：按「规格匹配」，不要按「体积最大」**（本 skill 的"高清大版本"偏好在这里会翻车）：
@@ -272,6 +334,8 @@ bWFnbmV0Oj94dD11cm46YnRpaDo3YTgyNmIwYTk3NzU1M2RiZDkwMWM2NDFhMDk1ZjM5ODU4NDlkMWVk
 **搜索技巧**：`web_search` 搜 `"片名" 年份 1080p 中字 magnet` 或 `"片名" 年份 btih`，命中 Discuz 论坛页后用 `web_extract` 直接提取 `magnet:?xt=urn:btih:<40位hash>`。
 
 ### ② 种子文件 → 磁链（btih 提取）
+
+**⚠️ 悠悠MP4 的 `.torrent` 直链会 404，别在这上面耗**：帖子页 `attachlist` 里 `<a href="https://bt.uump4.cc/btdown/YYYY/MM/DD/...&amp"` 的 **href 属性在 `&amp;` 处就被截断了**，完整文件名只在链接文本里。按链接文本拼回完整 URL 仍然 404（服务端路径已不认）。所以：悠悠MP4 用来**搜版本、看规格、读帖子正文**没问题，**指望它给种子/磁链不可靠**——拿到片名规格后转 SeedHub 搜同版，或按发布组名去 web_search 找磁链。
 
 1lou 等站点只提供 `.torrent` 附件时：下载附件 → 用 bencode 解析 info dict → SHA1 得 btih：
 
@@ -379,13 +443,16 @@ ps -eo pid,cmd | awk '/[r]clone copy/ {print}'
   await client.login()   # 登录后把新的 access/refresh/encoded_token + device_id 写回同一 JSON
   ```
   **device_id 必须沿用旧的**（换新 device_id 可能触发风控）。
-- **🧹 删云端文件夹用 `rclone purge` 一步到位**：`delete` + `rmdir` 两步法在文件夹含**子目录**时 rmdir 会报 `directory not empty`（黑钱胜地案例：残留「封面以及截图」子目录）。直接 `rclone purge "pikpak:/Inbox-JAV/<文件夹>"` 递归删除，一步干净。
+- **🧹 删云端源：文件夹用 `purge`，散文件用 `delete`**：`delete` + `rmdir` 两步法在文件夹含**子目录**时 rmdir 会报 `directory not empty`（黑钱胜地案例：残留「封面以及截图」子目录），文件夹一律 `rclone purge "pikpak:/Movie/<文件夹>"` 递归一步干净。但 **`purge` 对单个文件不生效**——对 `.mkv`/`.mp4` 散文件用 `rclone purge` 会静默失败（批量清理时表现为「⚠️ 失败」，容易误以为云端没删干净），散文件必须用 `rclone delete "pikpak:/Movie/<文件名>"`。清理完用 `rclone lsf` 回验列表里确实消失。
 - **🔠 pikpakapi `path_to_id` 大小写敏感（2026-09-16）**：`await client.path_to_id('/inbox-jav')` 返回**空列表** → `r[0]['id']` 抛 `IndexError`；必须写 `/Inbox-JAV`（与云端目录名完全一致）。取不到 folder id 时先核对大小写，别怀疑账号或目录被删。
+- **🔧 pikpakapi `file_list()` 的参数是 `size=` 不是 `limit=`**：`file_list(parent_id=x, limit=100)` 直接抛 `TypeError: got an unexpected keyword argument 'limit'`。签名是 `file_list(self, size: int = 100, parent_id=None, next_page_token=None, additional_filters=None)`。写脚本前 `inspect.signature(PikPakApi.file_list)` 看一眼，别按常见 SDK 习惯猜。
 - **✏️ 云端改名不要指望 pikpakapi（无 `rename` 方法）**：调 `client.rename(...)` 直接 `AttributeError`。
   正确做法：`file_batch_move([file_id], 目标folder_id)` 把视频**移到 `/Movie` 根**（保留原英文名），
   **改名放在本地入库那一步做**（`中文片名.英文片名.年份.ext`）——效果一样，少一次 API 往返。
   移出后原文件夹用 `delete_to_trash([folder_id])` 删；trash 是异步的，列表里可能还看得到一会儿。
-- **📊 离线进度别用 `offline_list()` 判断**：PikPak 任务**完成后即从 `offline_list()` 列表移除**，常返回 `tasks: []`（看起来像“任务没建成功”）。**可靠判定**：轮询云端目标文件夹 `file_list(parent_id=<folder_id>)` 累计子文件大小，接近预期体积（≥99.5%）或连续 3 次不增长即算离线完成，再启动 WebDAV 拉回（本次 4K 30GB 大片即用此法，另外在线文件夹刚创建时大小显示 0.00GB 属正常）。
+- **📊 离线进度别用 `offline_list()` 判断**：PikPak 任务**完成后即从 `offline_list()` 列表移除**，常返回 `tasks: []`（看起来像“任务没建成功”）。**可靠判定**：轮询云端目标文件夹，统计**内部真实文件的体积**，接近预期（≥99.5%）或连续数轮不增长即算完成。
+  - 🚨 **必须递归进文件夹统计**：离线结果常是文件夹，顶层 `file_list` 看到的是 `kind=folder, size=0`，**顶层体积恒为 0.00GB 且「连续两轮不变」会被误判成「已完成」**（本 skill 旧版就按顶层判，直接报了个假的「离线完成」）。正确做法是拿到 folder id 后再 `file_list(parent_id=folder_id)` 累加内部文件（子目录可能还有一层，递归两层足够），并数**>100MB 的视频文件个数**作为第二判据。
+  - 顶部导航栏的「在线文件夹刚创建时大小显示 0.00GB 属正常」，与本条是同一现象。
 - **🧩 shell cwd 陷阱**：若在 `/tmp/xxx` 里执行过命令又 `rmdir` 了该目录，后续 terminal 调用的 shell cwd 仍是已删目录 → 报 `cd: No such file or directory` / `Exit 126`。**修法**：下一个 terminal 调用显式传 `workdir=/opt/data`。
 - **🚫 `pkill -f '<模式>'` 会杀掉自己（2026-09-15 停黑钱胜地 S02 时）**：`pkill -f` 匹配**整条命令行**，而你的 terminal 命令行里恰好包含那个模式字符串 → 把自己所在的 bash 连同后续命令一起 SIGTERM 掉（表现为 `exit_code: -15`、后半段命令没执行、状态不可信）。**正确做法**：先 `pgrep -af '<模式>'` 看命中哪些 PID 并确认没有自己，再 `kill <精确PID>`；停后台任务优先用 **process 工具的 session_id**（`process(action='kill', session_id='proc_xxx')`），不要用 pkill -f 匹配长模式。
 - **⏱ 后台下载的“完成通知”可能只代表包装 shell 退出（2026-09-15 黑钱胜地）**：`terminal(background=True)` 里写 `nohup rclone copy ... &` 时，**包装 shell 退出就发完成通知**（几十秒后），而 rclone 还在跑——别把那条通知当“下载完成”。**两种安全写法**：① 前台跑 rclone（通知与下载同寿）；② 另起一个等待脚本 `while ls <目录>/*.partial >/dev/null 2>&1; do sleep 30; done` + `notify=true`，那才是真正的完成信号。判断完成也要看**两个条件**：`.partial` 数量归零 **且** rclone 进程（`pgrep -af 'bin/rclone'`）已退出。
@@ -395,7 +462,7 @@ ps -eo pid,cmd | awk '/[r]clone copy/ {print}'
 - **电视剧批量下载（多集，2026-08-04 护宝寻踪实战）**：电影天堂（dytt8899.com）剧集页**每集一个独立磁链**（`dn=剧名XX.mp4`），页面 **GBK 编码**。流程：① curl 抓页 → python `raw.decode('gbk')`（UTF-8 解码会失败/乱码）② 按 `<tr>` 行解析 `re.findall(r'<tr[^>]*>(.*?)</tr>', html, re.S)`，行内含 `magnet:?xt=urn:btih:<hash>&dn=剧名XX.mp4`（36 集 = 36 个唯一磁链，页面每个磁链出现两次需去重；第一行 `<tr>` 是剧集简介不含磁链，注意跳过）③ 批量 `offline_download(url, parent_id=inbox_id)` 加 PikPak（每集间隔 ~1.5s 避免限频，36 个全成功）④ 等 ~60s 后批量 `get_download_url` 取 CDN 直链存 JSON ⑤ aria2 批量下载：**并发槽位控制 `pgrep -fc aria2c` 计数 ≤3**，下载到 /tmp → ffprobe 时长校验（>100s 才算完整，防假种子）→ cp 到 Movie/ → rm /tmp ⑥ 每集独立校验+入库，**已完成文件跳过**（幂等，重启安全）。**电视剧入库目标 = Movie/**（与番号分开，用户 2026-08-04 确认）。
 - **中文压制版链接常失效**（如 nbwin 的"简繁字幕版"）——优先找"高清原版+内封中字"的压制组版（CATCHPLAY WEB-DL / CMCT / CHD 等），而不是去下外挂字幕
 - **用户规则冲突时以最新为准**：JAV 流程允许 subtitlecat 外挂（jav-auto-download），但**电影/剧集明确禁止外挂**——两个 skill 各自独立，不要串
-- **PikPak 对特定文件可能限速**（2026-08-01 NMSL-011：单文件被限到 20-250KB/s，换节点/换磁链无效，同期其他文件 6-19MB/s）——挂后台慢慢爬或换小版本，别反复换节点
+- **PikPak 限速要看是「单文件」还是「节点配额」**（2026-08-01 NMSL-011 单文件被限到 20-250KB/s、同期其他文件 6-19MB/s；2026-11-08 则相反，全批都慢、换版本无效、**换代理节点立刻恢复 25MB/s**）。判据就在「同期别的文件快不快」：快 → 单文件限速，换版本或挂后台慢慢爬；不快 → 节点出口配额打光，换节点。见上文「三层判定」。
 - **PikPak CDN 全节点 503（间歇性故障）**：同一批新取的 URL 可能全部 503（errorCode=29）。不要逐个重试——杀掉所有失败的 aria2，**等 10-30 分钟**（用 `sleep 600 && 重取URL && 重启下载` 的后台脚本），CDN 恢复后重新 `get_download_url` 换新 URL 即可，旧 URL 过期没用
 - **种子文件夹常混入广告文件**（BBQDDQ.com 压制组种子尤甚：`.png`/`.doc`/`.pdf`/`.mkv` 名义的 0 字节广告）：离线结果是文件夹时 `file_list` 列内部文件，**只挑 size > 100MB 的真视频取 URL**，广告文件跳过
 - **PikPak 离线结果可能是文件夹**（kind=drive#folder，size=0）：电影种子常把视频包在子目录里。取 URL 前必须 `file_list(parent_id=<folder_id>)` 找到内部视频文件，再用其 id 调 `get_download_url`。参考 jav-auto-download 同款坑。
@@ -408,7 +475,10 @@ ps -eo pid,cmd | awk '/[r]clone copy/ {print}'
   `ffprobe -v error -select_streams a -show_entries stream=index:stream_tags=language,title -of csv=p=0 file`
   —— 全是 `chi`/`国语` 就把“无字幕轨”如实说成“国语原声，无需字幕”，别再去搜“中字版”白费力，
   也别因此把片子判为不合格。只有**外语片**才适用“必须有内嵌中字”硬规则。
-- **"中文字幕"磁链标注不可靠**：NMSL-011 磁链名标"中文字幕"但 ffprobe 无字幕流、抽帧也无硬字幕（只有水印）。电影下载后同样要验证内嵌字幕：`ffprobe -select_streams s` 查字幕流；无流时**抽帧 + OCR 查硬字幕**（`ffmpeg -ss <秒> -i file -frames:v 1 -vf scale=480:-1 /tmp/f.jpg` + 本地 RapidOCR `/opt/data/ocr_venv`），多抽几帧（对白多的位置如 600/2400/4200s）。确认无字幕要如实告知用户，别当有中字版入库。
+- **"中文字幕"磁链标注不可靠**：NMSL-011 磁链名标"中文字幕"但 ffprobe 无字幕流、抽帧也无硬字幕（只有水印）。电影下载后同样要验证内嵌字幕：`ffprobe -select_streams s` 查字幕流；无流时**抽帧查硬字幕**。
+  - **抽帧后优先用 `vision_analyze` 直接读图**判定有没有中文、原文是什么——比本地 OCR 链条短，也不受 OCR 运行时缺系统库影响。问题是**画面上的字**，视觉模型本来就擅长。
+  - 🚨 **必须抽 ≥3 个不同时间点再判「无字幕」**：无对白的空镜（群像、街景、静物）抽出来就是没字，单帧误判率很高。实测同一部片 2400s 和 1500s 两帧都是空镜「无字幕」，3000s 才抽出「向他的母星报告」——**差点把一部有内嵌中字的片子判成无字幕版**。抽帧位置选对白密集处（人物说话、正反打），或隔 10-15 分钟各抽一帧，至少一帧出字即可判合格。
+  - HDR 片源抽帧前必须先色调映射（见下条），否则发灰、什么都看不出来。
 - **🚨 无字幕流但有"烧录硬字幕" = 也算中字版合格（2026-09-07 知无涯者案例）**：WEB-DL 中字版常是**烧录硬字幕**（中文字幕烧进画面，无音轨字幕流）。`ffprobe -select_streams s` 返回空 ≠ 没中字。必须抽帧 OCR 分辨两态：抽帧出中文对白 = 硬字幕**合格**，可正常入库；抽帧无字/只有水印 = 真无中字，如实告知。知无涯者 PARKHD 版即无字幕流但 OCR 在 1800s/3000s 抽出"起来国王要来了"等中文对白 → 中字确认入库。
 - **假种子/截断种子（2026-08-02 野兽女孩事故）**：磁链标注 720P 完整版，下载后 ffprobe 发现时长只有 **4分45秒**（6840帧）——种子本身是截断/假货，PikPak 离线 + aria2 拉回全程无异常，只有 ffprobe 时长能识破。**每部电影下完必须核对时长是否符合预期**（野兽女孩 108 分钟 vs 实际 4分45秒 → 换另一个磁链 `6115DA56` 拿到 1.31GB 完整版）。不要只看文件大小/有无字幕流就入库。同类坑：小文件（<500MB 的"完整电影"）尤其要怀疑。
 - **🚨 WebDAV 对新移出文件同步延迟（2026-08-27 知无涯者实战）**：pikpakapi `file_batch_move` 把视频移出到 `Movie/` 根后，**rclone/WebDAV 可能数分钟看不到该文件**——`rclone lsf` 返回空、`--dir-cache-time 0s` 仍不可见，但 pikpakapi `file_list` 已确认文件在根目录。这是 **PikPak WebDAV 服务的索引同步延迟**（非 rclone bug）。**对策**：移出后不要立即下载，用后台脚本每 30-60s 探测 `timeout 50 /tmp/rclone lsf pikpak:/Movie | grep 文件名` 直到可见再启动 WebDAV 拉回（上限 ~30 分钟轮询）。

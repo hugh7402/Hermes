@@ -195,6 +195,12 @@ mac 版给 `启动.command`（`chmod +x`）+ `启动.sh` + `使用说明.md`。
 
 1. 起服务 → 真浏览器打开，断言 `S.loaded === true`（全局状态对象叫 `S`，不是 `STATE`）
    与各表行数（任务/里程碑/指标/平台建设）、周轴周数。
+
+   🚨 **用 `browser_exec` 验证，别用命令行 Chrome**（2026-11-04 实测）：
+   `chrome --headless=new --dump-dom` 在本机会对所有页面返回 **0 字节 + exit 124**，
+   连纯静态页都如此——看起来像页面崩了，实际是工具环境问题，不要顺着去改代码。
+   正确做法：`goto_url()` 进页面 → `js()` 一次拿回全部断言值（`S.loaded`、各表行数、
+   `.class` 计数、`document.documentElement.scrollWidth > innerWidth` 看横溢）。
 2. 断言月份行序列：`[...document.querySelectorAll('#gantt thead tr:first-child th')].map(t => t.textContent + '(' + t.colSpan + ')')`
    —— 跨年、跳月、叠字都在这一步暴露。正常形态是 `2026年10月 → 11月(5) → 12月(4) → 2027年1月(4) → 2月(4) → …`。
 3. 断言甘特行数 == 任务台账行数（分类行不计），里程碑单元格数 > 0 且 `title` 有值。
