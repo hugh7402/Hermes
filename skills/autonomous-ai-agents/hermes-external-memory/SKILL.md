@@ -297,6 +297,47 @@ daemon 空闲超时（300s）正常退出后，**如果连得上的 supervisor�
 > 自查一条命令：`find /opt/data/.pg0/instances/*/data -type d -empty | wc -l`
 > —— 应为 `0`（非 0 说明占位文件丢了，插件马上又要删目录）。完整步骤见 reference「hindsight-daemon-recovery」。
 
+**daemon 日志报 `ImportError: cannot import name 'ArgsKwargs' from 'pydantic_core._pydantic_core'` = PYTHONPATH 串了 Python 版本（2026-11-10 实测）**：
+
+这跟 PG、跟数据目录**完全无关**，别去查 `.pg0`、别补目录、更别删实例。特征极好认：
+
+```
+File ".../archive-v0/<hash>/lib/python3.13/site-packages/hindsight_api/engine/embeddings.py"
+    from pydantic import BaseModel
+File "/opt/data/installs/<hash>/environments/<hash>/venv/lib/python3.14/site-packages/pydantic/__init__.py"   ← 3.13 去 3.14 里 import
+ImportError: cannot import name 'ArgsKwargs' from 'pydantic_core._pydantic_core' (unknown location)
+```
+
+**根因**：`hindsight-api` 跑在 python3.13 的 uv 归档 venv 里，但 **gateway 进程带了一个 3.14 的 PYTHONPATH**：
+```bash
+tr '\0' '\n' < /proc/<gateway_pid>/environ | grep -E 'PYTHONPATH|HERMES_SITE'
+# PYTHONPATH=/opt/hermes/.:/opt/hermes/.venv/lib/python3.14/site-packages
+# HERMES_SITE=/opt/hermes/.venv/lib/python3.14/site-packages
+```
+keepalive hook 是 gateway 的子进程，它拉 `hindsight_start.sh` 时**把 PYTHONPATH 一起继承下去**，
+于是 3.13 的解释器加载了给 3.14 编译的 `_pydantic_core.cpython-314-*.so`。
+
+**这条解释了「为什么手动跑好好的、hook 拉就崩」**：手动跑时 shell 里 PYTHONPATH 是空的。
+快速证伪：清空 PYTHONPATH 后手工跑一次导入，能过就锁定是本坑——
+```bash
+export HOME=/opt/data; unset PYTHONPATH PYTHONHOME
+BINDIR=$(dirname $(realpath /opt/data/.cache/uv/archive-v0/*/bin/hindsight-api | head -1))
+"$BINDIR/python" -c "import pydantic_core; print(pydantic_core.__file__, hasattr(pydantic_core,'ArgsKwargs'))"
+# 期望: .../python3.13/.../pydantic_core/__init__.py True
+```
+
+**修复（已写进 `/opt/data/scripts/hindsight_start.sh`，治本位置就在启动脚本里）**：
+```bash
+# 在 source hermes.env 之后、拉起 daemon 之前
+unset PYTHONPATH PYTHONHOME 2>/dev/null || true
+export PYTHONNOUSERSITE=1
+```
+
+⚠️ **不能只靠「手动跑的时候清一下」**——keepalive 每次都会从 gateway 重新继承脏环境，
+必须改脚本。另注意：`/opt/data/installs/.../venv` 这个 3.14 venv 是 `hermes-pm-built`（Hermes 包管理器）
+在装插件/依赖时建的，**它出现的时间就是故障起点**，`ls -la .../venv/bin` 看 mtime 可对上。
+以后只要 gateway 再升级/新装依赖，这个坑就可能复发，症状固定是这一行 ImportError。
+
 **daemon 的 supervisor 是 Hermes dashboard**（`ps -o ppid= -p <daemon_pid>` 应为 dashboard/hermes）：它用 `uv tool uvx hindsight-api@0.9.0 --daemon --idle-timeout 300 --port 9177` 自动拉起，环境正确（HOME=/opt/data + 实例 hindsight-embed-hermes）。**恢复流程首选「杀光所有 daemon/postgres → 什么都不做，等 dashboard 重拉」（初始化 40-60s：模型加载→postgres→migration，`/health` 转 healthy）**。别边让 dashboard 活着边手动拉起——dashboard 在 9177 未服务时会反复重拉，多个实例互相 bind 失败、越拉越乱。确需手动拉起（dashboard 不在时）才用脚本，踩三个坑：① 默认 pg0 实例名是 `hindsight`（新建空实例）——必须 `export HINDSIGHT_API_DATABASE_URL=pg0://hindsight-embed-hermes` 才连到真数据（hindsight-embed-hermes）；② 环境里残留 SOCKS 代理变量会让 LiteLLM 初始化失败（`socksio package is not installed`）且 daemon 静默退出——启动前 unset 全部 proxy 变量；③ `--daemon` 标志会 fork 出孤儿进程占住 9177，后续启动报 `address already in use`——先 `ss -tlnp | grep 9177` 清掉再用前台模式（无 `--daemon`）setsid/nohup 跑。已固化启动脚本 `/opt/data/scripts/hindsight_start.sh`（HOME/DATABASE_URL/清代理全内置）。
 
 **`hermes plugins enable` 一次只能启一个**：`hermes plugins enable disk-cleanup security-guidance` 会报 `unrecognized arguments`，必须逐个 `enable`。插件验证以实际行为为准（write_file 触发 security 警告 / tracked.json 有记录），`hermes plugins list` 显示 enabled 只是配置生效。

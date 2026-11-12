@@ -553,7 +553,7 @@ secrets:
 paste_collapse_threshold: 5
 paste_collapse_threshold_fallback: 5
 paste_collapse_char_threshold: 2000
-_config_version: 51
+_config_version: 53
 weixin:
   extra:
     rate_limit_circuit_threshold: 3

@@ -14,6 +14,15 @@ export HINDSIGHT_API_DATABASE_URL=pg0://hindsight-embed-hermes
 # 清掉可能残留的代理变量（socksio 未装会导致 LiteLLM 初始化失败）
 unset https_proxy http_proxy all_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY 2>/dev/null || true
 
+# 🚨 必须清掉 PYTHONPATH / PYTHONHOME
+# keepalive 是 gateway 的 hook，会继承 gateway 的环境：
+#   PYTHONPATH=/opt/hermes/.:/opt/hermes/.venv/lib/python3.14/site-packages
+# 于是跑在 python3.13 上的 hindsight-api 会去 3.14 的 site-packages 里 import pydantic，
+# pydantic_core 的 .so 是 cpython-314 编译的 → ImportError: cannot import name 'ArgsKwargs'
+# 表现为 daemon 反复启动失败、keepalive 日志刷 'agent:end unhealthy'。
+unset PYTHONPATH PYTHONHOME 2>/dev/null || true
+export PYTHONNOUSERSITE=1
+
 BIN=/opt/data/.cache/uv/archive-v0/UvuKov5JptV1YgV0DscNQ/bin/hindsight-api
 if [ ! -x "$BIN" ]; then
   BIN=$(command -v hindsight-api || echo "")
