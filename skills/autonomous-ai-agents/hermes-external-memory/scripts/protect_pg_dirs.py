@@ -22,7 +22,7 @@ import sys
 
 KNOWN = [
     'pg_commit_ts', 'pg_dynshmem', 'pg_notify', 'pg_replslot', 'pg_serial',
-    'pg_snapshots', 'pg_stat_tmp', 'pg_tblspc', 'pg_twophase',
+    'pg_snapshots', 'pg_stat_tmp', 'pg_twophase',   # ⚠️ pg_tblspc 刻意不在列：放了 .keep 会让 PG 启动 FATAL
     'pg_logical/snapshots', 'pg_logical/mappings',
     'pg_wal/archive_status', 'pg_wal/summaries',
 ]

@@ -55,6 +55,7 @@ python scripts/docx_template.py tpl.docx values.json filled.docx
 python scripts/docx_revisions.py list out.docx
 python scripts/docx_comments.py list out.docx
 python scripts/docx_validate.py out.docx
+python scripts/cn_docx.py spec.json out.docx   # CJK / gov-document builder
 ```
 
 ## Quick Reference
@@ -83,6 +84,7 @@ python scripts/docx_validate.py out.docx
 | Add comment anchored to text | `docx_comments.py add f.docx --target "phrase" --text "note" --author You` |
 | Delete comment by id | `docx_comments.py delete f.docx --id 0` |
 | Health-check the package | `docx_validate.py f.docx` (exit 1 on errors) |
+| Build a Chinese doc with correct CJK fonts | `cn_docx.py spec.json out.docx` |
 
 ## Procedure
 
@@ -176,10 +178,21 @@ cannot render PDFs, and layout fidelity requires a real renderer.
   which resets runs in that cell to plain formatting.
 - **Encoding.** All JSON specs/values files are read as UTF-8 explicitly;
   never rely on locale defaults when writing your own glue code.
-- **CJK fonts need `w:eastAsia`.** `run.font.name = '仿宋'` only sets the
-  Latin face; Chinese text keeps the theme fallback unless you also set the
-  east-Asian attribute: `run._element.get_or_add_rPr().rFonts.set(qn('w:eastAsia'), '仿宋')`.
-  Do both, and set `run.font.size` explicitly, when matching a Chinese template.
+- **CJK fonts need `w:eastAsia`, and none of the bundled scripts set it.**
+  `run.font.name = '仿宋'` only sets the Latin face; Chinese text keeps the theme
+  fallback unless you also set the east-Asian attribute:
+  `run._element.get_or_add_rPr().rFonts.set(qn('w:eastAsia'), '仿宋')`.
+  `docx_create.py` and `docx_edit.py` write only `run.font.name`, so a Chinese
+  document produced through the normal spec path **opens in Word as 宋体 even
+  though the spec asked for 仿宋** — silently, with no error. For any CJK
+  deliverable use `scripts/cn_docx.py` (writes `w:ascii` / `w:hAnsi` / `w:eastAsia`
+  / `w:cs` together on every run) or set all four yourself.
+  Two more things that must be set alongside it: the **Normal style's** own
+  `w:eastAsia` (else empty paragraphs and table defaults still fall back), and
+  `run.font.size` explicitly — CJK faces have no useful default size.
+  Verify by reading the package back, not by trusting the code:
+  `grep -o 'w:eastAsia="[^"]*"' word/document.xml | sort | uniq -c` should show
+  the face you asked for.
 - **Filling a sparse template: clone the heading paragraph, insert after it.**
   `new = copy.deepcopy(anchor._p)`, `anchor._p.addnext(new)`, then drop all runs of the
   clone and `add_run(text)` — the clone carries the paragraph properties and you only

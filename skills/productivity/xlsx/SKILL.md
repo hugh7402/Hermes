@@ -33,8 +33,18 @@ scripts are argparse CLIs that print JSON and use explicit UTF-8 I/O.
 - Recalculating formulas headlessly via LibreOffice
   (`xlsx_recalc.py`).
 - CSV interop with type inference and non-UTF-8 encodings.
-- Not for the legacy .xls binary format (use LibreOffice to convert
-  first: `soffice --headless --convert-to xlsx old.xls`).
+- **Filling a phased work-plan sheet from an indicator/target sheet**:
+  per-phase date windows, task granularity copied from an example
+  sheet's shape, merged category column, coverage against a source
+  checklist. See `references/phased-work-plan.md` — it carries the
+  multi-phase offset baseline bug (silently stacks later phases onto
+  the first) and the hard verification list.
+- **Legacy `.xls` (BIFF) READS without LibreOffice**: `xlrd` handles
+  it directly — `xlrd.open_workbook(p).sheet_by_index(0)`, cells via
+  `cell_value(r, c)`. Note `xlrd` 2.x reads `.xls` only (NOT `.xlsx`).
+  Use this whenever `soffice` is absent; WRITING or converting to
+  `.xlsx` still needs LibreOffice
+  (`soffice --headless --convert-to xlsx old.xls`).
 
 ## Prerequisites
 

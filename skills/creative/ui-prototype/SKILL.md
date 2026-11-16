@@ -1,6 +1,6 @@
 ---
 name: ui-prototype
-description: "Use when 用户要画产品原型/交互原型/UI原型/线框图/可点击演示。HTML 单文件交付 + jsdom 无头验证。"
+description: "Use when 要画原型/交互原型/线框图/可点击演示/大屏图片热区。单文件HTML+无头验证。"
 version: 1.0.0
 author: Hermes Agent
 license: MIT
@@ -21,6 +21,7 @@ metadata:
 | 交互原型出静态图 | jsdom 驱动到目标态 → 快照 → WeasyPrint | jsdom + weasyprint | 需要**冻结态**图片时用（WeasyPrint 不执行 JS）|
 | 手绘风线框图/草图 | `excalidraw` skill | 产出 `.excalidraw` JSON | 用户在 excalidraw.com 打开并可自行拖动编辑 |
 | 需在 PowerPoint 里继续改 | `ppt-master` skill | 原生 pptx DrawingML 形状 | 图元可拖拽，适合交付给非技术人员改 |
+| **页面已是做好的大屏截图**（图片一像素不动，只叠热区导航） | **图片热区型大屏**：单文件 HTML + 百分比热区 | 无需额外依赖 | 见 `references/image-hotspot-dashboard.md`。像素级定界、屏级热区隔离、图片只读断言、默认不出启动包 |
 
 ### 本机已装的两个重型设计技能（2026-10-07 装，均 MIT）
 
@@ -31,7 +32,7 @@ metadata:
 | **`baoyu-design`** | Anthropic **Claude Design** 引擎的本地版（宝玉打包） | 要 hi-fi mockup / 交互原型 / 整套设计系统 / 多形态（App、Dashboard、落地页、Deck）；要导出 PPTX | 全套已装（200 文件）。含 node 脚本（Figma 导入 / 设计系统编译 / PPTX 导出） |
 | **`huashu-design`** | 花叔Design，中文原生，⭐24.6k | 需要**先出三个方向让你选**、反 AI 味、5 维评审、中文语境 | **裁剪版**：只有 SKILL.md + references/。**scripts/ 与 assets/ 未装** → 导出 PPTX/PDF/MP4/GIF、配音、Playwright 验证**不可用** |
 
-⚠️ **两者都假设「交付前用浏览器验证」，本机无 chromium** → 验证环节改用本 skill 的 **jsdom 无头测试**方案（`node test_proto.js`，见上文），不依赖浏览器。
+⚠️ **两者都假设「交付前用浏览器验证」** → 验证环节走本 skill 的真 Chrome 方案（见下方「本机环境事实」，headless shell 已打通），需要纯逻辑/事件链断言时再配 jsdom。
 ⚠️ **质量主要取决于模型**：baoyu-design 明确写 “Best with Opus 4.8”。用弱模型跑，方法链路照走，但视觉品味会打折 —— 先跟用户说清楚。
 
 ## 本机环境事实（2026-10-11 复核）
@@ -59,7 +60,8 @@ jsdom 仍保留给「纯逻辑/事件链断言」场景（快、无浏览器依�
 
 ⚠️ 不要在含 `playwright install` 字样的命令里 `pkill -f 'playwright install'` —— **会匹配到自己的命令行自杀**（同 `pgrep -f 'bin/rclone'`）。
 
-> 政务原型的真浏览器验证三件套（端到端 / 几何量化 / 数据审计）与两道构建门禁，见 `china-gov-ui-standards` skill 第九之二、九之三、九之六节。
+> 政务原型的真浏览器验证（端到端点击 / 几何量化 / 数据审计）直接跑 `scripts/verify_proto_chrome.py`；
+> 图片热区型大屏的完整断言清单见 `references/image-hotspot-dashboard.md` 第七节。
 
 ### 🚨 迭代原型的四大「静默失效」（2026-10-11/12 实测，都害过）
 
@@ -217,7 +219,7 @@ node /opt/hermes/optional-skills/creative/auteur/scripts/slopscan.mjs <产物.ht
 | `sketch` | 方向未定时，**先出 2–3 个视觉方向**让用户挑，再深入 |
 | `scrollcraft` | 滚动叙事/落地页式体验（本类政务后台基本用不上） |
 | `impeccable` | 更狠的前端审美标准；⚠️ 完整版需从 hub 下载（GitHub 限流，需 `GITHUB_TOKEN`） |
-| `china-gov-ui-standards` | 政务配色与规范硬约束，**优先级高于本节的审美偏好** |
+| ~~`china-gov-ui-standards`~~ | **已移出技能库，不要再尝试加载**。政务配色硬约束直接按本节「视觉层次」执行：主色 ≤3 种（国办发〔2017〕47号）、深蓝顶栏 + 左菜单 + 浅蓝表头 + 底部功能区，不要出版物/年鉴感 |
 
 ### 6. 模型选型（原型生成专用，别凭感觉定）
 
@@ -234,7 +236,7 @@ node /opt/hermes/optional-skills/creative/auteur/scripts/slopscan.mjs <产物.ht
    `@keyframes/transition/animation` 数、`gradient/box-shadow/CSS变量` 数、
    `(hover:hover)` 媒体查询门、`prefers-reduced-motion`、JS 报错数、**正文文字数**、输出 token、finish_reason。
 5. 再过 **`slopscan`**（反 AI 味）与**真 Chrome 截图 + `vision_analyze`**（自己的眼）。
-6. 🚨 截图前**必注入中文字体**：本机 **没有任何系统中文字体**（`fc-list :lang=zh` 为空，Chrome 把中文全渲染成方块；写文泉驿/写不存在的字体名宽度一样，说明根本不生效）。
+6. 🚨 截图前**先复核中文字体**（`fc-list :lang=zh`）。当前环境已装 `Noto Sans SC`（`/opt/data/home/.fonts/NotoSansCJKsc-Regular.otf`），产物直接写 `font-family:"Noto Sans SC"` 即可正常出中文，**不需要**再注 woff2。若换到缺中文字体的环境（`fc-list` 为空、Chrome 把中文全渲染成方块），退回下面内嵌 woff2 的解法。
    唯一有效解法：下载 woff2 子集并内嵌——
    `curl -sL https://cdn.jsdelivr.net/npm/@fontsource/noto-sans-sc@5.2.5/files/noto-sans-sc-chinese-simplified-400-normal.woff2 -o <评测目录>/_evalcjk.woff2`（~1.1MB，国内直连可达）
    ✅ **已存一份持久副本：`/opt/data/assets/fonts/noto-sans-sc-cjk.woff2`——直接用它，别再依赖 `/tmp`（会被清，且磁盘紧张）。**，
@@ -291,6 +293,17 @@ body { font-family:"WenQuanYi Zen Hei",sans-serif; width:1440px; height:900px;
 对标基准：腾讯 WorkBuddy 原型 skill / `huashu-design` / `prd-html-skill`，共同红线是
 **单文件自包含 + 可点击交互 + 多页跳转 + 交付前浏览器验证**。
 
+> 🖼 **页面已经是做好的大屏截图时走独立路线**：用户要求图片一像素不动（不改字、不改色、不裁切），
+> 只在其上叠可点击热区做跳转。完整做法见 `references/image-hotspot-dashboard.md`——
+> 含：像素级热区探测（**vision 不只错坐标，还会凭空造出不存在的按钮**）、**页面身份以图片文件名为准**、
+> 屏级热区隔离（不做会出隐形误点）、图片只读的断言写法、**热区对齐的可视复核（点得通 ≠ 压对了）**、默认单文件不出启动包。
+>
+> 🚨 **这类工作默认「只登记不构建」**：新图进来只做「入库 + 量坐标 + 更新屏定义表」三件事，
+> **不跑构建、不出 HTML、不截图**，等用户明确要再一次性构建 + 验证（原话：「以后先不用生成 html 文件，
+> 等我找你要的时候你再生成」）。另外同批图**尺寸可能不一致**，画幅与百分比换算都要逐屏用自己的 `w/h`，不能全局锁 16:9。
+>
+> 🚨 **同批图还可能连风格都不是一套**（实测一个工程里混了深蓝大屏 2276×1280 与浅底 GIS 网页截图 1920×880）：画幅能自适应不变形，但切页会上下出黑边、画面明显「矮一截」，视觉割裂。**交付说明必须主动点出**，并给「重导统一尺寸 / 拆成单独文件」两个选项。浅底页的像素探测判据也要整个反转（`lum < 190` 找深色块），详见该 reference 第四节。
+
 ### 标准做法
 
 1. **屏幕用 `section.screen` + `.active` 切换**，不要多文件、不要 hash 路由——便于 jsdom 驱动和静态截图。
@@ -300,7 +313,7 @@ body { font-family:"WenQuanYi Zen Hei",sans-serif; width:1440px; height:900px;
 4. 抽屉/弹窗用 `position:fixed` + `.show` 类控制，**不要靠 JS 改行内 style**（静态渲染器读不到）。
 5. 校验要写全：负例（必填未填/字数不够/未勾选承诺）必须被拦截。
 
-### 🔬 无头验证：jsdom 代替 Playwright（本机无 chromium）
+### 🔬 纯逻辑断言：jsdom（不启浏览器时用）
 
 ```bash
 mkdir -p <proj>/jsdom && cd <proj>/jsdom && npm init -y && npm install jsdom

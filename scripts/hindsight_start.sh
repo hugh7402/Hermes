@@ -23,6 +23,23 @@ unset https_proxy http_proxy all_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY 2>/dev/n
 unset PYTHONPATH PYTHONHOME 2>/dev/null || true
 export PYTHONNOUSERSITE=1
 
+# 🚨 PG 标准目录必须存在，且 pg_tblspc 里绝对不能放普通文件
+#   - disk-cleanup 插件会把空目录当垃圾删掉（8-26、10-07 各删过一次 pg_tblspc），
+#     删掉后 PG 启动报 could not open directory "pg_tblspc"
+#   - 但 pg_tblspc 不能学其他目录放 .keep 占位文件：PG 会把里面每个条目当表空间
+#     opendir，遇到普通文件直接 FATAL: could not open directory "pg_tblspc/.keep/..."
+#   所以：其他 12 个目录用 .keep 占位（见 protect_pg_dirs.py），pg_tblspc 只做 mkdir -p 兜底
+PGDATA_DIR="/opt/data/.pg0/instances/hindsight-embed-hermes/data"
+if [ -d "$PGDATA_DIR" ]; then
+  for d in pg_tblspc pg_commit_ts pg_dynshmem pg_logical/snapshots pg_logical/mappings \
+           pg_notify pg_replslot pg_serial pg_snapshots pg_stat_tmp pg_twophase \
+           pg_wal/archive_status pg_wal/summaries; do
+    mkdir -p "$PGDATA_DIR/$d"
+  done
+  # pg_tblspc 保持干净：移除任何误放的占位文件
+  rm -f "$PGDATA_DIR/pg_tblspc/.keep" 2>/dev/null || true
+fi
+
 BIN=/opt/data/.cache/uv/archive-v0/UvuKov5JptV1YgV0DscNQ/bin/hindsight-api
 if [ ! -x "$BIN" ]; then
   BIN=$(command -v hindsight-api || echo "")

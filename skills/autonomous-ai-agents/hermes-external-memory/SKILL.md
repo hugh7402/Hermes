@@ -297,6 +297,46 @@ daemon 空闲超时（300s）正常退出后，**如果连得上的 supervisor�
 > 自查一条命令：`find /opt/data/.pg0/instances/*/data -type d -empty | wc -l`
 > —— 应为 `0`（非 0 说明占位文件丢了，插件马上又要删目录）。完整步骤见 reference「hindsight-daemon-recovery」。
 
+**🚨 `.keep` 占位法对 `pg_tblspc` 是致命的（2026-11-16 实测，比上面那个坑更隐蔽）**：
+
+PG 会把 `pg_tblspc` 下的**每一个条目**当作表空间目录去 opendir，路径拼成
+`pg_tblspc/<条目>/PG_18_202506291`。所以往 `pg_tblspc` 里放普通文件 `.keep` 会直接：
+
+```
+FATAL: could not open directory "pg_tblspc/.keep/PG_18_202506291": Not a directory
+LOG:   startup process (PID xxxx) exited with exit code 1
+LOG:   aborting startup due to startup process failure
+ERROR: Application startup failed. Exiting.
+```
+
+**所以 13 个目录不能一视同仁**：其余 12 个（pg_commit_ts / pg_dynshmem / pg_logical/snapshots /
+pg_logical/mappings / pg_notify / pg_replslot / pg_serial / pg_snapshots / pg_stat_tmp /
+pg_twophase / pg_wal/archive_status / pg_wal/summaries）放 `.keep` 安全；
+**`pg_tblspc` 必须保持完全为空**，改成在 `hindsight_start.sh` 里 `mkdir -p` 兜底重建
+（disk-cleanup 删了也白删，下次启动自动补回）。
+
+**daemon 日志刷 `Command not found: uvx` = uvx 不在网关注程的 PATH（2026-11-16）**：
+
+插件拉 daemon 用的是裸命令 `uvx hindsight-api@0.10.3 --idle-timeout 300 --port 9177`，
+但 uv 装在 `/opt/hermes/tools/uv-<ver>-linux-x64/`，而 gateway 的 PATH 是：
+```bash
+tr '\0' '\n' < /proc/<gateway_pid>/environ | grep '^PATH='
+# /command:/opt/hermes/.venv/bin:/opt/data/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+```
+两者对不上，于是每轮 keepalive 都失败、日志反复刷 `Command not found: uvx`。
+
+**修法（持久，不需要改插件）**：把 uv/uvx 软链进 gateway PATH 里已有的目录：
+```bash
+ln -sf /opt/hermes/tools/uv-*/uvx /opt/data/.local/bin/uvx
+ln -sf /opt/hermes/tools/uv-*/uv  /opt/data/.local/bin/uv
+# 用网关同款最小环境验证
+env -i HOME=/opt/data PATH="/command:/opt/hermes/.venv/bin:/opt/data/.local/bin:/usr/bin:/bin" bash -c 'uvx --version'
+```
+
+⚠️ 排查时别用 `pkill -f "hindsight-api"` / `pkill -f "postgres.*hindsight-embed"`——
+**命令行自身就含这些字符串，会把执行命令的 shell 一起 SIGTERM/SIGKILL 掉**，表现为退出码 −15 / −9。
+改成写成脚本文件再执行（命令行里就没有待匹配的明文），或用 `pgrep -f 'bin/hindsight[-]api'` 的括号技巧并从脚本内调用。
+
 **daemon 日志报 `ImportError: cannot import name 'ArgsKwargs' from 'pydantic_core._pydantic_core'` = PYTHONPATH 串了 Python 版本（2026-11-10 实测）**：
 
 这跟 PG、跟数据目录**完全无关**，别去查 `.pg0`、别补目录、更别删实例。特征极好认：
@@ -411,7 +451,7 @@ ps -eo pid,lstart,cmd | grep "[h]ermes gateway"
 ## Reference Files
 
 - `scripts/hindsight_repair.sh` — **retain 超时 / daemon 起不来时第一个跑的脚本**（2026-10-07 实跑通过）：幂等补齐 11 个 PG 标准目录 → 清 daemon+孤儿 postgres → 等 dashboard 重拉至 `/health` 返回 200 → 打印三步验收提示。**永不删实例数据**，可反复跑。
-- `scripts/protect_pg_dirs.py` — **治本脚本（2026-10-10 新增）**：给 PG 数据目录下 13 个易被 disk-cleanup 删除的空目录各放一个 `.keep` 占位文件。**先跑 repair.sh 恢复，再跑本脚本防复发**；跑完用 `find ... -type d -empty | wc -l` 应得 0。
+- `scripts/protect_pg_dirs.py` — **治本脚本（2026-10-10 新增）**：给 PG 数据目录下易被 disk-cleanup 删除的空目录各放一个 `.keep` 占位文件。⚠️ **必须跳过 `pg_tblspc`**（放了会让 PG 启动 FATAL，见正文）；跑完用 `find ... -type d -empty | grep -v pg_tblspc | wc -l` 应得 0。
 - `references/bailian-setup.md` — 百炼 (Bailian) API specific setup: endpoints, model pricing, verification commands
 - `references/local-embedded-activation.md` — **local_embedded 从零到 retain/recall 全通实录（2026-08-09 验证）**：只读 venv + lazy-packages 安装、hindsight-embed 替代错误的老 hindsight 包、HF 模型经 hf-mirror 预下载、HindsightEmbedded shim、api_url 端口匹配。配置好但 is_available() False / daemon 不启动时先读这个。
 - `references/hindsight-daemon-recovery.md` — **PG 起不来 / daemon 卡死完整修复实录（2026-08-17）**：libicu70 缺失 + 缺 PG 标准目录的修复（直接补目录，**勿删实例**）、postgres wrapper 注入 LD_LIBRARY_PATH、手动启动 daemon 三必设环境（HOME/DATABASE_URL/unset proxy）、--daemon 孤儿进程占端口。daemon 起不来或 PG 报错时先读这个。

@@ -181,15 +181,19 @@ bash /opt/data/proxy-skill/proxy.sh status   # 确认出口 IP 已变
 
 代理端口用前先探：`curl -s -x http://127.0.0.1:10808 -o /dev/null -w '%{http_code}' -m 15 https://www.google.com/generate_204`，返回 204 才可用。
 
-**别把「慢」误判成「坏」**：进度虽慢但 partial 一直在长 → 只是限速，不是断源，别急着重下；**连续两轮体积完全不变**才是真的停。
+**别把「慢」误判成「坏」**：进度虽慢但 partial 一直在长 → 只是限速，不是断源，别急着重下；**连续两轮体积完全不变**才是真的停。注意 `partial` 自身体积也被预分配，判断「在不在爬」要看 rclone `--stats` 报的已传字节，不是 `ls -la` 的大小。
+
+**一次下载里不同文件可能撞上不同的层**：实测 29 集里 28 集 15 分钟下完，唯独第 22 集掉到 150 KB/s——这轮是「部分文件被限」而不是「整批被限」，**不要因为大部队很快就把慢的那个当偶发忽略掉**，单拎出来挂代理重下即可。
 
 #### 三级限速诊断表（2026-11-08 小黄人三连扑实战，三种撞上两种）
 
 | 症状 | 根因 | 解法 |
 |---|---|---|
 | 进度**卡在固定百分比不动**，体积不涨，进程还在 | 出口 **IP 配额**用尽 | 加 `--http-proxy` |
-| **几百 KB/s 但一直在爬**（如39-566 KiB/s） | **单文件**被限 | 换小体积版本 |
+| **几百 KB/s 但一直在爬**（如 150-360 KiB/s） | 单文件限速 **或** 出口 IP 配额见底——两者临床特征相同，**光看速度分不出来** | **先加 `--http-proxy` 试一次**（零成本，一分钟见分晓）；代理也无效、且该片确实有更小版本时才换版本 |
 | 加了代理、换了小版本**依旧几百 KB/s** | **代理节点**配额也用尽 | **换节点**（`proxy_auto_switch.sh`） |
+
+🚨 **试的顺序是「先代理、后换版本」，不是反过来。** 实测同一集卡在 63%、150-185 KB/s、ETA 35 分钟，挂上 `--http-proxy` 后**同一文件立刻 25-28 MiB/s、90 秒下完**——而当时该片并没有更小的版本可换，按旧版「几百 KB/s → 换小体积版本」这条会直接卡死。**该片只有一个版本时，代理是唯一出路。**
 
 关键教训：**小版本也慢 ≠ 文件大小问题**。本次大版本（4.9/6.39/8.13G）被限后换成小版本（2.6-2.85G）依旧只有 39-566 KB/s，真正原因是当天早上已用同一代理节点下了 1.33GB，节点额度耗尽。切到另一个节点（us05）后立刻回到 25MB/s，8.27GB 六分钟拉完。
 
@@ -293,6 +297,11 @@ bWFnbmV0Oj94dD11cm46YnRpaDo3YTgyNmIwYTk3NzU1M2RiZDkwMWM2NDFhMDk1ZjM5ODU4NDlkMWVk
 
 **⚠️ `seedhub_fetch.py magnet` 偶发解析失败 → 重试 2-3 次即可**：同一 `movie_id` + `seed_id` 第一次报「❌ 解析失败」，隔几秒重跑就出磁链（link_start 页面偶发返回空壳）。**不要因为一次失败就换版本**，先原地重试；连续 3 次都失败才说明这个 seed 真没种子。同理 `/s/<kw>` 搜索偶发 HTTP 000 / 0 字节，`-m` 给足 + 重试。
 
+**🚨 搜索结果为空时，先跑一次「对照组」再下结论**：手写正则解析搜索结果页极易一条都抓不到
+（标题不在 `<a>` 文本里，而在别的属性/层级），症状是「全站没有这部片」的假结论。
+**用 `scripts/seedhub_fetch.py search` 而非手写正则**；已经手写了的话，拿一部**刚下过的片名**做对照查询：
+对照组有结果、目标片没有，才是真的没有；对照组也空，问题就在解析器或站点，不在片源。
+
 **实测命中率**：变形金刚系列 **7/8 部**一次拿到 `[国英多音轨+简繁中字]` 的 4K UHD 磁链（HDH 系压制组 **SSDSSE / DreamHD / MiniHD**），单部 25-39GB；每部影片页 56-133 个版本，其中带中文字样的 7-35 个。
 
 **版本挑选：按「规格匹配」，不要按「体积最大」**（本 skill 的"高清大版本"偏好在这里会翻车）：
@@ -335,7 +344,24 @@ bWFnbmV0Oj94dD11cm46YnRpaDo3YTgyNmIwYTk3NzU1M2RiZDkwMWM2NDFhMDk1ZjM5ODU4NDlkMWVk
 
 ### ② 种子文件 → 磁链（btih 提取）
 
-**⚠️ 悠悠MP4 的 `.torrent` 直链会 404，别在这上面耗**：帖子页 `attachlist` 里 `<a href="https://bt.uump4.cc/btdown/YYYY/MM/DD/...&amp"` 的 **href 属性在 `&amp;` 处就被截断了**，完整文件名只在链接文本里。按链接文本拼回完整 URL 仍然 404（服务端路径已不认）。所以：悠悠MP4 用来**搜版本、看规格、读帖子正文**没问题，**指望它给种子/磁链不可靠**——拿到片名规格后转 SeedHub 搜同版，或按发布组名去 web_search 找磁链。
+**悠悠MP4 的 `.torrent` 直链可用，但要验证取到的是完整文件**：`thread-<id>.htm` 帖子页里有完整的
+`https://bt.uump4.cc/btdown/YYYY/MM/DD/<hash>.torrent`，带 `-e <帖子URL>` Referer 直接 curl。
+路径：搜索页 `search.htm?keyword=` 拿 `thread-<id>.htm` 列表 → 逐个进帖子读标题规格 → 取 .torrent。
+同站往往还有另一个帖子只放明文磁链，`grep -oE 'magnet:\?xt=urn:btih:[A-Za-z0-9]+'` 直接捞，比种子更省事。
+
+🚨 **第一次下载常被截断**：同一 URL 第一遍可能只拿到 57344 B，`torrent_to_magnet.py` 报
+`ValueError: bad bencode at <偏移>`。**判据是 bencode 能解析到底，不是 HTTP 200**。
+报 bad bencode 就 `rm` 重下 1-3 次（实测重下即得完整的 108666 B），不要因为一次失败就换源：
+
+```bash
+for i in 1 2 3; do
+  curl -sL --noproxy '*' -A "$UA" -e "https://www.uump4.cc/thread-<id>.htm" \
+    "<torrent_url>" -o /tmp/x.torrent
+  [ "$(stat -c%s /tmp/x.torrent)" -gt 100000 ] && break
+  sleep 3
+done
+python3 scripts/torrent_to_magnet.py /tmp/x.torrent   # 输出里看「外挂字幕文件: 0 个 → 内封」
+```
 
 1lou 等站点只提供 `.torrent` 附件时：下载附件 → 用 bencode 解析 info dict → SHA1 得 btih：
 
@@ -358,6 +384,11 @@ curl -sL --proxy http://127.0.0.1:10808 -A "Mozilla/5.0" \
 
 **普通电影**：下载完成后**必须改名**为 `中文片名.英文片名.年份.扩展名`（如 `致命黑兰.Colombiana.2011.mkv`、`应召女王.Madame.Claude.2021.mkv`、`池畔谋杀案.Swimming.Pool.2003.mkv`），存 **`/opt/data/Movie/`**（电影独立目录，与番号分开）。
 **剧集（多集）**：建子目录 `Movie/剧名第一季(年份)/`，集数文件保留原名（如 `Stranger.Things.S01E01.1080p.BluRay.x264-SHORTBREHD.mkv`），字幕同目录。
+
+**改名时必须剥掉压制站的广告前后缀**：`[最新电影www.xxx.com]`、`【更多高清影视请访问 www.xxx.com】`
+这类一律正则清掉（`re.sub(r'\[[^\]]*www\.[^\]]*\]', '', n)`、`re.sub(r'【[^】]*www\.[^】]*】', '', n)`），
+文件夹名同样要剥。**0 字节的纯广告文件（.DOC/.MP4/.MKV）直接不拷**。
+剧集按集号补两位前缀 `01.`…`29.` 便于播放器排序——云端的 `22.xxx` 有时是单数字，混排会乱。
 **番号视频**（NMSL-011 等）：走 jav-auto-download 规则命名（`番号-女优名-描述.mp4`），存 `/opt/data/PikPak/Inbox-JAV/`。**两个规则不要混用**——用户明确纠正过：番号视频不能按电影规则命名入库。
 
 > ⚠️ **版本选择偏好——已变更（2026-09-27 用户明确，覆盖早前规则）**：
@@ -365,6 +396,8 @@ curl -sL --proxy http://127.0.0.1:10808 -A "Mozilla/5.0" \
 >
 > 实操含义：
 > - **先看体积，再看规格**——30-60G 的 REMUX / 4K 原盘不要选（即使带中字），除非用户特别要求
+> - **剧集按「单集」体积衡量，不是整季总量**：这条规则管的是单个文件。29 集 4K 共 25.84G（0.89G/集）完全合规，
+>   不要因为总量过了 10G 就退档选 1080p。单集 ≤ ~1.2G 即可，整季 20-35G 属正常
 > - 在 **≤ ~11G** 的候选中挑**清晰度最高**的：4K/2160p + HDR > 4K 无 HDR > 1080p BluRay > WEB-DL
 > - 实测最优档通常是 **`2160p.iTunes.WEB-DL.DD5.1.HDR.H.265-*`（BATWEB / PandaQT）**：约 9-11G，带 4K HDR + 国英多音轨 + 简繁英字幕，性价比最高
 > - 其次 `UHD.BluRay.2160p...x265.10bit.HDR-ALT` 约 12-13G（稍超但源更好，可酌情）
@@ -481,11 +514,18 @@ ps -eo pid,cmd | awk '/[r]clone copy/ {print}'
   - HDR 片源抽帧前必须先色调映射（见下条），否则发灰、什么都看不出来。
 - **🚨 无字幕流但有"烧录硬字幕" = 也算中字版合格（2026-09-07 知无涯者案例）**：WEB-DL 中字版常是**烧录硬字幕**（中文字幕烧进画面，无音轨字幕流）。`ffprobe -select_streams s` 返回空 ≠ 没中字。必须抽帧 OCR 分辨两态：抽帧出中文对白 = 硬字幕**合格**，可正常入库；抽帧无字/只有水印 = 真无中字，如实告知。知无涯者 PARKHD 版即无字幕流但 OCR 在 1800s/3000s 抽出"起来国王要来了"等中文对白 → 中字确认入库。
 - **假种子/截断种子（2026-08-02 野兽女孩事故）**：磁链标注 720P 完整版，下载后 ffprobe 发现时长只有 **4分45秒**（6840帧）——种子本身是截断/假货，PikPak 离线 + aria2 拉回全程无异常，只有 ffprobe 时长能识破。**每部电影下完必须核对时长是否符合预期**（野兽女孩 108 分钟 vs 实际 4分45秒 → 换另一个磁链 `6115DA56` 拿到 1.31GB 完整版）。不要只看文件大小/有无字幕流就入库。同类坑：小文件（<500MB 的"完整电影"）尤其要怀疑。
+- **🚨 核时长要取「正片」的官方数字，流媒体页面的时长多数是预告**：腾讯视频等页面上挂的
+  `时长 01:41` 往往指那一条预告/花絮，不是正片。照它比对会把一部 118 分钟的正片误判成「时长不符」。
+  **交叉核三个来源**：豆瓣条目页「片长」、1905/百科类条目、导演访谈或官方通稿原话
+  （导演发文写「全片时长 118 分钟」是最硬的证据）。三者一致才拿来做判据。
+- **🚨 文件名里的年份不可信，别据此判断是不是同一部**：压制组会把 2026 年的片子写成 `.2024.`。
+  判定同一部看**剧情、语言/音轨、时长**三项（如豆瓣标「潮汕话/普通话」对上文件的双音轨国语+潮汕话），
+  对上了就按**正确年份**改名入库，并在交付时告诉用户原文件名是错的。
 - **🚨 WebDAV 对新移出文件同步延迟（2026-08-27 知无涯者实战）**：pikpakapi `file_batch_move` 把视频移出到 `Movie/` 根后，**rclone/WebDAV 可能数分钟看不到该文件**——`rclone lsf` 返回空、`--dir-cache-time 0s` 仍不可见，但 pikpakapi `file_list` 已确认文件在根目录。这是 **PikPak WebDAV 服务的索引同步延迟**（非 rclone bug）。**对策**：移出后不要立即下载，用后台脚本每 30-60s 探测 `timeout 50 /tmp/rclone lsf pikpak:/Movie | grep 文件名` 直到可见再启动 WebDAV 拉回（上限 ~30 分钟轮询）。
 
 > 🚨 **写完这条后自己踩的坑（2026-09-25 史前星球 S3）**：不要给 `rclone lsf` / `lsl` 加 `--dir-cache-time 0s`！那是 **VFS 专用 flag**，`lsf`/`lsl` 会直接报 `Error: unknown flag: --dir-cache-time` 并**输出 0 条**。轮询脚本里 `grep -c` 永远得 0 → 看起来像“同步一直不到位”，实际文件早就在了（白等 6 分钟）。
 > **判据**：轮询计数恒为 0 **且** `rclone lsf` 的 stderr 里有 `unknown flag`。**验证命令能否用**：先手动跑一次 `timeout 60 rclone lsf pikpak:/Movie`，确认能列出内容再写进循环。真延迟与命令写错都会表现为“看不到”，先排除后者。批量移出多文件后通常等几分钟即可见（5 部电影场景），**单文件移出后立即探测常遇延迟**——别以为移出失败，继续等。
-- **🎨 HDR 片源抽帧 OCR 必须先色调映射（2026-09-27 变形金刚实战）**：4K UHD 片源（`color_transfer=smpte2084`、primaries `bt2020`）直接抽帧会得到**发灰的低对比画面**，OCR 识别率极差甚至完全识别不到字幕，容易误判成"无中字"。**必须先 tonemap 再 OCR**：
+- **🎨 HDR 片源抽帧 OCR 必须先色调映射（2026-09-27 变形金刚实战）**：4K UHD 片源（`color_transfer=smpte2084`、primaries `bt2020`）直接抽帧会得到**发灰的低对比画面**，OCR 识别率极差甚至完全识别不到字幕，容易误判成"无中字"。**先查 `color_transfer` 再决定要不要 tonemap**：为 `smpte2084` / `arib-std-b67` 才是 HDR，必须 tonemap 再 OCR；返回 `unknown` 或空 = SDR 片源，**此时套 tonemap 会报 `code 3074: no path between colorspaces` 并抽帧全部失败**，直接用 `-vf scale=1280:-1` 抽即可（别把 tonemap 当固定动作，先探一次再拼滤镜）。HDR 片源的 tonemap 写法：
   ```bash
   ffmpeg -ss 3600 -i in.mkv -frames:v 1 -vf "zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p,scale=1280:-1" -y /tmp/f.jpg
   ```
@@ -496,6 +536,12 @@ ps -eo pid,cmd | awk '/[r]clone copy/ {print}'
   ```
   长输出脚本一律重定向到文件再读，不要用 head/tail 截管道。
 - **批量离线/拉回性能基准（2026-09-27 变形金刚 7 部 236GB）**：7 个磁链**同时** `offline_download`（间隔 2s）→ **60 秒全部离线完成**；`rclone copy` **7 文件并行 + `--buffer-size 32M`**（7×32M≈224MB，本机 15.7G 内存扛得住）实测 **85-91 MiB/s**，236GB ETA 约 40 分钟。**注意 rclone 会预分配**，`du -sh` 立刻显示满体积、`df` 立刻扣减 —— 别把预分配当"已下完"，判据是 `.partial` 归零 + 进程退出。
+- **🚨 `.partial` 自己的体积也被预分配，用它判断进度一定错**：多线程模式下 rclone 一开跑就把
+  `.partial` 撑到目标大小——目标 963.998 MiB 的集数，`ls -la` 立刻显示 0.941 GB，**实际可能才传了 0**。
+  拿 `ls -la *.partial` 估进度会得出「已爬满」或「已停滞」的假结论，我就据此误报过一次。
+  **唯一可信的进度源是 rclone 自己的 `--stats`**：后台跑时用 `process_manage poll` 读
+  `xx MiB / yy MiB, NN%, X MiB/s, ETA`。判完成仍只能是 `.partial` 归零 + 进程退出，
+  **永远不要用体积比对代替**。
 - **无字幕版入库标注**：用户允许"入库但标注清楚无字幕"（2026-08-02 野兽女孩：韩语无字版按用户要求入库，文件名加"韩语无字幕"标注，用户自己想办法补字幕）——入库前问用户或按用户要求标注，不要擅自拒绝入库。
 - **avgood.com 站点结构（2026-08-04 水管工/野兽女孩）**：avgood 是中文成人影视资源站，分两种页面：`/c/` = **在线区**（仅播放，无磁链）、`/t/` 或下载二区 = **下载区**（有 `magnet:?xt=urn:btih:` 明文，`web_extract` 可提取）。同片可能有多个条目（不同大小/时长/清晰度），逐个检查。搜不到时用 `web_search site:avgood.com 片名`。菲律宾/韩国三级等资源该站覆盖面好，是 BT 之家之外的重要补充源。
 - **flash2u 神魂颠倒论坛（2026-08-04）**：帖子会标注 `Subtitles Internal: Chinese`（内嵌中字），但下载链接常是第三方网盘（xunniufxp 等），**这些网盘链接容易失效/无法直接磁链**。处理：把网盘链接当作"存在中字版"的线索，去 avgood 或 BT 之家搜同片磁链版。
@@ -510,7 +556,7 @@ ps -eo pid,cmd | awk '/[r]clone copy/ {print}'
 
 ## 参考
 
-- 写会议发言稿/汇报讲演稿（三段式、按时长控字数）用 `speech-draft` skill——与下载无关，但手法可复用：用户发来的方案 PDF / 配置表 / 现场照片是"一手素材源"，检索结果只配当背景
+- 写会议发言稿 / 汇报讲演稿 / 大屏解说词（按屏或按时长控字数）用 `plan-writer` skill——与下载无关，但手法可复用：用户发来的方案 PDF / 配置表 / 现场照片是"一手素材源"，检索结果只配当背景
 - `references/colombiana-20260801.md` — 《致命黑兰》完整实战：磁链搜索路径、种子→btih 提取、站点可用性实测
 - `references/madame-claude-20260801.md` — 《应召女王》第二次实战：多译名搜索、种子附件 id 定位、版本筛选
 - `references/batch-4-movies-20260801.md` — 批量下载 4 部电影：多译名识别、CDN 全节点 503 恢复模式（等 10 分钟重取 URL）、广告文件过滤、批量 aria2 脚本
@@ -521,4 +567,5 @@ ps -eo pid,cmd | awk '/[r]clone copy/ {print}'
 - `references/zh-movie-sites-direct-20260916.md` — 国内影视站**直连 vs 代理**探测结果、悠悠MP4→.torrent→磁链工作流、DreamHD 命名解读、碟中谍8 版本挑选与 PikPak 判定细节
 - `scripts/torrent_to_magnet.py` — .torrent → btih → magnet（含 tracker 拼装 + 文件清单 + 外挂字幕文件检测），比 `btih_from_torrent.py` 多输出文件结构和字幕明细
 - `scripts/seedhub_fetch.py` — **SeedHub 抓取器（内嵌中字首选源）**：搜索 / 列版本 / 解析 base64 磁链 / 自动挑 4K 国英多音轨+简繁中字最优版。`search` `versions` `magnet` `best` 四个子命令
+- `scripts/pikpak_offline.py` — **PikPak 离线 + 递归完成判定 + 条目清单**：`<magnet> --expect 25.84` 提交并盯进度，`--peek <关键词>` 只看已有条目和内部文件（含广告文件标记）。递归两层统计真实字节，避开「顶层 size=0 恒判已完成」的坑。
 - `references/seedhub-scraping.md` — SeedHub 站点结构详解、版本命名解读、`seed_id` vs `pan_id` 判据、变形金刚全系列实战数据（含各片 movie_id 与已解析磁链）
