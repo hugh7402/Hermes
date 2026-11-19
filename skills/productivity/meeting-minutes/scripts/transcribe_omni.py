@@ -156,6 +156,11 @@ def main():
         }
         out = {'model': a.model, 'audio': os.path.basename(a.audio),
                'duration_s': total, 'text': text, 'segments': segs, 'usage': cost}
+        # 输出目录可能不存在，必须先建：否则全部转写完才在最后一步 FileNotFoundError，
+        # 白烧一整轮 ASR 费用与时间（已实际踩过）。
+        _d = os.path.dirname(os.path.abspath(a.out))
+        if _d:
+            os.makedirs(_d, exist_ok=True)
         with open(a.out, 'w', encoding='utf-8') as f:
             json.dump(out, f, ensure_ascii=False, indent=2)
         print(f'✅ {len(text)} 字 → {a.out}', file=sys.stderr)

@@ -33,7 +33,7 @@ description: 给定番号 → 搜javdb获取磁链 → 按规则选择（字幕�
 > 会拼出 `MIDA-C-783-…` 这种废名。正确取法是 `head = '-'.join(name.split('-')[:2])`，再把标签插在 `head` 之后，
 > 并且插入前先判断 `name[len(head):]` 是否已是该标签（避免 `JUR-264-C` 被插成 `JUR-264-C-C`）。
 > 改完必须自测三类输入：本身带 `-C`（原样返回）、磁链带 `-C` 而名字没带（插入）、磁链无标签（原样返回）。
-> 用户会逐字核对这一位，插错或漏掉都得回云端改名重来。`scripts/prep_dl.py` 的 `ensure_version_tag()` 已实现并有自测用例。
+> 用户会逐字核对这一位，插错或漏掉都得回云端改名重来。`scripts/prep_dl.py` 的 `ensure_version_tag()` 已实现并有自测用例——但它定义在 `main()` 内部，**不能 `import` 出来当模块级函数调用**；要验证就跑脚本本身，别用 `getattr` 取不到就断定脚本缺这个功能。
 > 片源无 -C/-UC 时（javdb 只有普通版）标签位留空，**并且必须补外挂中文字幕**（否则就是“下了但没字幕”）。
 >
 > 🚨 **重命名必须保留真实容器扩展名，mkv 不许写成 mp4。** `prep_dl.py` / `prep_from_btih.py` 默认按 `.mp4` 拼最终名，
@@ -137,6 +137,16 @@ MIDA-774 → `MIDA-774` 5.24GB（不再选 9.21GB 的 -U）。
 `refresh_token` 会彻底失效，报错文字有两种形态，**看到任何一种都说明 refresh 这条路死了**：
 - `invalid_grant, error_code 4126, invalidate refresh token token index N not found`
 - 短形态（实测于 FNS-004）：`invalidate refresh token token index 18 not found`，**没有 invalid_grant 前缀也同样是吊销**
+
+**先跑现成脚本，不要新写。** `scripts/pikpak_relogin.py` 就是这个流程的正式版（读 token 文件里的 username/password → `login()` → 备份后写回 → `path_to_id('/Inbox-JAV')` + `file_list` 验收，拿不到就非零退出）：
+
+```bash
+export PATH=/opt/data/.venv/bin:$PATH && python3 \
+  /opt/data/skills/software-development/jav-auto-download/scripts/pikpak_relogin.py
+```
+
+`/opt/data/.tmp_tests/pikpak_relogin.py` 是临时副本，**随时可能被清**，以 skill 内的为准。
+重复造脚本会被 `write_file` 的「文件已存在」白名单拦下，白跑一轮。
 
 **🚨 账号密码就在 token 文件里，不用问用户、也不用去 `.env` 找。**
 `/opt/data/.pikpak_token.json` 除 token 外还存着 `username`（明文手机号）和 `password`，直接拿来重登：
@@ -1137,6 +1147,8 @@ ETA 更长，低内存机器也吃不消。实际执行的节奏：
 - 脚本：`scripts/pull_queue_v2.py [小时]`（**现行**串行队列：满速 + sync 复核 + 30min 云端保管期 + 10min 巡检补缺）
 - 脚本：`scripts/pull_queue.py [小时]`（旧版，已作废）
 - 脚本：`scripts/jav_inbox_watch.py [秒]`（删除监视器，长跑下载期间常驻，`.partial` 不记）
+- 脚本：`scripts/pikpak_relogin.py`（**PikPak refresh_token 被吊销时跑**：用 token 文件里的账号密码重登、备份后写回、
+  并用 `path_to_id('/Inbox-JAV')` + `file_list` 做真验收）
 
 ### 踩坑记录
 

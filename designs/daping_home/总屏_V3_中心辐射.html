@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>四川省一体化数据资源管理系统 · 总览 V3 中心辐射</title>
+<style>
+:root{
+  --cy:#38D3F0; --cy-2:#6FE4F8; --cy-d:rgba(56,211,240,.46);
+  --txt:#EAFBFE; --txt-2:#BAD6E4; --txt-3:#7796A8;
+  --soft:linear-gradient(165deg,rgba(12,44,66,.9),rgba(5,22,36,.96));
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#02101A}
+body{font-family:"PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif;-webkit-font-smoothing:antialiased}
+
+#stage{position:absolute;top:50%;left:50%;width:2276px;height:1280px;transform-origin:center center;overflow:hidden;
+  background:radial-gradient(ellipse 64% 56% at 50% 52%, #0C3A54 0%, #082738 32%, #04141F 64%, #02101A 90%, #01090F 100%)}
+#stage::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:4;
+  background:radial-gradient(ellipse 90% 84% at 50% 50%,transparent 58%,rgba(1,9,15,.42) 92%,rgba(1,9,15,.68) 100%)}
+
+.wrap{position:relative;z-index:2;display:flex;flex-direction:column;height:100%;padding:38px 58px 42px}
+
+/* header */
+header{display:flex;align-items:center;justify-content:space-between;gap:36px;flex:none}
+.brand{display:flex;flex-direction:column;gap:10px}
+.brand h1{font-size:48px;font-weight:700;letter-spacing:5px;color:var(--txt);
+  text-shadow:0 0 30px rgba(56,211,240,.4)}
+.brand .sub{font-size:19px;letter-spacing:9px;color:var(--txt-3)}
+nav{display:flex;gap:10px;flex:none;flex-wrap:wrap;justify-content:flex-end;max-width:900px}
+.nav-item{padding:12px 24px;font-size:19px;letter-spacing:2px;color:var(--txt-2);cursor:pointer;
+  border:1px solid rgba(56,211,240,.2);border-radius:22px;background:rgba(8,32,48,.6);
+  transition:color .18s ease-out,border-color .18s ease-out,background .18s ease-out}
+@media (hover:hover) and (pointer:fine){
+  .nav-item:hover{color:var(--cy-2);border-color:var(--cy-d);background:rgba(12,52,74,.8)}
+}
+.nav-item:active{transform:scale(.97)}
+
+main{flex:1;display:flex;flex-direction:column;gap:22px;padding-top:24px;min-height:0}
+
+/* 01 阶段轴 */
+.axis{flex:none;display:flex;align-items:center;gap:28px;padding:19px 32px;cursor:pointer;
+  border:1px solid rgba(56,211,240,.24);border-radius:14px;background:var(--soft);min-height:104px;
+  transition:border-color .18s ease-out}
+@media (hover:hover) and (pointer:fine){.axis:hover{border-color:var(--cy-d)}}
+.axis .lb{display:flex;align-items:baseline;gap:12px;flex:none}
+.axis .ix{font-size:16px;font-weight:700;color:var(--cy);border:1px solid rgba(56,211,240,.45);
+  border-radius:20px;padding:3px 12px}
+.axis .nm{font-size:28px;font-weight:600;letter-spacing:3px;color:var(--txt)}
+.steps{display:flex;align-items:center;flex:1;justify-content:space-between;padding-left:12px}
+.st{display:flex;align-items:center;gap:11px;font-size:19px;letter-spacing:1px;color:#5F8194;white-space:nowrap}
+.st i{width:10px;height:10px;border-radius:50%;background:rgba(56,211,240,.26);
+  border:1px solid rgba(56,211,240,.5);flex:none}
+.st.done{color:var(--txt-2)} .st.done i{background:var(--cy);box-shadow:0 0 10px var(--cy)}
+.st.now{color:var(--cy-2);font-weight:700}
+.st.now i{background:var(--cy-2);border-color:var(--cy-2);box-shadow:0 0 16px rgba(111,228,248,.95)}
+.st .ln{width:50px;height:1px;flex:none;background:linear-gradient(90deg,rgba(56,211,240,.42),rgba(56,211,240,.1))}
+.st:last-child .ln{display:none}
+
+/* 辐射区：核心纵跨两行，真正居中 */
+.field{flex:1;display:grid;grid-template-columns:1fr 1.06fr 1fr;grid-template-rows:1fr 1fr;
+  gap:22px 30px;min-height:0}
+
+.node{border-radius:16px;cursor:pointer;padding:26px 30px;display:flex;flex-direction:column;
+  justify-content:space-between;gap:12px;
+  border:1px solid rgba(56,211,240,.26);background:var(--soft);
+  box-shadow:0 0 0 1px rgba(56,211,240,.04), 0 10px 32px rgba(0,0,0,.4);
+  transition:border-color .2s ease-out, box-shadow .2s ease-out}
+@media (hover:hover) and (pointer:fine){
+  .node:hover{border-color:var(--cy-d);box-shadow:0 0 0 1px rgba(56,211,240,.14),0 12px 38px rgba(0,0,0,.48),0 0 32px rgba(56,211,240,.15)}
+  .node:hover .nm{color:var(--cy-2)}
+}
+.nh{display:flex;align-items:baseline;gap:13px}
+.ix{font-size:15px;font-weight:700;color:var(--cy);letter-spacing:1px;
+  border:1px solid rgba(56,211,240,.42);border-radius:20px;padding:3px 11px}
+.nm{font-size:31px;font-weight:700;letter-spacing:3px;color:var(--txt);transition:color .18s ease-out}
+.ds{font-size:19px;line-height:1.85;color:var(--txt-2);letter-spacing:.4px}
+.tags{display:flex;flex-wrap:wrap;gap:8px}
+.tg{font-size:15px;color:#8FD3E6;border:1px solid rgba(56,211,240,.3);border-radius:12px;
+  padding:4px 11px;background:rgba(56,211,240,.07)}
+
+/* 核心：纵跨两行，垂直居中 */
+.hub{grid-column:2;grid-row:1 / span 2;display:flex;align-items:center;justify-content:center;position:relative}
+.hub .ring{position:absolute;width:100%;height:100%;max-width:520px;max-height:520px;
+  border-radius:50%;border:1px dashed rgba(56,211,240,.26)}
+.hub .ring:nth-child(2){max-width:436px;max-height:436px;border-style:solid;
+  border-color:rgba(56,211,240,.14)}
+.core{position:relative;width:346px;height:346px;border-radius:50%;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:15px;
+  border:1px solid rgba(56,211,240,.5);
+  background:radial-gradient(circle at 50% 36%, rgba(22,92,124,.96), rgba(6,30,46,.98) 68%, rgba(4,20,32,1) 100%);
+  box-shadow:0 0 52px rgba(56,211,240,.22), inset 0 0 52px rgba(56,211,240,.11);
+  transition:box-shadow .2s ease-out}
+@media (hover:hover) and (pointer:fine){.core:hover{box-shadow:0 0 70px rgba(56,211,240,.36), inset 0 0 62px rgba(56,211,240,.17)}}
+.core .t1{font-size:27px;font-weight:700;letter-spacing:4px;color:var(--txt);text-align:center;line-height:1.45}
+.core .div{width:70px;height:1px;background:rgba(56,211,240,.5)}
+.core .t2{font-size:18px;letter-spacing:4px;color:var(--cy);text-align:center}
+
+/* 06 托底条 */
+.base{flex:none;display:flex;align-items:center;gap:28px;padding:22px 32px;cursor:pointer;
+  border:1px solid rgba(56,211,240,.26);border-radius:14px;background:var(--soft);min-height:128px;
+  transition:border-color .18s ease-out}
+@media (hover:hover) and (pointer:fine){.base:hover{border-color:var(--cy-d)}}
+.base .bh{display:flex;align-items:baseline;gap:13px;flex:none}
+.base .nm{font-size:30px}
+.base .ds{flex:1}
+
+#toast{position:fixed;left:50%;bottom:58px;transform:translate(-50%,22px);padding:15px 34px;
+  font-size:20px;letter-spacing:1px;color:var(--txt);background:rgba(6,32,48,.96);
+  border:1px solid var(--cy-d);border-radius:26px;
+  box-shadow:0 0 30px rgba(56,211,240,.3),0 12px 36px rgba(0,0,0,.55);
+  opacity:0;pointer-events:none;transition:opacity .2s ease-out,transform .2s ease-out;z-index:99}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+
+@media (prefers-reduced-motion: reduce){
+  *{transition:opacity .15s linear !important}
+  .nav-item:active{transform:none !important}
+}
+</style>
+</head>
+<body>
+<div id="stage"><div class="wrap">
+
+  <header>
+    <div class="brand">
+      <h1>四川省一体化数据资源管理系统</h1>
+      <div class="sub">一屏总览</div>
+    </div>
+    <nav>
+      <div class="nav-item" data-go="overview">项目总览</div>
+      <div class="nav-item" data-go="gather">数据汇聚</div>
+      <div class="nav-item" data-go="govern">数据治理</div>
+      <div class="nav-item" data-go="empower">数据赋能</div>
+      <div class="nav-item" data-go="security">数据安全</div>
+      <div class="nav-item" data-go="institution">制度规范</div>
+    </nav>
+  </header>
+
+  <main>
+    <!-- 01 -->
+    <div class="axis" data-go="overview">
+      <div class="lb"><span class="ix">01</span><span class="nm">项目总览</span></div>
+      <div class="steps">
+        <div class="st done"><i></i>立项审批<i class="ln"></i></div>
+        <div class="st done"><i></i>初步设计<i class="ln"></i></div>
+        <div class="st done"><i></i>采购程序<i class="ln"></i></div>
+        <div class="st now"><i></i>合同签订<i class="ln"></i></div>
+        <div class="st"><i></i>组织实施<i class="ln"></i></div>
+        <div class="st"><i></i>验收运行</div>
+      </div>
+    </div>
+
+    <!-- 辐射区 -->
+    <div class="field">
+      <article class="node" data-go="gather">
+        <div class="nh"><span class="ix">02</span><span class="nm">数据汇聚</span></div>
+        <div class="ds">省直部门与市州数据统一接入，<br>形成基础库与主题库，<br>统一口径、消除信息孤岛，<br>让分散在各处的数据汇得上来。</div>
+        <div class="tags"><span class="tg">省直部门</span><span class="tg">市州</span><span class="tg">基础库</span><span class="tg">主题库</span></div>
+      </article>
+
+      <div class="hub">
+        <div class="ring"></div><div class="ring"></div>
+        <div class="core" data-go="overview">
+          <div class="t1">一体化<br>数据资源管理系统</div>
+          <div class="div"></div>
+          <div class="t2">六大板块 · 一屏总览</div>
+        </div>
+      </div>
+
+      <article class="node" data-go="empower">
+        <div class="nh"><span class="ix">04</span><span class="nm">数据赋能</span></div>
+        <div class="ds">围绕自然人与法人提供<br>画像分析与综合查询，<br>支撑部门业务与领导决策，<br>把治理好的数据真正用起来。</div>
+        <div class="tags"><span class="tg">自然人</span><span class="tg">法人</span><span class="tg">画像分析</span><span class="tg">综合查询</span></div>
+      </article>
+
+      <article class="node" data-go="govern">
+        <div class="nh"><span class="ix">03</span><span class="nm">数据治理</span></div>
+        <div class="ds">归集库到清洗库逐层加工，<br>统一标准、校验质量，<br>逐表逐字段核对问题数据，<br>把接进来的数据变成可用数据。</div>
+        <div class="tags"><span class="tg">贴源层</span><span class="tg">标准层</span><span class="tg">质量校验</span><span class="tg">治理仓</span></div>
+      </article>
+
+      <article class="node" data-go="security">
+        <div class="nh"><span class="ix">05</span><span class="nm">数据安全</span></div>
+        <div class="ds">贯穿汇聚、治理、赋能全流程，<br>接口调用、数据库防护、<br>运维审计逐环设防，<br>确保数据可控可溯、平台稳定。</div>
+        <div class="tags"><span class="tg">接口管控</span><span class="tg">数据库防护</span><span class="tg">运维审计</span></div>
+      </article>
+    </div>
+
+    <!-- 06 托底 -->
+    <div class="base" data-go="institution">
+      <div class="bh"><span class="ix">06</span><span class="nm">制度规范</span></div>
+      <div class="ds">以工作指南、技术规范等制度文件，明确归集、治理、共享的规则与责任，为平台运行提供制度保障。</div>
+      <div class="tags"><span class="tg">工作指南</span><span class="tg">技术规范</span><span class="tg">管理规范</span></div>
+    </div>
+  </main>
+
+</div></div>
+<div id="toast"></div>
+
+<script>
+(function(){
+  var stage=document.getElementById('stage'),tEl=document.getElementById('toast'),t=null;
+  function fit(){var s=Math.min(window.innerWidth/2276,window.innerHeight/1280);
+    stage.style.transform='translate(-50%,-50%) scale('+s+')';}
+  window.addEventListener('resize',fit);fit();
+  function toast(m){tEl.textContent=m;tEl.classList.add('show');
+    clearTimeout(t);t=setTimeout(function(){tEl.classList.remove('show')},1800);}
+  var L={overview:'项目总览',gather:'数据汇聚',govern:'数据治理',empower:'数据赋能',security:'数据安全',institution:'制度规范'};
+  function go(id){if(!L[id])return;toast('进入「'+L[id]+'」');if(window.__onNavigate)window.__onNavigate(id);}
+  document.querySelectorAll('[data-go]').forEach(function(el){
+    el.addEventListener('click',function(){go(el.getAttribute('data-go'));});});
+  window.__proto={go:go,toastText:function(){return tEl.textContent;},current:function(){return 'v3';}};
+})();
+</script>
+</body>
+</html>

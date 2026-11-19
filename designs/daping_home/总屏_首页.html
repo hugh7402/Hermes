@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>四川省一体化数据资源管理系统 · 总览</title>
+<style>
+:root{
+  --cyan:#2FD6FF; --cyan-b:#4FE2FF;
+  --gold:#FFAC2F; --txt:#EAFDFF; --txt-2:#C6DDEF; --txt-3:#7C9FBF;
+  --panel:linear-gradient(160deg,rgba(9,46,85,.92),rgba(4,26,52,.96));
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#010713}
+body{font-family:"PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif;-webkit-font-smoothing:antialiased}
+
+#stage{position:absolute;top:50%;left:50%;width:2276px;height:1280px;
+  transform-origin:center center;overflow:hidden;
+  background:radial-gradient(ellipse 74% 62% at 50% 42%, #0B335D 0%, #082A4C 26%, #04162B 58%, #020A16 82%, #010713 100%);}
+#stage::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:3;
+  background:radial-gradient(ellipse 94% 88% at 50% 46%, transparent 44%, rgba(1,7,19,.58) 88%, rgba(1,7,19,.88) 100%);}
+#stage::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:0;
+  background:linear-gradient(180deg, rgba(47,214,255,.06) 0%, transparent 24%, transparent 76%, rgba(47,214,255,.05) 100%);}
+
+.wrap{position:relative;z-index:2;width:100%;height:100%;display:flex;flex-direction:column;padding:40px 62px 46px}
+
+/* ===== header ===== */
+header{display:flex;align-items:flex-start;justify-content:space-between;gap:40px;flex:none}
+.brand{display:flex;flex-direction:column;gap:14px}
+.brand h1{font-size:58px;font-weight:700;letter-spacing:4px;color:var(--txt);line-height:1.1;
+  text-shadow:0 0 26px rgba(72,223,255,.6), 0 0 66px rgba(47,214,255,.3)}
+.brand .sub{font-size:23px;letter-spacing:8px;color:var(--txt-3);display:flex;align-items:center;gap:16px}
+.brand .sub::before{content:"";width:52px;height:1px;background:linear-gradient(90deg,transparent,rgba(47,214,255,.5))}
+.brand .sub::after{content:"";width:220px;height:1px;background:linear-gradient(90deg,rgba(47,214,255,.5),transparent)}
+
+nav{display:flex;flex-direction:column;gap:11px;align-items:flex-end;flex:none}
+.nav-row{display:flex;gap:11px}
+.nav-item{position:relative;min-width:196px;padding:17px 28px;text-align:center;
+  font-size:24px;letter-spacing:2px;color:#A9C9EA;cursor:pointer;
+  background:linear-gradient(160deg,rgba(10,63,110,.34),rgba(6,32,62,.52));
+  border:1px solid rgba(47,214,255,.22);
+  clip-path:polygon(15px 0,100% 0,100% calc(100% - 15px),calc(100% - 15px) 100%,0 100%,0 15px);
+  transition:color .18s ease-out,border-color .18s ease-out,background .18s ease-out}
+@media (hover:hover) and (pointer:fine){
+  .nav-item:hover{color:#EAFDFF;border-color:rgba(79,226,255,.62);
+    background:linear-gradient(160deg,rgba(16,86,145,.55),rgba(8,44,84,.62))}
+}
+.nav-item:active{transform:scale(.985)}
+
+/* ===== main ===== */
+main{flex:1;display:flex;flex-direction:column;justify-content:space-between;gap:0;padding-top:34px;min-height:0}
+
+.strip{position:relative;display:flex;align-items:center;gap:30px;padding:24px 38px;cursor:pointer;min-height:190px;
+  background:var(--panel);border:1px solid rgba(47,214,255,.26);
+  clip-path:polygon(22px 0,100% 0,100% calc(100% - 22px),calc(100% - 22px) 100%,0 100%,0 22px);
+  transition:border-color .18s ease-out}
+@media (hover:hover) and (pointer:fine){.strip:hover{border-color:rgba(79,226,255,.62)}}
+.strip::before{content:"";position:absolute;left:0;top:0;width:3px;height:100%;
+  background:linear-gradient(180deg,transparent,var(--cyan),transparent);opacity:.75}
+.strip .idx{font-size:17px;font-weight:700;letter-spacing:1px;color:var(--gold);
+  border:1px solid rgba(255,172,47,.55);border-radius:3px;padding:5px 11px;flex:none}
+.strip .name{font-size:31px;font-weight:600;letter-spacing:3px;color:var(--txt);flex:none;min-width:190px}
+.strip .desc{font-size:23px;line-height:1.5;color:var(--txt-2);letter-spacing:.6px}
+
+/* 阶段轴 */
+.phases{display:flex;align-items:center;flex:1;padding-left:8px}
+.phase{position:relative;display:flex;align-items:center;font-size:21px;color:#5E82A4;letter-spacing:1px;white-space:nowrap}
+.phase .dot{width:11px;height:11px;border-radius:50%;background:rgba(47,214,255,.28);
+  border:1px solid rgba(47,214,255,.55);flex:none;margin-right:12px}
+.phase.done{color:var(--txt-2)} .phase.done .dot{background:var(--cyan);box-shadow:0 0 11px var(--cyan)}
+.phase.now{color:var(--gold);font-weight:600}
+.phase.now .dot{background:var(--gold);border-color:var(--gold);box-shadow:0 0 16px rgba(255,172,47,.9)}
+.phase .line{width:46px;height:1px;margin:0 14px;flex:none;
+  background:linear-gradient(90deg,rgba(47,214,255,.5),rgba(47,214,255,.16))}
+.phase:last-child .line{display:none}
+
+/* 主流程 */
+.flow{display:grid;grid-template-columns:1fr 76px 1fr 76px 1fr;align-items:stretch;flex:none;height:470px}
+.node{position:relative;padding:34px 38px 30px;cursor:pointer;
+  display:flex;flex-direction:column;gap:18px;min-height:0;
+  background:var(--panel);border:1px solid rgba(47,214,255,.3);
+  clip-path:polygon(28px 0,100% 0,100% calc(100% - 28px),calc(100% - 28px) 100%,0 100%,0 28px);
+  justify-content:space-between;gap:0;transition:border-color .18s ease-out}
+@media (hover:hover) and (pointer:fine){
+  .node:hover{border-color:rgba(79,226,255,.7)}
+  .node:hover .node-name{text-shadow:0 0 24px rgba(72,223,255,.75)}
+}
+.node-top{display:flex;align-items:baseline;gap:16px}
+.node-idx{font-size:17px;font-weight:700;color:var(--gold);letter-spacing:1px;
+  border:1px solid rgba(255,172,47,.55);border-radius:3px;padding:5px 11px}
+.node-name{font-size:40px;font-weight:700;letter-spacing:4px;color:var(--txt);
+  text-shadow:0 0 20px rgba(72,223,255,.4)}
+.node-desc{font-size:23px;line-height:1.92;color:var(--txt-2);letter-spacing:.5px;flex:0 0 auto}
+.node-hint{font-size:18px;letter-spacing:1px;color:#7EA6C8;line-height:1.6;
+  border-top:1px solid rgba(47,214,255,.16);padding-top:15px}
+.node-keys{display:flex;flex-wrap:wrap;gap:11px;margin-top:0}
+.key{font-size:19px;letter-spacing:1px;color:#6FE8FF;
+  border:1px solid rgba(47,214,255,.36);border-radius:2px;padding:6px 15px;background:rgba(47,214,255,.07)}
+
+.arrow{display:flex;align-items:center;justify-content:center;position:relative}
+.arrow::before{content:"";position:absolute;left:10px;right:26px;height:1px;
+  background:linear-gradient(90deg,rgba(47,214,255,.65),rgba(47,214,255,.2))}
+.arrow::after{content:"";width:0;height:0;margin-left:auto;margin-right:12px;
+  border-left:13px solid rgba(79,226,255,.9);border-top:8px solid transparent;border-bottom:8px solid transparent;
+  filter:drop-shadow(0 0 7px rgba(79,226,255,.75))}
+
+/* 两大保障层 */
+.guards{display:grid;grid-template-columns:1fr 1fr;gap:22px;flex:none;min-height:190px}
+.guards .strip{min-height:0}
+.guards .strip .name{min-width:158px;font-size:34px}
+.guards .strip .desc{font-size:22px;line-height:1.85;color:#C6DDEF}
+.guards .idx{color:var(--cyan);border-color:rgba(47,214,255,.5)}
+
+/* toast */
+#toast{position:fixed;left:50%;bottom:66px;transform:translate(-50%,26px);
+  padding:16px 36px;border-radius:4px;font-size:22px;letter-spacing:1px;color:var(--txt);
+  background:rgba(6,34,64,.95);border:1px solid rgba(79,226,255,.6);
+  box-shadow:0 0 30px rgba(47,214,255,.3),0 12px 40px rgba(0,0,0,.5);
+  opacity:0;pointer-events:none;transition:opacity .2s ease-out,transform .2s ease-out;z-index:99}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+
+@media (prefers-reduced-motion: reduce){
+  *{transition:opacity .15s linear !important}
+  .nav-item:active{transform:none !important}
+}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="wrap">
+    <header>
+      <div class="brand">
+        <h1>四川省一体化数据资源管理系统</h1>
+        <div class="sub">汇聚 · 治理 · 赋能 · 安全 · 制度</div>
+      </div>
+      <nav>
+        <div class="nav-row">
+          <div class="nav-item" data-go="overview">项目总览</div>
+          <div class="nav-item" data-go="gather">数据汇聚</div>
+          <div class="nav-item" data-go="govern">数据治理</div>
+        </div>
+        <div class="nav-row">
+          <div class="nav-item" data-go="empower">数据赋能</div>
+          <div class="nav-item" data-go="security">数据安全</div>
+          <div class="nav-item" data-go="institution">制度规范</div>
+        </div>
+      </nav>
+    </header>
+
+    <main>
+      <!-- 01 项目总览 -->
+      <section class="strip" data-go="overview">
+        <span class="idx">01</span>
+        <span class="name">项目总览</span>
+        <div class="phases">
+          <div class="phase done"><i class="dot"></i>立项审批<i class="line"></i></div>
+          <div class="phase done"><i class="dot"></i>初步设计<i class="line"></i></div>
+          <div class="phase done"><i class="dot"></i>采购程序<i class="line"></i></div>
+          <div class="phase now"><i class="dot"></i>合同签订<i class="line"></i></div>
+          <div class="phase"><i class="dot"></i>组织实施<i class="line"></i></div>
+          <div class="phase"><i class="dot"></i>验收运行</div>
+        </div>
+      </section>
+
+      <!-- 02 → 03 → 04 -->
+      <div class="flow">
+        <article class="node" data-go="gather">
+          <div class="node-top"><span class="node-idx">02</span><span class="node-name">数据汇聚</span></div>
+          <div class="node-desc"><span>省直部门与市州数据统一接入<br>形成基础库与主题库<br>统一数据口径、消除信息孤岛<br>让分散在各处的数据汇得上来</span></div>
+          <div class="node-hint">看：接入范围与库表覆盖</div>
+          <div class="node-keys"><span class="key">省直部门</span><span class="key">市州</span><span class="key">基础库</span><span class="key">主题库</span></div>
+        </article>
+        <div class="arrow"></div>
+        <article class="node" data-go="govern">
+          <div class="node-top"><span class="node-idx">03</span><span class="node-name">数据治理</span></div>
+          <div class="node-desc"><span>归集库到清洗库逐层加工<br>统一标准、校验质量<br>逐表逐字段核对问题数据<br>把接进来的数据变成可用数据</span></div>
+          <div class="node-hint">看：标准统一与质量提升</div>
+          <div class="node-keys"><span class="key">贴源层</span><span class="key">标准层</span><span class="key">质量校验</span><span class="key">治理仓</span></div>
+        </article>
+        <div class="arrow"></div>
+        <article class="node" data-go="empower">
+          <div class="node-top"><span class="node-idx">04</span><span class="node-name">数据赋能</span></div>
+          <div class="node-desc"><span>围绕自然人与法人<br>提供画像分析与综合查询<br>支撑部门业务与领导决策<br>把治理好的数据真正用起来</span></div>
+          <div class="node-hint">看：数据反哺业务成效</div>
+          <div class="node-keys"><span class="key">自然人</span><span class="key">法人</span><span class="key">画像分析</span><span class="key">综合查询</span></div>
+        </article>
+      </div>
+
+      <!-- 05 / 06 两大保障 -->
+      <div class="guards">
+        <section class="strip" data-go="security">
+          <span class="idx">05</span>
+          <span class="name">数据安全</span>
+          <span class="desc">贯穿全流程，接口调用、数据库防护、运维审计逐环设防<br>确保数据可控可溯、平台稳定运行</span>
+        </section>
+        <section class="strip" data-go="institution">
+          <span class="idx">06</span>
+          <span class="name">制度规范</span>
+          <span class="desc">以工作指南、技术规范等制度文件明确归集、治理、共享规则<br>厘清各方责任，为平台运行提供制度保障</span>
+        </section>
+      </div>
+    </main>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+(function(){
+  var stage=document.getElementById('stage'), toastEl=document.getElementById('toast'), t=null;
+  function fit(){
+    var s=Math.min(window.innerWidth/2276, window.innerHeight/1280);
+    stage.style.transform='translate(-50%,-50%) scale('+s+')';
+  }
+  window.addEventListener('resize',fit); fit();
+  function toast(m){toastEl.textContent=m;toastEl.classList.add('show');
+    clearTimeout(t);t=setTimeout(function(){toastEl.classList.remove('show')},1800);}
+  var LABEL={overview:'项目总览',gather:'数据汇聚',govern:'数据治理',
+             empower:'数据赋能',security:'数据安全',institution:'制度规范'};
+  function goScreen(id){
+    if(!LABEL[id])return;
+    toast('进入「'+LABEL[id]+'」');
+    if(window.__onNavigate)window.__onNavigate(id);
+  }
+  document.querySelectorAll('[data-go]').forEach(function(el){
+    el.addEventListener('click',function(){goScreen(el.getAttribute('data-go'));});
+  });
+  window.__proto={go:goScreen,toastText:function(){return toastEl.textContent;},
+                  current:function(){return 'overview-home';}};
+})();
+</script>
+</body>
+</html>

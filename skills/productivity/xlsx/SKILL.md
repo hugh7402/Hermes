@@ -225,6 +225,20 @@ LibreOffice or hand the file to the user unconverted.
   workbook (one sheet of items to add, one of deliberate skips, one of upstream
   gaps) and never touch the original unless the user said to modify it. Same rule
   applies to any user-supplied document you are auditing.
+- **`max_row` / `max_column` can be wildly inflated.** A sheet showing
+  `max_row=1044108` often holds a few hundred real rows — stray
+  formatting or a cleared region keeps the recorded dimension huge, and
+  `iter_rows()` will happily walk a million empty rows. Find the real
+  last row before iterating (and before trusting "rows: N" in any
+  report):
+
+  ```python
+  last = max((r for r in range(1, ws.max_row + 1)
+              if any(ws.cell(r, c).value not in (None, '') for c in range(1, ws.max_column + 1))),
+             default=1)
+  ```
+  Report `last` alongside `max_row` when summarising the sheet — the gap
+  itself is often worth telling the user about.
 - Sheet names are capped at 31 chars and reject `[ ] : * ? / \\.`
 
 ## Verification
