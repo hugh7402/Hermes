@@ -193,6 +193,10 @@ cannot render PDFs, and layout fidelity requires a real renderer.
   Verify by reading the package back, not by trusting the code:
   `grep -o 'w:eastAsia="[^"]*"' word/document.xml | sort | uniq -c` should show
   the face you asked for.
+  For the full Chinese government-document workflow (per-role font
+  assignment 黑体/仿宋_GB2312/楷体_GB2312, page margins, markdown→spec mapping,
+  the table `cell_font` mismatch, and reverse-read verification), see
+  `references/cjk-gov-document.md`.
 - **Filling a sparse template: clone the heading paragraph, insert after it.**
   `new = copy.deepcopy(anchor._p)`, `anchor._p.addnext(new)`, then drop all runs of the
   clone and `add_run(text)` — the clone carries the paragraph properties and you only

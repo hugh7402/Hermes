@@ -1,0 +1,5 @@
+name: siliconflow-provider
+kind: model-provider
+version: 1.0.0
+description: 硅基流动 SiliconFlow 云端 API（DeepSeek-V4-Pro/Flash 等）
+author: Emma

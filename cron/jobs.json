@@ -20,15 +20,15 @@
       "schedule_display": "0 8 * * *",
       "repeat": {
         "times": null,
-        "completed": 166
+        "completed": 170
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-16T21:38:59.096552+08:00",
-      "next_run_at": "2026-11-20T08:00:00+08:00",
-      "last_run_at": "2026-11-19T08:01:31.616500+08:00",
+      "next_run_at": "2026-11-24T08:00:00+08:00",
+      "last_run_at": "2026-11-23T08:02:54.037542+08:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -48,13 +48,13 @@
       "fire_claim": null,
       "failure_streak": 0,
       "last_dispatch": {
-        "scheduled_at": "2026-11-19T08:00:00+08:00",
-        "dispatched_at": "2026-11-19T08:00:00.074403+08:00",
-        "lateness_seconds": 0.1,
+        "scheduled_at": "2026-11-23T08:00:00+08:00",
+        "dispatched_at": "2026-11-23T08:00:46.397718+08:00",
+        "lateness_seconds": 46.4,
         "kind": "on_time"
       },
       "canonical_completions": [
-        "b5c5fd19156643f68970519296f2d4b7"
+        "0c6a5931128f429d994f0fe5a5b49f78"
       ],
       "last_delivery_reached_none": true
     },
@@ -135,18 +135,18 @@
       "schedule_display": "5 12 * * *",
       "repeat": {
         "times": null,
-        "completed": 156
+        "completed": 160
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-06-18T22:31:48.412387+08:00",
-      "next_run_at": "2026-11-20T12:05:00+08:00",
-      "last_run_at": "2026-11-19T12:05:41.651995+08:00",
-      "last_status": "ok",
+      "next_run_at": "2026-11-24T12:05:00+08:00",
+      "last_run_at": "2026-11-23T12:06:05.713002+08:00",
+      "last_status": "delivery_failed",
       "last_error": null,
-      "last_delivery_error": null,
+      "last_delivery_error": "live adapter send failed: iLink sendmessage session not ready: ret=-2 errcode=None errmsg=prepare failed — the user must send the bot a message first (or re-pair); live adapter delivery to weixin:o9cq807-R1vQ2rE1tVqRjIack5QA@im.wechat failed: iLink sendmessage session not ready: ret=-2 errcode=None errmsg=prepare failed — the user must send the bot a message first (or re-pair); delivery error: Weixin send failed: iLink sendmessage session not ready: ret=-2 errcode=None errmsg=prepare failed — the user must send the bot a message first (or re-pair) (target weixin:o9cq807-R1vQ2rE1tVqRjIack5QA@im.wechat)",
       "deliver": "origin",
       "origin": {
         "platform": "weixin",
@@ -163,15 +163,15 @@
       "fire_claim": null,
       "failure_streak": 0,
       "last_dispatch": {
-        "scheduled_at": "2026-11-19T12:05:00+08:00",
-        "dispatched_at": "2026-11-19T12:05:00.068195+08:00",
-        "lateness_seconds": 0.1,
+        "scheduled_at": "2026-11-23T12:05:00+08:00",
+        "dispatched_at": "2026-11-23T12:05:46.395936+08:00",
+        "lateness_seconds": 46.4,
         "kind": "on_time"
       },
       "canonical_completions": [
-        "ff1fd2dce102489c8b8b94c522f5d0ba"
+        "8b48d71384b149e19a1ea29c899cb7f6"
       ],
-      "last_delivery_reached_none": null
+      "last_delivery_reached_none": true
     },
     {
       "id": "738a78285a03",
@@ -195,15 +195,15 @@
       "schedule_display": "5 18 * * 1,4",
       "repeat": {
         "times": null,
-        "completed": 36
+        "completed": 37
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-07-29T11:24:16.842788+08:00",
-      "next_run_at": "2026-11-23T18:05:00+08:00",
-      "last_run_at": "2026-11-16T18:06:02.428293+08:00",
+      "next_run_at": "2026-11-26T18:05:00+08:00",
+      "last_run_at": "2026-11-19T18:05:16.333285+08:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -220,14 +220,14 @@
       ],
       "workdir": "/opt/data",
       "fire_claim": {
-        "at": "2026-11-19T18:05:00.136563+08:00",
-        "by": "hermes:308:d6372eb375b144fe97a5d78fcb1a9afb"
+        "at": "2026-11-23T18:05:46.462280+08:00",
+        "by": "hermes:308:4635230b2f6347e78a50b4d67fee4eb8"
       },
       "failure_streak": 0,
       "last_dispatch": {
-        "scheduled_at": "2026-11-19T18:05:00+08:00",
-        "dispatched_at": "2026-11-19T18:05:00.074206+08:00",
-        "lateness_seconds": 0.1,
+        "scheduled_at": "2026-11-23T18:05:00+08:00",
+        "dispatched_at": "2026-11-23T18:05:46.397515+08:00",
+        "lateness_seconds": 46.4,
         "kind": "on_time"
       },
       "last_failure": {
@@ -260,15 +260,15 @@
       "schedule_display": "*/30 * * * *",
       "repeat": {
         "times": null,
-        "completed": 2758
+        "completed": 2950
       },
       "enabled": true,
       "state": "scheduled",
       "paused_at": null,
       "paused_reason": null,
       "created_at": "2026-09-23T08:19:40.068078+08:00",
-      "next_run_at": "2026-11-19T18:30:00+08:00",
-      "last_run_at": "2026-11-19T18:00:01.816020+08:00",
+      "next_run_at": "2026-11-23T18:30:00+08:00",
+      "last_run_at": "2026-11-23T18:00:48.161533+08:00",
       "last_status": "ok",
       "last_error": null,
       "last_delivery_error": null,
@@ -279,12 +279,65 @@
       "workdir": null,
       "fire_claim": null,
       "last_dispatch": {
-        "scheduled_at": "2026-11-19T18:00:00+08:00",
-        "dispatched_at": "2026-11-19T18:00:00.073553+08:00",
-        "lateness_seconds": 0.1,
+        "scheduled_at": "2026-11-23T18:00:00+08:00",
+        "dispatched_at": "2026-11-23T18:00:46.398977+08:00",
+        "lateness_seconds": 46.4,
         "kind": "on_time"
       }
+    },
+    {
+      "id": "f563f014edc0",
+      "name": "黄金每日简报",
+      "prompt": "黄金每日简报（脚本直出，无需 LLM）",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "gold_brief.py",
+      "no_agent": true,
+      "monitor_script": null,
+      "monitor_url": null,
+      "monitor_state": null,
+      "context_from": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "45 13 * * *",
+        "display": "45 13 * * *"
+      },
+      "schedule_display": "45 13 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-11-23T15:43:48.635237+08:00",
+      "next_run_at": "2026-11-24T13:45:00+08:00",
+      "last_run_at": "2026-11-23T15:43:54.156085+08:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "last_delivery_unverified": null,
+      "last_failure": null,
+      "failure_streak": 0,
+      "deliver": "origin",
+      "origin": {
+        "platform": "weixin",
+        "chat_id": "o9cq807-R1vQ2rE1tVqRjIack5QA@im.wechat",
+        "chat_name": null,
+        "thread_id": null,
+        "user_id": "o9cq807-R1vQ2rE1tVqRjIack5QA@im.wechat",
+        "scope_id": null
+      },
+      "enabled_toolsets": [],
+      "workdir": null,
+      "timezone": "Asia/Shanghai",
+      "wrap_response": false,
+      "fire_claim": null
     }
   ],
-  "updated_at": "2026-11-19T18:05:00.137402+08:00"
+  "updated_at": "2026-11-23T18:05:46.463317+08:00"
 }

@@ -1,0 +1,5 @@
+name: bailian-provider
+kind: model-provider
+version: 1.0.0
+description: 阿里百炼 DashScope 国内版 API
+author: Emma

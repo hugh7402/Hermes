@@ -126,7 +126,7 @@
     "view_count": 1
   },
   "blocked-page-recovery": {
-    "archived_at": null,
+    "archived_at": "2026-11-19T17:25:55.829184+00:00",
     "created_at": "2026-10-15T14:54:13.282569+00:00",
     "created_by": null,
     "first_seen_at": "2026-10-15T14:54:13.282569+00:00",
@@ -137,7 +137,7 @@
     "patch_count": 0,
     "patch_generation": 0,
     "pinned": false,
-    "state": "stale",
+    "state": "archived",
     "use_count": 0,
     "view_count": 0
   },
@@ -202,7 +202,7 @@
     "view_count": 0
   },
   "claude-design": {
-    "archived_at": null,
+    "archived_at": "2026-11-19T17:25:56.117046+00:00",
     "created_at": "2026-10-15T14:54:13.708790+00:00",
     "created_by": null,
     "first_seen_at": "2026-10-15T14:54:13.708805+00:00",
@@ -213,7 +213,7 @@
     "patch_count": 0,
     "patch_generation": 0,
     "pinned": false,
-    "state": "stale",
+    "state": "archived",
     "use_count": 0,
     "view_count": 0
   },
@@ -289,7 +289,7 @@
     "view_count": 0
   },
   "competitor-news-monitor": {
-    "archived_at": null,
+    "archived_at": "2026-11-19T17:25:56.426499+00:00",
     "created_at": "2026-10-15T14:54:13.787244+00:00",
     "created_by": null,
     "first_seen_at": "2026-10-15T14:54:13.787244+00:00",
@@ -300,7 +300,7 @@
     "patch_count": 0,
     "patch_generation": 0,
     "pinned": false,
-    "state": "stale",
+    "state": "archived",
     "use_count": 0,
     "view_count": 0
   },
@@ -316,7 +316,7 @@
     "patch_count": 7,
     "patch_generation": 7,
     "pinned": false,
-    "state": "active",
+    "state": "stale",
     "use_count": 4,
     "view_count": 4
   },
@@ -331,7 +331,7 @@
     "patch_count": 17,
     "patch_generation": 17,
     "pinned": false,
-    "state": "active",
+    "state": "stale",
     "use_count": 11,
     "view_count": 11
   },
@@ -351,7 +351,7 @@
     "view_count": 1
   },
   "document-to-action-items": {
-    "archived_at": null,
+    "archived_at": "2026-11-19T17:25:56.861100+00:00",
     "created_at": "2026-10-15T14:54:13.855443+00:00",
     "created_by": null,
     "first_seen_at": "2026-10-15T14:54:13.855443+00:00",
@@ -362,7 +362,7 @@
     "patch_count": 0,
     "patch_generation": 0,
     "pinned": false,
-    "state": "stale",
+    "state": "archived",
     "use_count": 0,
     "view_count": 0
   },
@@ -396,16 +396,16 @@
     "archived_at": null,
     "created_at": "2026-08-06T02:20:30.851507+00:00",
     "created_by": null,
-    "last_patched_at": "2026-11-15T01:11:28.440909+00:00",
+    "last_patched_at": "2026-11-20T00:56:48.336926+00:00",
     "last_reused_patch_generation": 5,
-    "last_used_at": "2026-11-19T06:28:05.981524+00:00",
-    "last_viewed_at": "2026-11-19T06:28:05.976290+00:00",
-    "patch_count": 5,
-    "patch_generation": 5,
+    "last_used_at": "2026-11-20T00:56:37.746989+00:00",
+    "last_viewed_at": "2026-11-20T00:56:37.742299+00:00",
+    "patch_count": 7,
+    "patch_generation": 7,
     "pinned": false,
-    "state": "stale",
-    "use_count": 15,
-    "view_count": 15
+    "state": "active",
+    "use_count": 16,
+    "view_count": 16
   },
   "docx-report-delivery": {
     "archived_at": null,
@@ -418,7 +418,7 @@
     "patch_count": 23,
     "patch_generation": 23,
     "pinned": false,
-    "state": "active",
+    "state": "stale",
     "use_count": 16,
     "view_count": 16
   },
@@ -438,7 +438,7 @@
     "view_count": 1
   },
   "email-inbox-triage": {
-    "archived_at": null,
+    "archived_at": "2026-11-19T17:25:57.245343+00:00",
     "created_at": "2026-10-15T14:54:14.376469+00:00",
     "created_by": null,
     "first_seen_at": "2026-10-15T14:54:14.376469+00:00",
@@ -449,7 +449,7 @@
     "patch_count": 0,
     "patch_generation": 0,
     "pinned": false,
-    "state": "stale",
+    "state": "archived",
     "use_count": 0,
     "view_count": 0
   },
@@ -523,7 +523,7 @@
     "view_count": 11
   },
   "github": {
-    "archived_at": null,
+    "archived_at": "2026-11-19T17:25:57.606949+00:00",
     "created_at": "2026-10-15T14:54:14.423465+00:00",
     "created_by": null,
     "first_seen_at": "2026-10-15T14:54:14.423465+00:00",
@@ -534,7 +534,7 @@
     "patch_count": 0,
     "patch_generation": 0,
     "pinned": false,
-    "state": "stale",
+    "state": "archived",
     "use_count": 0,
     "view_count": 0
   },
@@ -682,13 +682,13 @@
     "created_by": null,
     "last_patched_at": "2026-11-13T05:49:16.617487+00:00",
     "last_reused_patch_generation": 6,
-    "last_used_at": "2026-11-19T04:05:00.626330+00:00",
+    "last_used_at": "2026-11-23T04:05:46.808151+00:00",
     "last_viewed_at": "2026-11-13T05:49:00.901219+00:00",
     "patch_count": 9,
     "patch_generation": 6,
     "pinned": false,
     "state": "active",
-    "use_count": 191,
+    "use_count": 195,
     "view_count": 32
   },
   "hermes-agent-skill-authoring": {
@@ -761,7 +761,7 @@
     "view_count": 1
   },
   "high-stakes-fact-answers": {
-    "archived_at": null,
+    "archived_at": "2026-11-19T17:25:58.053957+00:00",
     "created_at": "2026-09-24T00:10:36.768872+00:00",
     "created_by": "agent",
     "last_patched_at": "2026-10-20T06:23:24.281146+00:00",
@@ -771,22 +771,9 @@
     "patch_count": 4,
     "patch_generation": 4,
     "pinned": false,
-    "state": "stale",
+    "state": "archived",
     "use_count": 5,
     "view_count": 5
-  },
-  "humanize-ppt": {
-    "archived_at": null,
-    "created_at": "2026-06-28T14:07:55.273086+00:00",
-    "created_by": null,
-    "last_patched_at": "2026-06-28T14:07:58.517860+00:00",
-    "last_used_at": "2026-07-29T01:17:02.334074+00:00",
-    "last_viewed_at": "2026-07-29T01:17:02.326408+00:00",
-    "patch_count": 1,
-    "pinned": false,
-    "state": "active",
-    "use_count": 2,
-    "view_count": 2
   },
   "humanizer": {
     "archived_at": null,
@@ -799,7 +786,7 @@
     "patch_count": 2,
     "patch_generation": 2,
     "pinned": false,
-    "state": "active",
+    "state": "stale",
     "use_count": 7,
     "view_count": 7
   },
@@ -861,6 +848,22 @@
     "use_count": 0,
     "view_count": 0
   },
+  "investment-portfolio-review": {
+    "archived_at": null,
+    "created_at": "2026-11-23T07:37:50.819174+00:00",
+    "created_by": "agent",
+    "first_seen_at": null,
+    "last_patched_at": "2026-11-23T07:51:34.081284+00:00",
+    "last_reused_patch_generation": 0,
+    "last_used_at": "2026-11-23T07:51:13.154769+00:00",
+    "last_viewed_at": "2026-11-23T07:51:13.151138+00:00",
+    "patch_count": 2,
+    "patch_generation": 2,
+    "pinned": false,
+    "state": "active",
+    "use_count": 2,
+    "view_count": 2
+  },
   "jav-auto-download": {
     "archived_at": null,
     "created_at": "2026-06-27T01:56:48.997420+00:00",
@@ -913,7 +916,7 @@
     "patch_count": 95,
     "patch_generation": 23,
     "pinned": false,
-    "state": "active",
+    "state": "stale",
     "use_count": 52,
     "view_count": 52
   },
@@ -928,7 +931,7 @@
     "patch_count": 63,
     "patch_generation": 22,
     "pinned": false,
-    "state": "active",
+    "state": "stale",
     "use_count": 43,
     "view_count": 43
   },
@@ -1193,7 +1196,7 @@
     "patch_count": 5,
     "patch_generation": 5,
     "pinned": false,
-    "state": "active",
+    "state": "stale",
     "use_count": 7,
     "view_count": 7
   },
@@ -1283,31 +1286,21 @@
     "use_count": 0,
     "view_count": 0
   },
-  "ppt-agent": {
+  "ppt": {
     "archived_at": null,
-    "created_at": "2026-06-26T23:58:19.872487+00:00",
-    "created_by": null,
-    "last_patched_at": "2026-06-28T14:09:59.436512+00:00",
-    "last_used_at": "2026-07-29T01:17:01.676400+00:00",
-    "last_viewed_at": "2026-07-29T01:17:01.656329+00:00",
-    "patch_count": 4,
+    "created_at": "2026-11-20T01:14:57.897423+00:00",
+    "created_by": "learn",
+    "first_seen_at": null,
+    "last_patched_at": "2026-11-23T07:51:33.970556+00:00",
+    "last_reused_patch_generation": 19,
+    "last_used_at": "2026-11-23T07:51:07.787641+00:00",
+    "last_viewed_at": "2026-11-23T07:51:07.783677+00:00",
+    "patch_count": 21,
+    "patch_generation": 21,
     "pinned": false,
     "state": "active",
-    "use_count": 5,
-    "view_count": 5
-  },
-  "ppt-master": {
-    "archived_at": null,
-    "created_at": "2026-07-29T01:17:02.346984+00:00",
-    "created_by": null,
-    "last_patched_at": null,
-    "last_used_at": "2026-07-29T01:17:02.358329+00:00",
-    "last_viewed_at": "2026-07-29T01:17:02.347015+00:00",
-    "patch_count": 0,
-    "pinned": false,
-    "state": "active",
-    "use_count": 1,
-    "view_count": 1
+    "use_count": 7,
+    "view_count": 7
   },
   "product-price-monitor": {
     "archived_at": "2026-11-05T15:59:21.139897+00:00",
@@ -1447,7 +1440,7 @@
     "view_count": 0
   },
   "sdlc-review": {
-    "archived_at": null,
+    "archived_at": "2026-11-19T17:25:58.537452+00:00",
     "created_at": "2026-10-15T14:54:17.527889+00:00",
     "created_by": null,
     "first_seen_at": "2026-10-15T14:54:17.527889+00:00",
@@ -1458,7 +1451,7 @@
     "patch_count": 0,
     "patch_generation": 0,
     "pinned": false,
-    "state": "stale",
+    "state": "archived",
     "use_count": 0,
     "view_count": 0
   },
@@ -1754,7 +1747,7 @@
     "view_count": 5
   },
   "weekly-review-planning": {
-    "archived_at": null,
+    "archived_at": "2026-11-19T17:25:58.891606+00:00",
     "created_at": "2026-10-15T14:54:19.000282+00:00",
     "created_by": null,
     "first_seen_at": "2026-10-15T14:54:19.000282+00:00",
@@ -1765,7 +1758,7 @@
     "patch_count": 0,
     "patch_generation": 0,
     "pinned": false,
-    "state": "stale",
+    "state": "archived",
     "use_count": 0,
     "view_count": 0
   },
