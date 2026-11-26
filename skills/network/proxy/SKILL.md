@@ -166,6 +166,71 @@ rclone copy "pikpak:/Movie" /tmp/dest --http-proxy "http://127.0.0.1:10808" ...
 
 **用量预算**：一个节点大约能跑几个 GB 的大流量下载。**不要拿同一个节点连续跑十几 GB**，分批换节点比中途发现限速再重试划算。
 
+### 🚨 进程在跑但端口没监听 —— 「假活」的 sing-box（并发切节点之后最常见的坏状态）
+
+第四种故障态，和前三种都不一样：`ps` 里能看到 `sing-box run -c …/reality_active.json`，但
+
+- `proxy.sh status` 报「未运行」
+- `proxy.sh start` 报 `FATAL start service: start inbound/mixed[0]: listen tcp 127.0.0.1:10808: bind: address already in use`
+- 所有 `curl -x http://127.0.0.1:10808` 返回 `000`
+
+**根因**：上一个实例还占着端口但已经失去功能。典型诱因是**两条进程并发 `proxy.sh stop/start` 抢切节点**——
+后起的那个 bind 失败、却没退出，于是「端口被占」和「连不通」同时成立。它既不监听也不退出，重启也没用。
+
+**处置（按顺序，不要跳过第 1 步直接 restart）**：
+
+```bash
+# 1. 按精确 PID 杀掉那个假活的 sing-box
+ps -eo pid,etime,cmd | grep -F '/opt/data/proxy-skill/sing-box run' | grep -v grep
+kill <pid>
+
+# 2. 用已知能通的节点配置重启（先 check 配置，再 start）
+cp "/opt/data/proxy-skill/node_🇺🇸美国圣何塞03.json" /opt/data/proxy-skill/reality_active.json
+/opt/data/proxy-skill/sing-box check -c /opt/data/proxy-skill/reality_active.json
+bash /opt/data/proxy-skill/proxy.sh start
+
+# 3. 用真实请求验活
+curl -s -o /dev/null -w '%{http_code}\n' -m 10 -x http://127.0.0.1:10808 https://www.google.com/generate_204
+```
+
+**`ss -lntp | grep 10808` 可能是空的，而代理其实是好的**（权限不足看不到 socket）。
+**判活一律以 `curl … generate_204` 返回 204 为准**：不要因为 `ss` 没输出就判代理没起来，
+也不要因为 `ps` 有进程就判代理正常。
+
+**不要用 `pkill -f sing-box` / `pkill -f 'python3 xxx.py'` 这类按模式杀的写法**——模式串会出现在执行它的
+那个 shell 自己的命令行里，把它们自己也杀掉（本环境还有工具守卫会直接拦下这类命令）。
+一律 `kill <精确 pid>`，或对 Hermes 后台任务用 `process_manage(action='kill', session_id=...)`。
+
+**根本预防：同一时刻只允许一个进程切节点。** 所有轮换脚本都在改写 `reality_active.json` 并
+`proxy.sh stop/start`，两条并发就是互相把对方刚切好的节点顶掉，甚至造出上面这种假活状态。
+收到新任务先看有没有轮换在跑，排队，不要并发。走直连的任务（WebDAV rclone、`--noproxy '*'` 的站点）
+不受影响，可以和切节点任务同时跑。
+
+### 🚦 常用金融/宏观数据源可达性（2026-11-26 实测）
+
+做数据类任务前先看这张表，不要逐个盲试。**原则：能直连的一律直连（不占代理带宽、不依赖代理存活），只有被 403 的才走代理。**
+
+| 数据源 | 直连 | 走代理 | 备注 |
+|---|---|---|---|
+| 美财政部实际收益率曲线 CSV | ✅ | — | `home.treasury.gov/.../daily-treasury-rates.csv`，含 10Y TIPS，免 key，全年历史 |
+| 美财政部 FiscalData API | ✅ | — | 国债总额 `api.fiscaldata.treasury.gov/.../debt_to_penny` |
+| 新浪行情 hq.sinajs.cn | ✅ | — | 需带 `Referer: finance.sina.com.cn` |
+| 东财 push2 / push2his | ✅ | — | Au99.99 历史日线（secid=118.AU9999） |
+| **CFTC COT** | ❌ 403 | ✅ | 新旧两个接口直连都 403，必须走代理 |
+| **Yahoo Finance** query1/query2 | ❌ 403 | ✅ | ^VIX、GLD、GC=F、DX-Y.NYB、ZQ=F 全靠它 |
+| WGC gold.org | — | ✅ | 央行购金、ETF 流量 |
+| **FRED** fred.stlouisfed.org | ❌ 超时 | ❌ SSL 错 | **全部路径不通，不要再试**，用财政部替代 |
+| CME FedWatch 页面 | ❌ | ❌ 403 | 改用 Yahoo `ZQ=F` 自己算降息概率 |
+
+**调用要点**：Python 里建带代理的 opener 时必须同时换 HTTPSHandler 的 context，否则某些站报 `RECORD_LAYER_FAILURE`：
+```python
+ctx = ssl.create_default_context(); ctx.check_hostname=False; ctx.verify_mode=ssl.CERT_NONE
+op = urllib.request.build_opener(
+    urllib.request.ProxyHandler({'http':'http://127.0.0.1:10808','https':'http://127.0.0.1:10808'}),
+    urllib.request.HTTPSHandler(context=ctx))
+```
+代理端口是 **HTTP 混入**（`http://127.0.0.1:10808` 可用），不是纯 socks5；`curl -x http://127.0.0.1:10808` 也一样。
+
 ### Cloudflare 403/503
 REALITY 节点不走 CF，如果 REALITY 也不通，换其他协议配置：
 ```bash

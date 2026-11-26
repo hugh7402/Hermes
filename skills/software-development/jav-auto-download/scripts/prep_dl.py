@@ -45,6 +45,10 @@ async def main():
         raise SystemExit('用法: python3 prep_dl.py <番号> "<新文件名.mp4>"')
     code = sys.argv[1]
     new_name = sys.argv[2]
+    # --any：没有 ≥2GB 的片源时，放宽下限取最大版（用户 2026-11-23 定：实在没有超 2GB 就选最大文件）。
+    # 仍然排除 -U（无码破解）和 0 字节假条目，那不是「最大文件」，是死链。
+    RELAX = '--any' in sys.argv
+    MIN_BYTES = 0 if RELAX else 2 * 1024 ** 3
     if not new_name.lower().endswith('.mp4'):
         new_name += '.mp4'
     code_nh = code.replace('-', '').upper()
@@ -71,16 +75,48 @@ async def main():
         raise SystemExit('javdb 未搜到该番号')
 
     mags = jm.get_magnets(href)
+
+    # 🚨 番号校验闸门（必须有）：javdb 的搜索是模糊匹配，一个详情页里可能混进**别的番号**的磁链。
+    #    实测搜 SNOS-477 时该页混着 SNOS-470-LTX（4.50GB），比 SNOS-477 自己的 3.50GB 大，
+    #    按"取最大"规则就会选中 470 —— 结果是下错片子还挂上 477 的文件名。
+    #    用户明令禁止替换番号，所以这里只放行番号与本条一致的磁链，一条都对不上就中止。
+    code_nh = code.upper().replace('-', '')
+    same = [m for m in mags if code_nh in m['name'].upper().replace('-', '')]
+    other = [m for m in mags if m not in same]
+    if other:
+        print(f'  ⚠️  已剔除 {len(other)} 条不属于 {code} 的磁链：'
+              + '、'.join(sorted({m["name"][:22] for m in other})[:4]))
+    if not same:
+        print(f'\n  ❌ 详情页 {href} 的磁链里没有一条属于 {code}')
+        print('     javdb 可能模糊匹配到了别的番号，已中止，绝不下载错片')
+        return 4
+    mags = same
+
     print(f'\n=== {code} 磁链 {len(mags)} 条（-U 已过滤）===')
     for m in sorted(mags, key=lambda x: -x['size_bytes']):
         print(f"  {m['size_bytes'] / 1024 ** 3:6.2f}GB  {m['file_count']}个文件  "
               f"字幕={int(m['has_subtitle'])}  {m['name'][:48]}")
 
-    cand = [m for m in mags if m['size_bytes'] >= 2 * 1024 ** 3
+    # 0 字节条目是死链（如 "xxx LTX" 那种占位），永远排除；-UC 是标称中字实测多日文的无码破解版
+    cand = [m for m in mags if m['size_bytes'] >= MIN_BYTES and m['size_bytes'] > 0
             and '-UC' not in m['name'].upper()]
+    if not cand:
+        # 🚨 javdb 上有的番号（KTB-124 实测）三条磁链全部没有体积数据（恒 0），
+        #    「取最大」无从比较，也不能就此跳过。兜底：优先选带 -C 字幕标记的那条
+        #    （用户明确偏好内嵌中字），没有 -C 就取第一条，体积等 PikPak 离线完再核。
+        no_uc = [m for m in mags if '-UC' not in m['name'].upper()]
+        if no_uc:
+            c_tag = [m for m in no_uc if re.search(r'-[Cc](?=[\s._\-]|$)', m['name'])]
+            cand = c_tag[:1] if c_tag else no_uc[:1]
+            print(f'  ⚠️  javdb 未提供任何体积数据（{len(mags)} 条全为 0），'
+                  f'改按「优先 -C 字幕版」兜底选 1 条，体积待离线完成后核实')
     if not cand:
         print('\n  没有 >=2GB 的候选版本，需要用户决定（未提交离线）')
         return 2
+    real_max = max(m['size_bytes'] for m in mags if m['size_bytes'] > 0) \
+        if any(m['size_bytes'] > 0 for m in mags) else 0
+    if RELAX and real_max < 2 * 1024 ** 3:
+        print(f'  ⚠️  已放宽 2GB 下限（最大片源 {real_max / 1024 ** 3:.2f}GB），取最大版')
 
     # 选版：体积最大者为基准；若存在 -C（内嵌中文字幕）版且体积不低于最大者的 90%，优先选 -C。
     # 理由：-C 是用户明确要保留的内嵌字幕版，体积差 10% 以内不值得为画质放弃字幕。
@@ -108,8 +144,8 @@ async def main():
 
     folder = None
     kids = []
-    for i in range(15):
-        await asyncio.sleep(6)
+    for i in range(60):
+        await asyncio.sleep(10)
         files = (await c.file_list(parent_id=inbox))['files']
         hit = [f for f in files if f['kind'] == 'drive#folder'
                and code_nh in f['name'].upper().replace('-', '')]
@@ -117,11 +153,16 @@ async def main():
             folder = hit[0]
             kids = (await c.file_list(parent_id=folder['id']))['files']
             done = sum(1 for k in kids if str(k.get('phase', '')).startswith('PHASE_TYPE_COMPLETE'))
-            print(f"  第 {(i + 1) * 6}s: {folder['name'][:34]} {done}/{len(kids)}")
+            print(f"  第 {(i + 1) * 10}s: {folder['name'][:34]} {done}/{len(kids)}")
             if kids and done == len(kids):
                 break
     if not folder:
-        raise SystemExit('未见离线文件夹，可能仍在离线中，稍后重跑本脚本可续')
+        # 🚨 原来是 15×6s=90 秒，7.77GB 的 VDD-211 根本来不及，
+        #    于是被误判成失败、被队列拿去换 8 个节点重复提交。
+        #    现在放宽到 60×10s=10 分钟，并且用退出码 3 明确表示「仍在离线中」，
+        #    让上层知道该等一会儿重跑、而不是换节点重提交。
+        print('  未见离线文件夹：可能仍在离线中（大文件常见），稍后重跑本脚本可续')
+        return 3
 
     keep, dele, subs = [], [], []
     print('\n=== 决策表 ===')
